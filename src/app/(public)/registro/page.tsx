@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import { Button, Card, FormField, Input } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { insertMember } from "@/lib/supabase";
 
@@ -56,7 +57,7 @@ export default function RegistroPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-12">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white p-8 shadow-sm">
+      <Card className="mx-auto w-full max-w-2xl p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <h1 className="text-2xl font-bold" style={{ color: "var(--club-primary)" }}>
             Registro de socios - {config.name}
@@ -67,83 +68,64 @@ export default function RegistroPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="full_name" className="text-sm font-medium text-slate-700">
-              Nombre y apellido
-            </label>
-            <input
+          <FormField htmlFor="full_name" label="Nombre y apellido">
+            <Input
               id="full_name"
               value={form.full_name}
               onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
               required
               disabled={isLoading}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <label htmlFor="dni" className="text-sm font-medium text-slate-700">
-              DNI
-            </label>
-            <input
+          <FormField htmlFor="dni" label="DNI">
+            <Input
               id="dni"
               value={form.dni}
               onChange={(event) => setForm((prev) => ({ ...prev, dni: event.target.value }))}
               required
               disabled={isLoading}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium text-slate-700">
-              Email (opcional)
-            </label>
-            <input
+          <FormField htmlFor="email" label="Email (opcional)">
+            <Input
               id="email"
               type="email"
               value={form.email}
               onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
               disabled={isLoading}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <label htmlFor="address" className="text-sm font-medium text-slate-700">
-              Domicilio
-            </label>
-            <input
+          <FormField htmlFor="address" label="Domicilio">
+            <Input
               id="address"
               value={form.address}
               onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
               required
               disabled={isLoading}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-1">
-            <label htmlFor="phone" className="text-sm font-medium text-slate-700">
-              Telefono (opcional)
-            </label>
-            <input
+          <FormField htmlFor="phone" label="Telefono (opcional)">
+            <Input
               id="phone"
               value={form.phone}
               onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
               disabled={isLoading}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
             />
-          </div>
+          </FormField>
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading}
-            className="mt-2 w-full rounded-lg px-4 py-2.5 font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "var(--club-accent)" }}
+            fullWidth
+            variant="accent"
+            size="lg"
           >
             {isLoading ? "Enviando..." : "Enviar registro"}
-          </button>
+          </Button>
         </form>
 
         {sent ? (
@@ -154,7 +136,7 @@ export default function RegistroPage() {
         {errorMessage ? (
           <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>
         ) : null}
-      </div>
+      </Card>
     </main>
   );
 }
