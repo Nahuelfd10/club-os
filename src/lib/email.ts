@@ -3,12 +3,13 @@ import "server-only";
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY;
+const resendFromEmail = process.env.RESEND_FROM_EMAIL ?? "Club <onboarding@resend.dev>";
 
 if (!resendApiKey) {
   console.warn("RESEND_API_KEY no está configurada. El envío de emails quedará deshabilitado.");
 }
 
-const resend = new Resend(resendApiKey);
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 type SendPaymentConfirmationEmailInput = {
   to: string;
@@ -23,12 +24,12 @@ export async function sendPaymentConfirmationEmail({
   amount,
   month,
 }: SendPaymentConfirmationEmailInput) {
-  if (!resendApiKey) {
+  if (!resend) {
     throw new Error("RESEND_API_KEY no configurada");
   }
 
   await resend.emails.send({
-    from: "Club <onboarding@resend.dev>",
+    from: resendFromEmail,
     to,
     subject: "Pago recibido",
     html: `

@@ -15,6 +15,7 @@ export default function AdminSettingsPage() {
   const [clubSettings, setClubSettings] = useState<ClubSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -71,6 +72,39 @@ export default function AdminSettingsPage() {
       setMessage(error instanceof Error ? error.message : uiMessages.settings.saveError);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    setMessage(null);
+    setIsSendingTestEmail(true);
+
+    try {
+      const response = await fetch("/api/test-email", {
+        method: "GET",
+      });
+      const result = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        response?: {
+          data?: { id?: string };
+        };
+      };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error ?? "No se pudo ejecutar el test de email.");
+      }
+
+      const emailId = result.response?.data?.id;
+      setMessage(
+        emailId
+          ? `Test email enviado. Resend ID: ${emailId}`
+          : "Test email ejecutado correctamente."
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo ejecutar el test de email.");
+    } finally {
+      setIsSendingTestEmail(false);
     }
   };
 
@@ -192,24 +226,34 @@ export default function AdminSettingsPage() {
             />
           </div>
 
-          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-            <input
-              type="checkbox"
-              checked={clubSettings.send_payment_confirmation_email}
-              onChange={(event) =>
-                setClubSettings((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        send_payment_confirmation_email: event.target.checked,
-                      }
-                    : prev
-                )
-              }
-              className="h-4 w-4"
-            />
-            <span className="text-sm text-slate-700">Enviar email automático al registrar pagos</span>
-          </label>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={clubSettings.send_payment_confirmation_email}
+                onChange={(event) =>
+                  setClubSettings((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          send_payment_confirmation_email: event.target.checked,
+                        }
+                      : prev
+                  )
+                }
+                className="h-4 w-4"
+              />
+              <span className="text-sm text-slate-700">Enviar email automático al registrar pagos</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleTestEmail()}
+              disabled={isSendingTestEmail}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSendingTestEmail ? "Enviando test..." : "Test email"}
+            </button>
+          </div>
 
           <button
             type="submit"
