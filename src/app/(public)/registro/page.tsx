@@ -1,0 +1,160 @@
+"use client";
+
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+
+import { useActiveClubConfig } from "@/config/use-active-club-config";
+import { insertMember } from "@/lib/supabase";
+
+type MemberForm = {
+  full_name: string;
+  email: string;
+  dni: string;
+  address: string;
+  phone: string;
+};
+
+const initialForm: MemberForm = {
+  full_name: "",
+  email: "",
+  dni: "",
+  address: "",
+  phone: "",
+};
+
+export default function RegistroPage() {
+  const { config } = useActiveClubConfig();
+  const [form, setForm] = useState<MemberForm>(initialForm);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSent(false);
+    setErrorMessage(null);
+    setIsLoading(true);
+
+    const payload = {
+      ...form,
+      email: form.email.trim() || undefined,
+      phone: form.phone || undefined,
+      status: "pending" as const,
+    };
+
+    try {
+      await insertMember(payload);
+      setSent(true);
+      setForm(initialForm);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo guardar el registro.";
+      setErrorMessage(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-6 py-12">
+      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white p-8 shadow-sm">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold" style={{ color: "var(--club-primary)" }}>
+            Registro de socios - {config.name}
+          </h1>
+          <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+            Volver
+          </Link>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label htmlFor="full_name" className="text-sm font-medium text-slate-700">
+              Nombre y apellido
+            </label>
+            <input
+              id="full_name"
+              value={form.full_name}
+              onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
+              required
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="dni" className="text-sm font-medium text-slate-700">
+              DNI
+            </label>
+            <input
+              id="dni"
+              value={form.dni}
+              onChange={(event) => setForm((prev) => ({ ...prev, dni: event.target.value }))}
+              required
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="email" className="text-sm font-medium text-slate-700">
+              Email (opcional)
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={form.email}
+              onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="address" className="text-sm font-medium text-slate-700">
+              Domicilio
+            </label>
+            <input
+              id="address"
+              value={form.address}
+              onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+              required
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="phone" className="text-sm font-medium text-slate-700">
+              Telefono (opcional)
+            </label>
+            <input
+              id="phone"
+              value={form.phone}
+              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none ring-0 transition-colors focus:border-slate-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="mt-2 w-full rounded-lg px-4 py-2.5 font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "var(--club-accent)" }}
+          >
+            {isLoading ? "Enviando..." : "Enviar registro"}
+          </button>
+        </form>
+
+        {sent ? (
+          <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            Registro enviado correctamente.
+          </p>
+        ) : null}
+        {errorMessage ? (
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>
+        ) : null}
+      </div>
+    </main>
+  );
+}
