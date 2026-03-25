@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import type { CSSProperties } from "react";
 
 import { getActiveClubConfig } from "@/config/active-club";
 import "@/styles/globals.css";
@@ -29,16 +28,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const config = await getActiveClubConfig();
-  const clubThemeVars: CSSProperties = {
-    "--club-primary": config.primary_color,
-    "--club-secondary": config.secondary_color,
-    "--club-accent": config.accent_color,
-  } as CSSProperties;
-
   return (
     <html lang="es" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body style={clubThemeVars} className="flex min-h-full flex-col">
+      <body className="flex min-h-full flex-col">
         {children}
       </body>
     </html>

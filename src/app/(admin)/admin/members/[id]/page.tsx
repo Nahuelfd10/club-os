@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Badge } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
+import { formatMoney } from "@/lib/formatters";
 import {
   createPayment,
   deletePayment,
@@ -43,6 +45,29 @@ const formatMonthLabel = (month: string) => {
   const date = new Date(year, monthNumber - 1, 1);
   return date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
 };
+
+type InfoIconName = "email" | "phone" | "location" | "calendar" | "id";
+
+function InfoIcon({ name }: { name: InfoIconName }) {
+  const pathByName: Record<InfoIconName, string> = {
+    email:
+      "M3.75 5.25h16.5A1.5 1.5 0 0 1 21.75 6.75v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5 8.25 5.25 8.25-5.25",
+    phone:
+      "M2.25 4.5c0-.828.672-1.5 1.5-1.5h2.379a1.5 1.5 0 0 1 1.455 1.139l.632 2.527a1.5 1.5 0 0 1-.405 1.443L6.692 9.23a12 12 0 0 0 5.077 5.077l1.121-1.119a1.5 1.5 0 0 1 1.443-.405l2.527.632a1.5 1.5 0 0 1 1.139 1.455v2.379c0 .828-.672 1.5-1.5 1.5h-.75C8.708 18.75 2.25 12.292 2.25 4.5Z",
+    location:
+      "M12 2.25a6 6 0 0 1 6 6c0 4.457-4.05 8.477-5.405 9.684a.9.9 0 0 1-1.19 0C10.05 16.727 6 12.707 6 8.25a6 6 0 0 1 6-6Zm0 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z",
+    calendar:
+      "M6.75 2.25a.75.75 0 0 1 .75.75V4.5h9V3a.75.75 0 0 1 1.5 0V4.5h1.5A2.25 2.25 0 0 1 21.75 6.75v11.25A2.25 2.25 0 0 1 19.5 20.25h-15A2.25 2.25 0 0 1 2.25 18V6.75A2.25 2.25 0 0 1 4.5 4.5H6V3a.75.75 0 0 1 .75-.75ZM3.75 9.75v8.25c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75V9.75h-17.5Z",
+    id:
+      "M3.75 5.25A2.25 2.25 0 0 1 6 3h12a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 18 21H6a2.25 2.25 0 0 1-2.25-2.25V5.25Zm3.75 2.25h9M7.5 11.25h5.25M7.5 15h3",
+  };
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
+      <path d={pathByName[name]} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
@@ -120,7 +145,7 @@ export default function MemberDetailPage() {
 
   const totalDebtAmount = pendingDebtMonths.length * monthlyFee;
 
-  const loadMemberData = async () => {
+  const loadMemberData = useCallback(async () => {
     if (!memberId) {
       return;
     }
@@ -149,11 +174,11 @@ export default function MemberDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [memberId]);
 
   useEffect(() => {
     void loadMemberData();
-  }, [memberId]);
+  }, [loadMemberData]);
 
   const handleSave = async () => {
     if (!member) {
@@ -260,18 +285,18 @@ export default function MemberDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto w-full max-w-5xl rounded-2xl bg-white p-6 shadow-sm">
+      <section>
+        <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <p className="text-slate-600">Cargando detalle del socio...</p>
         </div>
-      </main>
+      </section>
     );
   }
 
   if (!member) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto w-full max-w-5xl rounded-2xl bg-white p-6 shadow-sm">
+      <section>
+        <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <p className="text-slate-700">No se encontro el socio solicitado.</p>
           <Link
             href="/admin/socios"
@@ -280,12 +305,12 @@ export default function MemberDetailPage() {
             Volver a socios
           </Link>
         </div>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <section>
       <div className="mx-auto w-full max-w-5xl space-y-5">
         <nav className="rounded-xl bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
           <Link href="/admin" className="font-medium hover:text-slate-900">
@@ -300,53 +325,83 @@ export default function MemberDetailPage() {
         </nav>
 
         <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="mb-2">
+            <Link
+              href="/admin/socios"
+              className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
+                <path d="M15.75 18.75 9 12l6.75-6.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Volver
+            </Link>
+          </div>
+
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold" style={{ color: "var(--club-primary)" }}>
-              Detalle de socio
-            </h1>
-            <div className="flex items-center gap-2">
-              <Link href="/admin/socios" className="text-sm text-slate-600 hover:text-slate-900">
-                Volver
-              </Link>
-              {!isEditing ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="rounded-md px-3 py-1.5 text-sm font-semibold text-white"
-                  style={{ backgroundColor: "var(--club-primary)" }}
-                >
-                  Editar
-                </button>
-              ) : null}
+            <h1 className="text-2xl font-semibold text-slate-900">Detalle de socio</h1>
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
+              >
+                Editar
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">{member.full_name}</h2>
+              <div className="mt-2">
+                {member.status === "active" ? (
+                  <Badge variant="success">Activo</Badge>
+                ) : (
+                  <Badge variant="warning">Pendiente</Badge>
+                )}
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
+              <InfoIcon name="calendar" />
+              <span className="font-medium">Registro</span>
+              <span className="font-semibold text-slate-900">
+                {new Date(member.created_at).toLocaleDateString("es-AR")}
+              </span>
             </div>
           </div>
 
-          {!isEditing ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Nombre:</span> {member.full_name}
+          <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <article className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
+                <InfoIcon name="email" />
+                Email
               </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">DNI:</span> {member.dni}
+              <p className="text-sm font-semibold text-slate-900">{member.email || "-"}</p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
+                <InfoIcon name="phone" />
+                Telefono
               </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Email:</span> {member.email || "-"}
+              <p className="text-sm font-semibold text-slate-900">{member.phone || "-"}</p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
+                <InfoIcon name="location" />
+                Direccion
               </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Direccion:</span> {member.address}
+              <p className="text-sm font-semibold text-slate-900">{member.address}</p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
+                <InfoIcon name="id" />
+                DNI
               </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Telefono:</span> {member.phone || "-"}
-              </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Estado:</span> {member.status}
-              </p>
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">Fecha de creacion:</span>{" "}
-                {new Date(member.created_at).toLocaleString("es-AR")}
-              </p>
-            </div>
-          ) : (
+              <p className="text-sm font-semibold text-slate-900">{member.dni}</p>
+            </article>
+          </div>
+
+          {!isEditing ? null : (
             <div className="space-y-3">
               <div>
                 <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-slate-700">
@@ -428,13 +483,16 @@ export default function MemberDetailPage() {
         ) : null}
 
         <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold" style={{ color: "var(--club-primary)" }}>
-            Estado y pagos mensuales
-          </h2>
+          <h2 className="mb-4 text-xl font-semibold text-slate-900">Estado y pagos mensuales</h2>
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-2">
             <p className="text-sm text-slate-700">
-              <span className="font-semibold">Deuda total:</span> ${totalDebtAmount}
+              <span className="font-semibold">Deuda total:</span>{" "}
+              {totalDebtAmount > 0 ? (
+                <Badge variant="danger">{formatMoney(totalDebtAmount)}</Badge>
+              ) : (
+                <Badge variant="success">{formatMoney(0)}</Badge>
+              )}
             </p>
             {member.status === "active" && pendingDebtMonths.length > 0 ? (
               <button
@@ -479,10 +537,20 @@ export default function MemberDetailPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
-                        {member.status === "pending" ? "No aplica" : isPaid ? "Pagado" : "Debe"}
+                        {member.status === "pending" ? (
+                          <Badge variant="slate">No aplica</Badge>
+                        ) : isPaid ? (
+                          <Badge variant="success">Pagado</Badge>
+                        ) : (
+                          <Badge variant="danger">Debe</Badge>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
-                        {member.status === "pending" ? "-" : payment ? `$${payment.amount}` : `$${monthlyFee}`}
+                        {member.status === "pending"
+                          ? "-"
+                          : payment
+                            ? formatMoney(payment.amount)
+                            : formatMoney(monthlyFee)}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         {payment?.paid_at ? new Date(payment.paid_at).toLocaleString("es-AR") : "-"}
@@ -520,6 +588,6 @@ export default function MemberDetailPage() {
           </div>
         </section>
       </div>
-    </main>
+    </section>
   );
 }

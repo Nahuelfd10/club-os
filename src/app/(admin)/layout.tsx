@@ -3,6 +3,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AdminShell } from "@/components/admin/admin-shell";
+
 const hasAdminSession = () => {
   return localStorage.getItem("isAdminLogged") === "true";
 };
@@ -54,5 +56,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  return <>{children}</>;
+  if (isLoginRoute) {
+    return <>{children}</>;
+  }
+
+  return <AdminShell>{children}</AdminShell>;
 }

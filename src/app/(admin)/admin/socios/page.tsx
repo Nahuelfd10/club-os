@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Badge, Button, Card, Input } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { createPayment, listMembers, listPayments, updateMemberStatus } from "@/lib/supabase";
 import { uiMessages } from "@/lib/ui-messages";
@@ -216,43 +218,24 @@ export default function SociosPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAdminLogged");
-    window.dispatchEvent(new Event("admin-auth-change"));
-    router.replace("/admin/login");
-  };
-
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto w-full max-w-5xl rounded-2xl bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold" style={{ color: "var(--club-primary)" }}>
-            {isConfigLoading ? "Cargando configuracion..." : `Socios - ${config.name}`}
-          </h1>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => router.push("/admin")}
-              className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-300"
-            >
-              Dashboard
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/admin/settings")}
-              className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-300"
-            >
-              Configuracion
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-300"
-            >
-              Salir
-            </button>
-          </div>
+    <section className="space-y-4">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Socios</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`}
+          </p>
         </div>
+        <Link
+          href="/registro"
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          Anadir socio
+        </Link>
+      </header>
+
+      <Card className="w-full p-6">
 
         {isLoading ? <p className="mt-4 text-slate-600">Cargando socios...</p> : null}
 
@@ -291,7 +274,7 @@ export default function SociosPage() {
                 onClick={() => setStatusFilter("all")}
                 className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
                 style={{
-                  backgroundColor: statusFilter === "all" ? "var(--club-primary)" : "#64748b",
+                  backgroundColor: statusFilter === "all" ? "#0f172a" : "#64748b",
                 }}
               >
                 Todos
@@ -301,7 +284,7 @@ export default function SociosPage() {
                 onClick={() => setStatusFilter("pending")}
                 className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
                 style={{
-                  backgroundColor: statusFilter === "pending" ? "var(--club-primary)" : "#64748b",
+                  backgroundColor: statusFilter === "pending" ? "#0f172a" : "#64748b",
                 }}
               >
                 Pendientes
@@ -311,7 +294,7 @@ export default function SociosPage() {
                 onClick={() => setStatusFilter("active")}
                 className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
                 style={{
-                  backgroundColor: statusFilter === "active" ? "var(--club-primary)" : "#64748b",
+                  backgroundColor: statusFilter === "active" ? "#0f172a" : "#64748b",
                 }}
               >
                 Activos
@@ -319,12 +302,12 @@ export default function SociosPage() {
             </div>
 
             <div>
-              <input
+              <Input
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Buscar por nombre o DNI"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+                className="text-sm"
               />
             </div>
 
@@ -365,9 +348,21 @@ export default function SociosPage() {
                           >
                             <td className="px-3 py-2 text-slate-900">{member.full_name}</td>
                             <td className="px-3 py-2 text-slate-700">{member.dni}</td>
-                            <td className="px-3 py-2 text-slate-700">{member.status}</td>
                             <td className="px-3 py-2 text-slate-700">
-                              {member.status === "pending" ? "No aplica" : debtLabel}
+                              {member.status === "active" ? (
+                                <Badge variant="success">Activo</Badge>
+                              ) : (
+                                <Badge variant="warning">Pendiente</Badge>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {member.status === "pending" ? (
+                                <Badge variant="slate">No aplica</Badge>
+                              ) : isInDebt ? (
+                                <Badge variant="danger">{debtLabel}</Badge>
+                              ) : (
+                                <Badge variant="success">{debtLabel}</Badge>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-slate-700">
                               {new Date(member.created_at).toLocaleString("es-AR")}
@@ -381,8 +376,7 @@ export default function SociosPage() {
                                     void handleApprove(member.id);
                                   }}
                                   disabled={approvingId === member.id}
-                                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                                  style={{ backgroundColor: "var(--club-primary)" }}
+                                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
                                   {approvingId === member.id ? "Aprobando..." : "Aprobar"}
                                 </button>
@@ -395,7 +389,7 @@ export default function SociosPage() {
                                     openPaymentModal(member.id);
                                   }}
                                   disabled={payingId === member.id}
-                                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
                                   Registrar pago
                                 </button>
@@ -411,7 +405,7 @@ export default function SociosPage() {
             )}
           </div>
         ) : null}
-      </div>
+      </Card>
 
       {paymentModalMemberId ? (
         <div
@@ -422,7 +416,7 @@ export default function SociosPage() {
             className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl md:rounded-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold" style={{ color: "var(--club-primary)" }}>
+            <h2 className="text-lg font-semibold text-slate-900">
               Registrar pago
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -448,26 +442,28 @@ export default function SociosPage() {
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={closePaymentModal}
                 disabled={payingId === paymentModalMemberId}
-                className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 disabled:opacity-70"
+                variant="neutral"
+                size="md"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => void handleRegisterPayment(paymentModalMemberId, selectedPaymentMonth)}
                 disabled={payingId === paymentModalMemberId || !selectedPaymentMonth}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                size="md"
+                style={{ backgroundColor: "#059669" }}
               >
                 {payingId === paymentModalMemberId ? "Registrando..." : "Confirmar"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       ) : null}
-    </main>
+    </section>
   );
 }

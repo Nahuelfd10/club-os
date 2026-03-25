@@ -35,9 +35,7 @@ export default function AdminLoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <Card className="w-full max-w-sm p-6">
-        <h1 className="text-2xl font-semibold" style={{ color: "var(--club-primary)" }}>
-          Login Admin
-        </h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Login Admin</h1>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <FormField htmlFor="username" label="Usuario">

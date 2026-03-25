@@ -4,6 +4,8 @@ import { getSupabaseClient } from "@/lib/supabase";
 type DashboardStats = {
   totalMembers: number;
   activeMembers: number;
+  pendingMembers: number;
+  monthlyFee: number;
   monthlyIncome: number;
   totalDebt: number;
   nextMonthProjectedIncome: number;
@@ -11,9 +13,24 @@ type DashboardStats = {
   incomeChange: number;
   incomeChangePercent: number;
   lastMonthIncome: number;
+  recentMonthlyIncome: Array<{
+    month: string;
+    income: number;
+  }>;
+  topDebtMembers: Array<{
+    memberId: string;
+    fullName: string;
+    debtAmount: number;
+    debtMonths: number;
+  }>;
 };
 
 const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
+const getRecentMonths = (now: Date, total: number) =>
+  Array.from({ length: total }, (_, idx) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (total - 1 - idx), 1);
+    return formatMonth(date);
+  });
 
 const countMonthsFromCreationToNow = (createdAt: string, now: Date) => {
   const createdDate = new Date(createdAt);
@@ -29,81 +46,106 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const currentMonth = formatMonth(now);
   const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const previousMonth = formatMonth(previousMonthDate);
+  const recentMonths = getRecentMonths(now, 6);
 
   const [
-    { count: totalMembersCount, error: totalMembersError },
-    { count: activeMembersCount, error: activeMembersError },
-    { data: currentMonthPayments, error: currentMonthPaymentsError },
-    { data: previousMonthPayments, error: previousMonthPaymentsError },
-    { data: summaryRows, error: summaryError },
+    { data: membersRows, error: membersError },
+    { data: allPaymentsRows, error: allPaymentsError },
     { data: clubSettings, error: clubSettingsError },
   ] = await Promise.all([
-    supabase.from("members").select("*", { count: "exact", head: true }),
-    supabase.from("members").select("*", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("payments").select("amount").eq("month", currentMonth),
-    supabase.from("payments").select("amount").eq("month", previousMonth),
-    supabase.from("member_payment_summary").select("created_at, payments_count"),
+    supabase.from("members").select("id, full_name, status, created_at"),
+    supabase.from("payments").select("member_id, month, amount"),
     supabase.from("club_settings").select("monthly_fee").single(),
   ]);
 
-  if (totalMembersError) {
-    throw totalMembersError;
+  if (membersError) {
+    throw membersError;
   }
-  if (activeMembersError) {
-    throw activeMembersError;
-  }
-  if (currentMonthPaymentsError) {
-    throw currentMonthPaymentsError;
-  }
-  if (previousMonthPaymentsError) {
-    throw previousMonthPaymentsError;
-  }
-  if (summaryError) {
-    throw summaryError;
+  if (allPaymentsError) {
+    throw allPaymentsError;
   }
   if (clubSettingsError && (clubSettingsError as { code?: string }).code !== "PGRST116") {
     throw clubSettingsError;
   }
 
-  const sumPaymentAmounts = (payments: Array<{ amount: number | string | null }> | null | undefined) =>
-    (payments ?? []).reduce((sum, payment) => {
-      const amount = typeof payment.amount === "number" ? payment.amount : Number(payment.amount ?? 0);
-      return sum + (Number.isNaN(amount) ? 0 : amount);
-    }, 0);
-
-  const monthlyIncome = sumPaymentAmounts(currentMonthPayments);
-  const lastMonthIncome = sumPaymentAmounts(previousMonthPayments);
-
   const monthlyFee =
     typeof clubSettings?.monthly_fee === "number" ? clubSettings.monthly_fee : clubConfig.monthlyFee;
 
+  const members = (membersRows ?? []) as Array<{
+    id: string;
+    full_name: string;
+    status: "pending" | "active";
+    created_at: string;
+  }>;
+  const monthlyIncomeMap = new Map<string, number>(recentMonths.map((month) => [month, 0]));
+  monthlyIncomeMap.set(currentMonth, monthlyIncomeMap.get(currentMonth) ?? 0);
+  monthlyIncomeMap.set(previousMonth, monthlyIncomeMap.get(previousMonth) ?? 0);
+  const paymentsByMemberId = new Map<string, number>();
+
+  for (const row of allPaymentsRows ?? []) {
+    if (row.member_id) {
+      paymentsByMemberId.set(row.member_id, (paymentsByMemberId.get(row.member_id) ?? 0) + 1);
+    }
+
+    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
+    if (Number.isNaN(amount)) {
+      continue;
+    }
+
+    monthlyIncomeMap.set(row.month, (monthlyIncomeMap.get(row.month) ?? 0) + amount);
+  }
+
+  const monthlyIncome = monthlyIncomeMap.get(currentMonth) ?? 0;
+  const lastMonthIncome = monthlyIncomeMap.get(previousMonth) ?? 0;
+  const recentMonthlyIncome = recentMonths.map((month) => ({
+    month,
+    income: monthlyIncomeMap.get(month) ?? 0,
+  }));
+
+  const activeMembersRows = members.filter((member) => member.status === "active");
+  const pendingMembers = members.filter((member) => member.status === "pending").length;
+
   let membersWithDebt = 0;
-  const totalDebt = (summaryRows ?? []).reduce((sum, row) => {
-    const createdAt = row.created_at;
+  const debtRows: Array<{
+    memberId: string;
+    fullName: string;
+    debtAmount: number;
+    debtMonths: number;
+  }> = [];
+  const totalDebt = activeMembersRows.reduce((sum, member) => {
+    const createdAt = member.created_at;
     if (!createdAt) {
       return sum;
     }
 
     const monthsExpected = countMonthsFromCreationToNow(createdAt, now);
-    const paymentsCount =
-      typeof row.payments_count === "number" ? row.payments_count : Number(row.payments_count ?? 0);
+    const paymentsCount = paymentsByMemberId.get(member.id) ?? 0;
     const debtMonths = Math.max(0, monthsExpected - (Number.isNaN(paymentsCount) ? 0 : paymentsCount));
     if (debtMonths > 0) {
       membersWithDebt += 1;
+      debtRows.push({
+        memberId: member.id,
+        fullName: member.full_name,
+        debtAmount: debtMonths * monthlyFee,
+        debtMonths,
+      });
     }
 
     return sum + debtMonths * monthlyFee;
   }, 0);
+  const topDebtMembers = debtRows.sort((a, b) => b.debtAmount - a.debtAmount).slice(0, 4);
 
-  const activeMembers = activeMembersCount ?? 0;
+  const activeMembers = activeMembersRows.length;
   const nextMonthProjectedIncome = activeMembers * monthlyFee;
   const incomeChange = monthlyIncome - lastMonthIncome;
   const incomeChangePercent =
     lastMonthIncome > 0 ? (incomeChange / lastMonthIncome) * 100 : monthlyIncome > 0 ? 100 : 0;
 
   return {
-    totalMembers: totalMembersCount ?? 0,
+    totalMembers: members.length,
     activeMembers,
+    pendingMembers,
+    monthlyFee,
     monthlyIncome,
     totalDebt,
     nextMonthProjectedIncome,
@@ -111,5 +153,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     incomeChange,
     incomeChangePercent,
     lastMonthIncome,
+    recentMonthlyIncome,
+    topDebtMembers,
   };
 }

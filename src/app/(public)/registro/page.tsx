@@ -59,9 +59,7 @@ export default function RegistroPage() {
     <main className="min-h-screen bg-slate-50 px-6 py-12">
       <Card className="mx-auto w-full max-w-2xl p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold" style={{ color: "var(--club-primary)" }}>
-            Registro de socios - {config.name}
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Registro de socios - {config.name}</h1>
           <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">
             Volver
           </Link>
