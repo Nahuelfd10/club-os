@@ -67,7 +67,7 @@ export default async function AdminDashboardPage() {
               return (
                 <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
                   <div className="text-[11px] font-medium text-slate-500">{formatMoney(item.income)}</div>
-                  <div className="flex h-40 w-full items-end">
+                  <div className="flex h-36 w-full items-end">
                     <div
                       className="w-full rounded-t-md bg-indigo-500/90"
                       style={{ height: `${heightPercent}%` }}

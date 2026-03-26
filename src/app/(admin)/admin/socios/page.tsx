@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge, Button, Card, Input } from "@/components/ui";
@@ -18,6 +18,9 @@ type MemberRow = {
 };
 
 type StatusFilter = "all" | "pending" | "active";
+
+/** Filtro por columna Pago: deuda mensual vs al día vs socios pendientes (no aplica). */
+type PaymentFilter = "all" | "in_debt" | "up_to_date" | "na";
 
 type PaymentRow = {
   member_id: string;
@@ -57,6 +60,7 @@ export default function SociosPage() {
   const [paymentMonthOptions, setPaymentMonthOptions] = useState<string[]>([]);
   const [selectedPaymentMonth, setSelectedPaymentMonth] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -66,22 +70,7 @@ export default function SociosPage() {
   const pendingMembers = members.filter((member) => member.status === "pending").length;
   const activeMembers = members.filter((member) => member.status === "active").length;
 
-  const filteredMembers = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    return members.filter((member) => {
-      const matchesStatus = statusFilter === "all" ? true : member.status === statusFilter;
-      const matchesSearch =
-        normalizedSearch.length === 0
-          ? true
-          : member.full_name.toLowerCase().includes(normalizedSearch) ||
-            member.dni.toLowerCase().includes(normalizedSearch);
-
-      return matchesStatus && matchesSearch;
-    });
-  }, [members, searchTerm, statusFilter]);
-
-  const getMonthOptionsForMember = (member: MemberRow): MemberMonthOptions => {
+  const getMonthOptionsForMember = useCallback((member: MemberRow): MemberMonthOptions => {
     const memberPayments = payments
       .filter((payment) => payment.member_id === member.id)
       .map((payment) => payment.month);
@@ -109,7 +98,32 @@ export default function SociosPage() {
       paidMonths,
       debtMonthsCount: unpaidMonths.length,
     };
-  };
+  }, [payments, currentMonth]);
+
+  const filteredMembers = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return members.filter((member) => {
+      const matchesStatus = statusFilter === "all" ? true : member.status === statusFilter;
+      const matchesSearch =
+        normalizedSearch.length === 0
+          ? true
+          : member.full_name.toLowerCase().includes(normalizedSearch) ||
+            member.dni.toLowerCase().includes(normalizedSearch);
+
+      const { debtMonthsCount } = getMonthOptionsForMember(member);
+      const matchesPayment =
+        paymentFilter === "all"
+          ? true
+          : paymentFilter === "na"
+            ? member.status === "pending"
+            : paymentFilter === "in_debt"
+              ? member.status === "active" && debtMonthsCount > 0
+              : member.status === "active" && debtMonthsCount === 0;
+
+      return matchesStatus && matchesSearch && matchesPayment;
+    });
+  }, [members, searchTerm, statusFilter, paymentFilter, getMonthOptionsForMember]);
 
   const openPaymentModal = (memberId: string) => {
     const member = members.find((item) => item.id === memberId);
@@ -268,37 +282,77 @@ export default function SociosPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setStatusFilter("all")}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
-                style={{
-                  backgroundColor: statusFilter === "all" ? "#0f172a" : "#64748b",
-                }}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter("pending")}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
-                style={{
-                  backgroundColor: statusFilter === "pending" ? "#0f172a" : "#64748b",
-                }}
-              >
-                Pendientes
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter("active")}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
-                style={{
-                  backgroundColor: statusFilter === "active" ? "#0f172a" : "#64748b",
-                }}
-              >
-                Activos
-              </button>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Filtros
+              </p>
+              <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-8 lg:gap-y-3">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <span className="shrink-0 text-sm font-medium text-slate-600">Estado</span>
+                  <div
+                    className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+                    role="group"
+                    aria-label="Filtrar por estado del socio"
+                  >
+                    {(
+                      [
+                        ["all", "Todos"],
+                        ["pending", "Pendientes"],
+                        ["active", "Activos"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setStatusFilter(value)}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          statusFilter === value
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block"
+                  aria-hidden
+                />
+
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <span className="shrink-0 text-sm font-medium text-slate-600">Pago</span>
+                  <div
+                    className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+                    role="group"
+                    aria-label="Filtrar por situacion de pago"
+                  >
+                    {(
+                      [
+                        ["all", "Todos"],
+                        ["in_debt", "Deben"],
+                        ["up_to_date", "Al dia"],
+                        ["na", "No aplica"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setPaymentFilter(value)}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                          paymentFilter === value
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div>

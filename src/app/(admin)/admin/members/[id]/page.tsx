@@ -75,7 +75,7 @@ export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
   const memberId = params?.id ?? "";
   const currentMonth = formatMonth(new Date());
-  const { config } = useActiveClubConfig();
+  const { config, isConfigLoading } = useActiveClubConfig();
   const monthlyFee = config.monthly_fee || 1000;
 
   const [member, setMember] = useState<Member | null>(null);
@@ -294,8 +294,8 @@ export default function MemberDetailPage() {
 
   if (isLoading) {
     return (
-      <section>
-        <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+      <section className="space-y-6">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <p className="text-slate-600">Cargando detalle del socio...</p>
         </div>
       </section>
@@ -304,12 +304,12 @@ export default function MemberDetailPage() {
 
   if (!member) {
     return (
-      <section>
-        <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+      <section className="space-y-6">
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <p className="text-slate-700">No se encontro el socio solicitado.</p>
           <Link
             href="/admin/socios"
-            className="mt-3 inline-block text-sm text-slate-600 hover:text-slate-900"
+            className="mt-3 inline-block text-sm font-medium text-slate-600 hover:text-slate-900"
           >
             Volver a socios
           </Link>
@@ -319,67 +319,65 @@ export default function MemberDetailPage() {
   }
 
   return (
-    <section>
-      <div className="mx-auto w-full max-w-5xl space-y-5">
-        <nav className="rounded-xl bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-          <Link href="/admin" className="font-medium hover:text-slate-900">
-            Dashboard
-          </Link>
-          <span className="mx-2">/</span>
-          <Link href="/admin/socios" className="font-medium hover:text-slate-900">
-            Socios
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="font-medium text-slate-900">Socio</span>
-        </nav>
+    <section className="space-y-6">
+      <div>
+        <Link
+          href="/admin/socios"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
+            <path d="M15.75 18.75 9 12l6.75-6.75" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Volver a socios
+        </Link>
+      </div>
 
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="mb-2">
-            <Link
-              href="/admin/socios"
-              className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-                <path d="M15.75 18.75 9 12l6.75-6.75" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Volver
-            </Link>
-          </div>
+      <header className="flex flex-wrap items-end justify-between gap-3 mt-[-24px]">
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900">
+            {member.full_name}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {isConfigLoading ? "Cargando..." : `Perfil y pagos · ${config.name}`}
+          </p>
+        </div>
+        {!isEditing ? (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Editar
+          </button>
+        ) : null}
+      </header>
 
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-slate-900">Detalle de socio</h1>
-            {!isEditing ? (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
-              >
-                Editar
-              </button>
-            ) : null}
-          </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          <span className="font-semibold text-slate-800">Estado</span>
+          {member.status === "active" ? (
+            <Badge variant="success">Activo</Badge>
+          ) : (
+            <Badge variant="warning">Pendiente</Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          <InfoIcon name="calendar" />
+          <span className="font-semibold text-slate-800">Registro</span>
+          <span className="font-medium text-slate-900">
+            {new Date(member.created_at).toLocaleDateString("es-AR")}
+          </span>
+        </div>
+        <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+          <span className="font-semibold text-slate-800">DNI</span>{" "}
+          <span className="font-medium text-slate-900">{member.dni}</span>
+        </div>
+      </div>
 
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">{member.full_name}</h2>
-              <div className="mt-2">
-                {member.status === "active" ? (
-                  <Badge variant="success">Activo</Badge>
-                ) : (
-                  <Badge variant="warning">Pendiente</Badge>
-                )}
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
-              <InfoIcon name="calendar" />
-              <span className="font-medium">Registro</span>
-              <span className="font-semibold text-slate-900">
-                {new Date(member.created_at).toLocaleDateString("es-AR")}
-              </span>
-            </div>
-          </div>
-
-          <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Datos de contacto</h2>
+        {!isEditing ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <article className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
                 <InfoIcon name="email" />
@@ -409,8 +407,7 @@ export default function MemberDetailPage() {
               <p className="text-sm font-semibold text-slate-900">{member.dni}</p>
             </article>
           </div>
-
-          {!isEditing ? null : (
+        ) : (
             <div className="space-y-3">
               <div>
                 <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-slate-700">
@@ -484,15 +481,15 @@ export default function MemberDetailPage() {
                 </button>
               </div>
             </div>
-          )}
-        </section>
+        )}
+      </section>
 
-        {actionMessage ? (
-          <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
-        ) : null}
+      {actionMessage ? (
+        <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
+      ) : null}
 
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-semibold text-slate-900">Estado y pagos mensuales</h2>
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Estado y pagos mensuales</h2>
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-2">
             <p className="text-sm text-slate-700">
@@ -655,7 +652,6 @@ export default function MemberDetailPage() {
             </table>
           </div>
         </section>
-      </div>
     </section>
   );
 }
