@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  Calendar,
+  ChevronLeft,
+  FileText,
+  IdCard,
+  type LucideIcon,
+  Mail,
+  MapPin,
+  Phone,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -50,25 +60,17 @@ const formatMonthLabel = (month: string) => {
 
 type InfoIconName = "email" | "phone" | "location" | "calendar" | "id";
 
-function InfoIcon({ name }: { name: InfoIconName }) {
-  const pathByName: Record<InfoIconName, string> = {
-    email:
-      "M3.75 5.25h16.5A1.5 1.5 0 0 1 21.75 6.75v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5 8.25 5.25 8.25-5.25",
-    phone:
-      "M2.25 4.5c0-.828.672-1.5 1.5-1.5h2.379a1.5 1.5 0 0 1 1.455 1.139l.632 2.527a1.5 1.5 0 0 1-.405 1.443L6.692 9.23a12 12 0 0 0 5.077 5.077l1.121-1.119a1.5 1.5 0 0 1 1.443-.405l2.527.632a1.5 1.5 0 0 1 1.139 1.455v2.379c0 .828-.672 1.5-1.5 1.5h-.75C8.708 18.75 2.25 12.292 2.25 4.5Z",
-    location:
-      "M12 2.25a6 6 0 0 1 6 6c0 4.457-4.05 8.477-5.405 9.684a.9.9 0 0 1-1.19 0C10.05 16.727 6 12.707 6 8.25a6 6 0 0 1 6-6Zm0 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z",
-    calendar:
-      "M6.75 2.25a.75.75 0 0 1 .75.75V4.5h9V3a.75.75 0 0 1 1.5 0V4.5h1.5A2.25 2.25 0 0 1 21.75 6.75v11.25A2.25 2.25 0 0 1 19.5 20.25h-15A2.25 2.25 0 0 1 2.25 18V6.75A2.25 2.25 0 0 1 4.5 4.5H6V3a.75.75 0 0 1 .75-.75ZM3.75 9.75v8.25c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75V9.75h-17.5Z",
-    id:
-      "M3.75 5.25A2.25 2.25 0 0 1 6 3h12a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 18 21H6a2.25 2.25 0 0 1-2.25-2.25V5.25Zm3.75 2.25h9M7.5 11.25h5.25M7.5 15h3",
-  };
+const infoIconByName: Record<InfoIconName, LucideIcon> = {
+  email: Mail,
+  phone: Phone,
+  location: MapPin,
+  calendar: Calendar,
+  id: IdCard,
+};
 
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path d={pathByName[name]} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function InfoIcon({ name }: { name: InfoIconName }) {
+  const Icon = infoIconByName[name];
+  return <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden />;
 }
 
 export default function MemberDetailPage() {
@@ -325,9 +327,7 @@ export default function MemberDetailPage() {
           href="/admin/socios"
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-            <path d="M15.75 18.75 9 12l6.75-6.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
           Volver a socios
         </Link>
       </div>
@@ -616,17 +616,11 @@ export default function MemberDetailPage() {
                                 className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
                                 title="Descargar comprobante PDF"
                               >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  className="h-3.5 w-3.5 shrink-0 fill-none stroke-current stroke-[1.8]"
+                                <FileText
+                                  className="h-3.5 w-3.5 shrink-0"
+                                  strokeWidth={1.8}
                                   aria-hidden
-                                >
-                                  <path
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
+                                />
                                 Comprobante
                               </button>
                             ) : null}

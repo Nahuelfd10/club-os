@@ -1,5 +1,6 @@
 "use client";
 
+import { House, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -86,9 +87,7 @@ export function AdminShell({ children }: AdminShellProps) {
               href="/"
               className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-                <path d="M3.75 10.5 12 3.75l8.25 6.75V19.5a.75.75 0 0 1-.75.75H14.25v-5.25h-4.5v5.25H4.5a.75.75 0 0 1-.75-.75V10.5Z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <House className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               Ver sitio
             </Link>
 
@@ -97,9 +96,7 @@ export function AdminShell({ children }: AdminShellProps) {
               onClick={handleLogout}
               className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
             >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-                <path d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-7.5a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21h7.5a2.25 2.25 0 0 0 2.25-2.25V15M10.5 12h10.5m0 0-3-3m3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               Salir
             </button>
           </div>

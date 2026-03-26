@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Mail } from "lucide-react";
 
 import { getActiveClubConfig } from "@/config/active-club";
 import { Button, Card, FormField, Input } from "@/components/ui";
@@ -10,18 +11,6 @@ import {
   type ClubSettings,
 } from "@/lib/supabase";
 import { uiMessages } from "@/lib/ui-messages";
-
-function MailIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
-      <path
-        d="M3.75 5.25h16.5A1.5 1.5 0 0 1 21.75 6.75v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5 8.25 5.25 8.25-5.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 type SettingsSnapshot = Pick<
   ClubSettings,
@@ -280,7 +269,7 @@ export default function AdminSettingsPage() {
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-4 inline-flex items-center gap-2">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-orange-50 text-orange-600">
-                <MailIcon />
+                <Mail className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               </span>
               <h3 className="text-base font-semibold text-slate-900">Notificaciones</h3>
             </div>
