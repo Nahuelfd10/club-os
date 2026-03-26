@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
 import { generateReceipt } from "@/lib/generate-receipt-pdf";
+import { buildWhatsAppLink } from "@/lib/whatsapp-reminder";
 import {
   createPayment,
   deletePayment,
@@ -145,6 +146,13 @@ export default function MemberDetailPage() {
   );
 
   const totalDebtAmount = pendingDebtMonths.length * monthlyFee;
+
+  const whatsappReminderUrl = useMemo(() => {
+    if (!member || member.status !== "active" || pendingDebtMonths.length === 0) {
+      return null;
+    }
+    return buildWhatsAppLink(member, pendingDebtMonths, config.name);
+  }, [member, pendingDebtMonths, config.name]);
 
   const loadMemberData = useCallback(async () => {
     if (!memberId) {
@@ -496,14 +504,41 @@ export default function MemberDetailPage() {
               )}
             </p>
             {member.status === "active" && pendingDebtMonths.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => void handlePayAllDebt()}
-                disabled={isPayingAllDebt}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isPayingAllDebt ? "Pagando deuda..." : "Pagar toda la deuda"}
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span
+                  title={
+                    whatsappReminderUrl
+                      ? undefined
+                      : "No podés enviar un recordatorio porque el socio no tiene un número de teléfono configurado."
+                  }
+                  className="inline-flex"
+                >
+                  <button
+                    type="button"
+                    disabled={!whatsappReminderUrl}
+                    onClick={() => {
+                      if (whatsappReminderUrl) {
+                        window.open(whatsappReminderUrl, "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                    className={
+                      whatsappReminderUrl
+                        ? "inline-flex items-center gap-1.5 rounded-md border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-50"
+                        : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-90 shadow-sm"
+                    }
+                  >
+                    Enviar recordatorio
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handlePayAllDebt()}
+                  disabled={isPayingAllDebt}
+                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isPayingAllDebt ? "Pagando deuda..." : "Pagar toda la deuda"}
+                </button>
+              </div>
             ) : (
               <span className="text-xs font-semibold text-slate-500">Sin deuda pendiente</span>
             )}
