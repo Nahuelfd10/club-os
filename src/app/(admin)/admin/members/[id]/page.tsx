@@ -14,7 +14,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui";
+import { AdminModal } from "@/components/admin/admin-modal";
+import { Badge, Button } from "@/components/ui";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  normalizePaymentMethod,
+  paymentMethodDisplay,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
 import { generateReceipt } from "@/lib/generate-receipt-pdf";
@@ -35,6 +43,7 @@ type PaymentRow = {
   amount: number;
   month: string;
   paid_at: string | null;
+  payment_method?: string | null;
 };
 
 type EditForm = {
@@ -88,6 +97,11 @@ export default function MemberDetailPage() {
   const [payingMonth, setPayingMonth] = useState<string | null>(null);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [isPayingAllDebt, setIsPayingAllDebt] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<
+    null | { mode: "single"; month: string } | { mode: "all" }
+  >(null);
+  const [modalPaymentMethod, setModalPaymentMethod] =
+    useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>({
     full_name: "",
@@ -153,8 +167,14 @@ export default function MemberDetailPage() {
     if (!member || member.status !== "active" || pendingDebtMonths.length === 0) {
       return null;
     }
-    return buildWhatsAppLink(member, pendingDebtMonths, config.name);
-  }, [member, pendingDebtMonths, config.name]);
+    return buildWhatsAppLink({
+      member,
+      debtMonths: pendingDebtMonths,
+      clubName: config.name,
+      totalDebtAmount,
+      paymentAlias: config.payment_alias,
+    });
+  }, [member, pendingDebtMonths, config.name, totalDebtAmount, config.payment_alias]);
 
   const loadMemberData = useCallback(async () => {
     if (!memberId) {
@@ -213,56 +233,64 @@ export default function MemberDetailPage() {
     }
   };
 
-  const handlePayMonth = async (month: string) => {
+  const openPayMonthModal = (month: string) => {
     if (!member || member.status !== "active") {
       return;
     }
-
     const alreadyPaid = payments.some((payment) => payment.month === month);
     if (alreadyPaid) {
       setActionMessage(uiMessages.payment.duplicate);
       return;
     }
-
-    const shouldContinue = window.confirm(uiMessages.payment.confirmCreate(formatMonthLabel(month)));
-    if (!shouldContinue) {
-      return;
-    }
-
-    setPayingMonth(month);
-    try {
-      await createPayment({
-        member_id: member.id,
-        amount: monthlyFee,
-        month,
-      });
-      await loadMemberData();
-      setActionMessage(uiMessages.payment.createSuccess);
-    } catch (error) {
-      console.error("Error al registrar pago del mes:", error);
-      setActionMessage(error instanceof Error ? error.message : uiMessages.payment.createError);
-    } finally {
-      setPayingMonth(null);
-    }
+    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
+    setPaymentModal({ mode: "single", month });
   };
 
-  const handlePayAllDebt = async () => {
+  const openPayAllModal = () => {
     if (!member || member.status !== "active" || pendingDebtMonths.length === 0) {
       return;
     }
+    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
+    setPaymentModal({ mode: "all" });
+  };
 
-    const shouldContinue = window.confirm(uiMessages.payment.confirmPayAll(pendingDebtMonths.length));
-    if (!shouldContinue) {
+  const confirmPayModal = async () => {
+    if (!member || !paymentModal) {
       return;
     }
 
-    setIsPayingAllDebt(true);
-    try {
-      for (const month of pendingDebtMonths) {
+    if (paymentModal.mode === "single") {
+      const month = paymentModal.month;
+      setPaymentModal(null);
+      setPayingMonth(month);
+      try {
         await createPayment({
           member_id: member.id,
           amount: monthlyFee,
           month,
+          payment_method: modalPaymentMethod,
+        });
+        await loadMemberData();
+        setActionMessage(uiMessages.payment.createSuccess);
+      } catch (error) {
+        console.error("Error al registrar pago del mes:", error);
+        setActionMessage(error instanceof Error ? error.message : uiMessages.payment.createError);
+      } finally {
+        setPayingMonth(null);
+      }
+      return;
+    }
+
+    const monthsToPay = [...pendingDebtMonths];
+    setPaymentModal(null);
+    setIsPayingAllDebt(true);
+    try {
+      for (const month of monthsToPay) {
+        await createPayment({
+          member_id: member.id,
+          amount: monthlyFee,
+          month,
+          payment_method: modalPaymentMethod,
         });
       }
       await loadMemberData();
@@ -320,7 +348,15 @@ export default function MemberDetailPage() {
     );
   }
 
+  const paymentModalTotal =
+    paymentModal?.mode === "single"
+      ? monthlyFee
+      : paymentModal?.mode === "all"
+        ? monthlyFee * pendingDebtMonths.length
+        : 0;
+
   return (
+    <>
     <section className="space-y-6">
       <div>
         <Link
@@ -529,7 +565,7 @@ export default function MemberDetailPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => void handlePayAllDebt()}
+                  onClick={() => openPayAllModal()}
                   disabled={isPayingAllDebt}
                   className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                 >
@@ -548,6 +584,7 @@ export default function MemberDetailPage() {
                   <th className="px-3 py-2 font-semibold text-slate-700">Mes</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Medio de pago</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Fecha de pago</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Accion</th>
                 </tr>
@@ -561,7 +598,9 @@ export default function MemberDetailPage() {
                     <tr key={row.month}>
                       <td className="px-3 py-2 text-slate-900">
                         <span className="inline-flex items-center gap-2">
-                          <span>{row.month}</span>
+                          <span className="font-medium" title={row.month}>
+                            {formatMonthLabel(row.month)}
+                          </span>
                           {row.month === currentMonth ? (
                             <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
                               Actual
@@ -586,13 +625,22 @@ export default function MemberDetailPage() {
                             : formatMoney(monthlyFee)}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
+                        {member.status === "pending" || !payment ? (
+                          "-"
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-800">
+                            {paymentMethodDisplay(payment.payment_method ?? DEFAULT_PAYMENT_METHOD)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">
                         {payment?.paid_at ? new Date(payment.paid_at).toLocaleString("es-AR") : "-"}
                       </td>
                       <td className="px-3 py-2">
                         {member.status === "active" && !isPaid ? (
                           <button
                             type="button"
-                            onClick={() => void handlePayMonth(row.month)}
+                            onClick={() => openPayMonthModal(row.month)}
                             disabled={payingMonth === row.month}
                             className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                           >
@@ -647,5 +695,57 @@ export default function MemberDetailPage() {
           </div>
         </section>
     </section>
+
+    <AdminModal open={paymentModal !== null} onClose={() => setPaymentModal(null)}>
+      <h2 className="text-lg font-semibold text-slate-900">Registrar pago</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        {paymentModal?.mode === "single"
+          ? `Vas a registrar un mes: ${formatMonthLabel(paymentModal.month)}.`
+          : paymentModal?.mode === "all"
+            ? `Vas a registrar ${pendingDebtMonths.length} mes(es) pendiente(s).`
+            : null}
+      </p>
+      <p className="mt-3 text-xl font-bold tabular-nums text-slate-900">
+        Total: {formatMoney(paymentModalTotal)}
+      </p>
+
+      <div className="mt-4 space-y-2">
+        <label htmlFor="member-pay-modal-method" className="text-sm font-medium text-slate-700">
+          Método de pago
+        </label>
+        <select
+          id="member-pay-modal-method"
+          name="payment_method"
+          required
+          value={modalPaymentMethod}
+          onChange={(event) =>
+            setModalPaymentMethod(normalizePaymentMethod(event.target.value))
+          }
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+        >
+          {CLUB_PAYMENT_METHOD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-6 flex items-center justify-end gap-2">
+        <Button type="button" variant="neutral" size="md" onClick={() => setPaymentModal(null)}>
+          Cancelar
+        </Button>
+        <Button
+          type="button"
+          size="md"
+          onClick={() => void confirmPayModal()}
+          disabled={isPayingAllDebt || payingMonth !== null}
+          style={{ backgroundColor: "#059669" }}
+        >
+          Confirmar pago
+        </Button>
+      </div>
+    </AdminModal>
+    </>
   );
 }

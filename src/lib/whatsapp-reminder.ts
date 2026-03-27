@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/formatters";
+
 /** Solo dígitos, para wa.me (código de país sin +). */
 export function digitsOnly(phone: string): string {
   return phone.replace(/\D/g, "");
@@ -33,21 +35,46 @@ export function formatDebtMonthsList(debtMonths: string[]): string {
   return `${labels.slice(0, -1).join(", ")} y ${labels[labels.length - 1]}`;
 }
 
+/**
+ * Opciones de pago del club en recordatorios: transferencia (si hay alias), efectivo y Mercado Pago.
+ * Sin datos vacíos: si no hay alias, no se incluye el bloque de transferencia.
+ */
+export function buildReminderPaymentOptionsSuffix(paymentAlias: string | null | undefined): string {
+  const alias = paymentAlias?.trim() ?? "";
+  const lines: string[] = [];
+
+  if (alias) {
+    lines.push(`Podés transferir al alias:\n${alias}`);
+  }
+
+  lines.push("Podés abonar en efectivo en el club");
+  lines.push("Podés pagar con Mercado Pago (consultá el link con la directiva).");
+
+  return `\n\n${lines.join("\n\n")}\n\nGracias!`;
+}
+
 export function buildDebtReminderMessage(params: {
   fullName: string;
   debtMonths: string[];
   clubName: string;
+  totalDebtAmount: number;
+  paymentAlias?: string | null;
 }): string {
   const name = firstNameFromFullName(params.fullName);
   const months = formatDebtMonthsList(params.debtMonths);
   const clubTail = params.clubName.trim()
     ? ` del club ${params.clubName.trim()}`
     : " del club";
+  const saldoLine = `Por un saldo total de: ${formatMoney(params.totalDebtAmount)}`;
+  const optionsBlock = buildReminderPaymentOptionsSuffix(params.paymentAlias);
+
   return `Hola ${name}!
 
 Tenés pendiente la cuota de ${months}${clubTail}.
 
-Por favor ponete al día cuando puedas.`;
+${saldoLine}
+
+Por favor ponete al día cuando puedas.${optionsBlock}`;
 }
 
 export type WhatsAppReminderMember = {
@@ -55,14 +82,20 @@ export type WhatsAppReminderMember = {
   phone?: string | null;
 };
 
+export type BuildWhatsAppLinkParams = {
+  member: WhatsAppReminderMember;
+  debtMonths: string[];
+  clubName: string;
+  totalDebtAmount: number;
+  paymentAlias?: string | null;
+};
+
 /**
  * Genera `https://wa.me/{telefono}?text={mensaje}` o `null` si no hay teléfono válido o sin meses adeudados.
+ * El texto se codifica con `encodeURIComponent` para WhatsApp Web / app.
  */
-export function buildWhatsAppLink(
-  member: WhatsAppReminderMember,
-  debtMonths: string[],
-  clubName: string
-): string | null {
+export function buildWhatsAppLink(params: BuildWhatsAppLinkParams): string | null {
+  const { member, debtMonths, clubName, totalDebtAmount, paymentAlias } = params;
   const digits = digitsOnly(member.phone ?? "");
   if (digits.length < 8) {
     return null;
@@ -75,6 +108,8 @@ export function buildWhatsAppLink(
     fullName: member.full_name,
     debtMonths,
     clubName,
+    totalDebtAmount,
+    paymentAlias,
   });
 
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;

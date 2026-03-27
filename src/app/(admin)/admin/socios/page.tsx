@@ -4,8 +4,16 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { AdminModal } from "@/components/admin/admin-modal";
 import { Badge, Button, Card, Input } from "@/components/ui";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  normalizePaymentMethod,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
+import { formatMoney } from "@/lib/formatters";
 import { createPayment, listMembers, listPayments, updateMemberStatus } from "@/lib/supabase";
 import { uiMessages } from "@/lib/ui-messages";
 
@@ -29,6 +37,8 @@ type PaymentRow = {
 
 type MemberMonthOptions = {
   options: string[];
+  /** Meses impagos desde alta hasta el mes actual (para registrar varios). */
+  unpaidMonths: string[];
   preselectedMonth: string;
   paidMonths: Set<string>;
   debtMonthsCount: number;
@@ -57,8 +67,10 @@ export default function SociosPage() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [paymentModalMemberId, setPaymentModalMemberId] = useState<string | null>(null);
-  const [paymentMonthOptions, setPaymentMonthOptions] = useState<string[]>([]);
-  const [selectedPaymentMonth, setSelectedPaymentMonth] = useState("");
+  const [modalUnpaidMonths, setModalUnpaidMonths] = useState<string[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
+  const [modalPaymentMethod, setModalPaymentMethod] =
+    useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -94,6 +106,7 @@ export default function SociosPage() {
 
     return {
       options,
+      unpaidMonths,
       preselectedMonth,
       paidMonths,
       debtMonthsCount: unpaidMonths.length,
@@ -131,16 +144,30 @@ export default function SociosPage() {
       return;
     }
 
-    const { options, preselectedMonth } = getMonthOptionsForMember(member);
+    const { unpaidMonths } = getMonthOptionsForMember(member);
     setPaymentModalMemberId(memberId);
-    setPaymentMonthOptions(options);
-    setSelectedPaymentMonth(preselectedMonth);
+    setModalUnpaidMonths(unpaidMonths);
+    setSelectedMonths(unpaidMonths.length > 0 ? new Set(unpaidMonths) : new Set());
+    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
   };
 
   const closePaymentModal = () => {
     setPaymentModalMemberId(null);
-    setPaymentMonthOptions([]);
-    setSelectedPaymentMonth("");
+    setModalUnpaidMonths([]);
+    setSelectedMonths(new Set());
+    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
+  };
+
+  const toggleSelectedMonth = (month: string) => {
+    setSelectedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(month)) {
+        next.delete(month);
+      } else {
+        next.add(month);
+      }
+      return next;
+    });
   };
 
   const loadAdminData = async () => {
@@ -186,44 +213,42 @@ export default function SociosPage() {
     }
   };
 
-  const handleRegisterPayment = async (memberId: string, month: string) => {
+  const handleRegisterPayment = async () => {
+    const memberId = paymentModalMemberId;
+    if (!memberId) {
+      return;
+    }
+
     const member = members.find((item) => item.id === memberId);
     if (!member) {
       return;
     }
 
-    const { options, paidMonths } = getMonthOptionsForMember(member);
-    if (!month) {
+    const months = Array.from(selectedMonths).sort();
+    if (months.length === 0) {
+      setActionMessage("Seleccioná al menos un mes.");
       return;
     }
 
-    if (!options.includes(month)) {
-      console.error(uiMessages.payment.invalidMonth);
-      return;
-    }
-
-    if (paidMonths.has(month)) {
-      setActionMessage(uiMessages.payment.duplicate);
-      return;
-    }
-
-    const confirmText = uiMessages.payment.confirmCreate(formatMonthLabel(month));
-    const shouldContinue = window.confirm(confirmText);
-    if (!shouldContinue) {
-      return;
-    }
-
+    const monthlyFee = config.monthly_fee || 1000;
     setPayingId(memberId);
 
     try {
-      await createPayment({
-        member_id: memberId,
-        amount: config.monthly_fee || 1000,
-        month,
-      });
+      for (const month of months) {
+        await createPayment({
+          member_id: memberId,
+          amount: monthlyFee,
+          month,
+          payment_method: modalPaymentMethod,
+        });
+      }
       await loadAdminData();
       closePaymentModal();
-      setActionMessage(uiMessages.payment.createSuccess);
+      setActionMessage(
+        months.length === 1
+          ? uiMessages.payment.createSuccess
+          : `Se registraron ${months.length} pagos correctamente.`
+      );
     } catch (error) {
       console.error("Error al registrar pago:", error);
       setActionMessage(error instanceof Error ? error.message : uiMessages.payment.createError);
@@ -231,6 +256,11 @@ export default function SociosPage() {
       setPayingId(null);
     }
   };
+
+  const modalMember = paymentModalMemberId
+    ? members.find((m) => m.id === paymentModalMemberId)
+    : null;
+  const modalTotalAmount = (config.monthly_fee || 1000) * selectedMonths.size;
 
   return (
     <section className="space-y-4">
@@ -461,63 +491,89 @@ export default function SociosPage() {
         ) : null}
       </Card>
 
-      {paymentModalMemberId ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center md:p-4"
-          onClick={closePaymentModal}
-        >
-          <div
-            className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl md:rounded-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-slate-900">
-              Registrar pago
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Elegi el mes a registrar para este socio.
-            </p>
+      <AdminModal open={paymentModalMemberId !== null} onClose={closePaymentModal}>
+        <h2 className="text-lg font-semibold text-slate-900">Registrar pago</h2>
+        {modalMember ? (
+          <p className="mt-1 text-sm font-medium text-slate-800">{modalMember.full_name}</p>
+        ) : null}
+        <p className="mt-1 text-sm text-slate-600">
+          Marcá uno o más meses impagos y el método de cobro. El total se actualiza según la selección.
+        </p>
 
-            <div className="mt-4 space-y-2">
-              <label htmlFor="payment-month" className="text-sm font-medium text-slate-700">
-                Mes
-              </label>
-              <select
-                id="payment-month"
-                value={selectedPaymentMonth}
-                onChange={(event) => setSelectedPaymentMonth(event.target.value)}
-                className="app-select"
-              >
-                {paymentMonthOptions.map((monthOption) => (
-                  <option key={monthOption} value={monthOption}>
-                    {monthOption}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                onClick={closePaymentModal}
-                disabled={payingId === paymentModalMemberId}
-                variant="neutral"
-                size="md"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void handleRegisterPayment(paymentModalMemberId, selectedPaymentMonth)}
-                disabled={payingId === paymentModalMemberId || !selectedPaymentMonth}
-                size="md"
-                style={{ backgroundColor: "#059669" }}
-              >
-                {payingId === paymentModalMemberId ? "Registrando..." : "Confirmar"}
-              </Button>
-            </div>
-          </div>
+        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
+          {[...modalUnpaidMonths].sort().map((monthKey) => (
+            <label
+              key={monthKey}
+              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={selectedMonths.has(monthKey)}
+                onChange={() => toggleSelectedMonth(monthKey)}
+              />
+              <span>
+                <span className="font-medium text-slate-900">{formatMonthLabel(monthKey)}</span>
+                <span className="ml-1 text-xs text-slate-500">{monthKey}</span>
+              </span>
+            </label>
+          ))}
         </div>
-      ) : null}
+        {modalUnpaidMonths.length === 0 ? (
+          <p className="mt-2 text-sm text-amber-800">No hay meses impagos para registrar.</p>
+        ) : null}
+
+        <p className="mt-4 text-xl font-bold tabular-nums text-slate-900">
+          Total: {formatMoney(modalTotalAmount)}
+        </p>
+
+        <div className="mt-4 space-y-2">
+          <label htmlFor="payment-method-modal" className="text-sm font-medium text-slate-700">
+            Método de pago
+          </label>
+          <select
+            id="payment-method-modal"
+            name="payment_method"
+            required
+            value={modalPaymentMethod}
+            onChange={(event) =>
+              setModalPaymentMethod(normalizePaymentMethod(event.target.value))
+            }
+            className="app-select w-full"
+          >
+            {CLUB_PAYMENT_METHOD_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            onClick={closePaymentModal}
+            disabled={payingId === paymentModalMemberId}
+            variant="neutral"
+            size="md"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void handleRegisterPayment()}
+            disabled={
+              payingId === paymentModalMemberId ||
+              selectedMonths.size === 0 ||
+              modalUnpaidMonths.length === 0
+            }
+            size="md"
+            style={{ backgroundColor: "#059669" }}
+          >
+            {payingId === paymentModalMemberId ? "Registrando..." : "Confirmar"}
+          </Button>
+        </div>
+      </AdminModal>
     </section>
   );
 }

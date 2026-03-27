@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import { ClubLogo } from "@/components/club-logo";
 import { Button, Card, FormField, Input } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { insertMember } from "@/lib/supabase";
@@ -58,12 +59,25 @@ export default function RegistroPage() {
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-12">
       <Card className="mx-auto w-full max-w-2xl p-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-slate-900">Registro de socios - {config.name}</h1>
-          <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <ClubLogo
+              src={config.logo}
+              alt={`Logo de ${config.name}`}
+              className="h-10 w-auto max-h-10 max-w-[160px] shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold tracking-wide text-slate-900">{config.name}</p>
+              <h1 className="mt-0.5 text-xl font-bold text-slate-900 sm:text-2xl">Registro de socios</h1>
+            </div>
+          </div>
+          <Link
+            href="/"
+            className="shrink-0 text-sm font-medium text-slate-600 hover:text-slate-900 sm:pt-1"
+          >
             Volver
           </Link>
-        </div>
+        </header>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField htmlFor="full_name" label="Nombre y apellido">

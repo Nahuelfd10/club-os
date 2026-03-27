@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Mail } from "lucide-react";
 
+import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
 import { getActiveClubConfig } from "@/config/active-club";
 import { Button, Card, FormField, Input } from "@/components/ui";
 import {
@@ -14,7 +15,12 @@ import { uiMessages } from "@/lib/ui-messages";
 
 type SettingsSnapshot = Pick<
   ClubSettings,
-  "name" | "monthly_fee" | "primary_color" | "accent_color" | "send_payment_confirmation_email"
+  | "name"
+  | "monthly_fee"
+  | "primary_color"
+  | "accent_color"
+  | "send_payment_confirmation_email"
+  | "payment_alias"
 >;
 
 const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
@@ -23,6 +29,7 @@ const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
   primary_color: settings.primary_color,
   accent_color: settings.accent_color,
   send_payment_confirmation_email: settings.send_payment_confirmation_email,
+  payment_alias: settings.payment_alias,
 });
 
 export default function AdminSettingsPage() {
@@ -32,6 +39,7 @@ export default function AdminSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [aliasCopyFeedback, setAliasCopyFeedback] = useState(false);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!clubSettings || !initialSettings) {
@@ -45,7 +53,8 @@ export default function AdminSettingsPage() {
       currentSnapshot.monthly_fee !== initialSettings.monthly_fee ||
       currentSnapshot.primary_color !== initialSettings.primary_color ||
       currentSnapshot.accent_color !== initialSettings.accent_color ||
-      currentSnapshot.send_payment_confirmation_email !== initialSettings.send_payment_confirmation_email
+      currentSnapshot.send_payment_confirmation_email !== initialSettings.send_payment_confirmation_email ||
+      currentSnapshot.payment_alias !== initialSettings.payment_alias
     );
   }, [clubSettings, initialSettings]);
 
@@ -67,6 +76,8 @@ export default function AdminSettingsPage() {
           primary_color: config.primary_color,
           accent_color: config.accent_color,
           send_payment_confirmation_email: false,
+          logo_url: null,
+          payment_alias: null,
         };
         setClubSettings(fallbackSettings);
         setInitialSettings(buildSettingsSnapshot(fallbackSettings));
@@ -104,6 +115,7 @@ export default function AdminSettingsPage() {
         primary_color: clubSettings.primary_color,
         accent_color: clubSettings.accent_color,
         send_payment_confirmation_email: clubSettings.send_payment_confirmation_email,
+        payment_alias: clubSettings.payment_alias?.trim() || null,
       });
       setInitialSettings(buildSettingsSnapshot(clubSettings));
       setMessage(uiMessages.settings.saveSuccess);
@@ -112,6 +124,20 @@ export default function AdminSettingsPage() {
       setMessage(error instanceof Error ? error.message : uiMessages.settings.saveError);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCopyPaymentAlias = async () => {
+    const value = clubSettings?.payment_alias?.trim();
+    if (!value) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      setAliasCopyFeedback(true);
+      window.setTimeout(() => setAliasCopyFeedback(false), 2000);
+    } catch {
+      setMessage("No se pudo copiar al portapapeles.");
     }
   };
 
@@ -195,6 +221,14 @@ export default function AdminSettingsPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <ClubLogoUpload
+            settingsId={clubSettings.id || null}
+            logoUrl={clubSettings.logo_url}
+            onLogoUpdated={(publicUrl) =>
+              setClubSettings((prev) => (prev ? { ...prev, logo_url: publicUrl } : prev))
+            }
+          />
+
           <FormField htmlFor="name" label="Nombre">
             <Input
               id="name"
@@ -224,6 +258,39 @@ export default function AdminSettingsPage() {
               }
               required
             />
+          </FormField>
+
+          <FormField htmlFor="payment_alias" label="Alias para transferencias">
+            <div className="space-y-1">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <Input
+                  id="payment_alias"
+                  name="payment_alias"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Ej: CVU, alias o CBU"
+                  value={clubSettings.payment_alias ?? ""}
+                  onChange={(event) => {
+                    const v = event.target.value;
+                    setClubSettings((prev) =>
+                      prev ? { ...prev, payment_alias: v === "" ? null : v } : prev
+                    );
+                  }}
+                  className="sm:min-w-0 sm:flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="neutral"
+                  size="md"
+                  className="shrink-0"
+                  disabled={!clubSettings.payment_alias?.trim()}
+                  onClick={() => void handleCopyPaymentAlias()}
+                >
+                  {aliasCopyFeedback ? "Copiado" : "Copiar alias"}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">Este alias se enviará en los recordatorios de pago</p>
+            </div>
           </FormField>
 
           <div className="grid gap-3 sm:grid-cols-2">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ClubLogo } from "@/components/club-logo";
 import { getActiveClubConfig } from "@/config/active-club";
 
 const teams = [
@@ -29,8 +30,15 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-slate-50">
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-14 md:px-10">
-        <header className="flex items-center justify-between">
-          <p className="text-lg font-bold tracking-wide text-slate-900">{config.name}</p>
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <ClubLogo
+              src={config.logo}
+              alt={`Logo de ${config.name}`}
+              className="h-10 w-auto max-h-10 max-w-[160px] shrink-0"
+            />
+            <p className="truncate text-lg font-bold tracking-wide text-slate-900">{config.name}</p>
+          </div>
           <Link
             href="/registro"
             className="rounded-full bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"

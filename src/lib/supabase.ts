@@ -43,6 +43,7 @@ export type Database = {
           amount: number;
           month: string;
           paid_at: string | null;
+          payment_method: string;
         };
         Insert: {
           id?: string;
@@ -50,12 +51,14 @@ export type Database = {
           amount: number;
           month: string;
           paid_at?: string | null;
+          payment_method?: string;
         };
         Update: {
           member_id?: string;
           amount?: number;
           month?: string;
           paid_at?: string | null;
+          payment_method?: string;
         };
         Relationships: [];
       };
@@ -67,6 +70,8 @@ export type Database = {
           primary_color: string;
           accent_color: string;
           send_payment_confirmation_email: boolean;
+          logo_url: string | null;
+          payment_alias: string | null;
         };
         Insert: {
           id?: string;
@@ -75,6 +80,8 @@ export type Database = {
           primary_color: string;
           accent_color: string;
           send_payment_confirmation_email?: boolean;
+          logo_url?: string | null;
+          payment_alias?: string | null;
         };
         Update: {
           name?: string;
@@ -82,6 +89,8 @@ export type Database = {
           primary_color?: string;
           accent_color?: string;
           send_payment_confirmation_email?: boolean;
+          logo_url?: string | null;
+          payment_alias?: string | null;
         };
         Relationships: [];
       };
@@ -114,6 +123,7 @@ type NewPaymentInput = {
   member_id: string;
   amount: number;
   month: string;
+  payment_method: string;
 };
 
 type UpdateMemberInput = {
@@ -126,6 +136,8 @@ type UpdateMemberInput = {
 export type ClubSettings = Database["public"]["Tables"]["club_settings"]["Row"];
 
 type UpdateClubSettingsInput = Omit<ClubSettings, "id">;
+
+export type ClubSettingsUpdate = Database["public"]["Tables"]["club_settings"]["Update"];
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -177,13 +189,13 @@ export async function updateMemberStatus(memberId: string, status: Member["statu
   }
 }
 
-export async function createPayment({ member_id, amount, month }: NewPaymentInput) {
+export async function createPayment({ member_id, amount, month, payment_method }: NewPaymentInput) {
   const response = await fetch("/api/payments", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ member_id, amount, month }),
+    body: JSON.stringify({ member_id, amount, month, payment_method }),
   });
 
   let payload: { error?: string; payment?: unknown } = {};
@@ -239,7 +251,7 @@ export async function getPaymentsByMemberId(memberId: string) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("payments")
-    .select("id, member_id, amount, month, paid_at")
+    .select("id, member_id, amount, month, paid_at, payment_method")
     .eq("member_id", memberId)
     .order("paid_at", { ascending: false });
 
@@ -293,7 +305,7 @@ export async function saveClubSettings(payload: UpdateClubSettingsInput) {
   }
 }
 
-export async function updateClubSettingsById(id: string, payload: UpdateClubSettingsInput) {
+export async function updateClubSettingsById(id: string, payload: ClubSettingsUpdate) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("club_settings").update(payload).eq("id", id);
 

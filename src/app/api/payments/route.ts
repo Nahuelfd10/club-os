@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizePaymentMethod } from "@/config/payment-method";
 import { sendPaymentConfirmationEmail } from "@/lib/email";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 
@@ -7,6 +8,7 @@ type PaymentPayload = {
   member_id: string;
   amount: number;
   month: string;
+  payment_method: string;
 };
 
 const monthRegex = /^\d{4}-\d{2}$/;
@@ -23,7 +25,9 @@ const isValidPaymentPayload = (payload: unknown): payload is PaymentPayload => {
     typeof candidate.amount === "number" &&
     Number.isFinite(candidate.amount) &&
     typeof candidate.month === "string" &&
-    monthRegex.test(candidate.month)
+    monthRegex.test(candidate.month) &&
+    typeof candidate.payment_method === "string" &&
+    candidate.payment_method.length > 0
   );
 };
 
@@ -39,6 +43,8 @@ export async function POST(request: Request) {
   if (!isValidPaymentPayload(payload)) {
     return NextResponse.json({ error: "Datos de pago inválidos" }, { status: 400 });
   }
+
+  const paymentMethod = normalizePaymentMethod(payload.payment_method);
 
   const supabase = getSupabaseServerClient();
 
@@ -64,8 +70,9 @@ export async function POST(request: Request) {
       member_id: payload.member_id,
       amount: payload.amount,
       month: payload.month,
+      payment_method: paymentMethod,
     })
-    .select("id, member_id, amount, month, paid_at")
+    .select("id, member_id, amount, month, paid_at, payment_method")
     .single();
 
   if (paymentInsertError) {
