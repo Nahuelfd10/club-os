@@ -6,6 +6,7 @@ import {
   LogOut,
   Settings,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,6 +29,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/socios", label: "Socios", icon: Users },
+  { href: "/admin/groups", label: "Grupos", icon: UsersRound },
   { href: "/admin/settings", label: "Configuracion", icon: Settings },
 ];
 

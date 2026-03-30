@@ -94,6 +94,44 @@ export type Database = {
         };
         Relationships: [];
       };
+      groups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+        };
+        Relationships: [];
+      };
+      member_groups: {
+        Row: {
+          id: string;
+          member_id: string;
+          group_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          group_id: string;
+          created_at?: string;
+        };
+        Update: {
+          member_id?: string;
+          group_id?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       member_payment_summary: {

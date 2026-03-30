@@ -15,6 +15,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
+import { MemberGroupsSection } from "@/components/admin/member-groups-section";
 import { Badge, Button } from "@/components/ui";
 import {
   CLUB_PAYMENT_METHOD_OPTIONS,
@@ -519,6 +520,8 @@ export default function MemberDetailPage() {
             </div>
         )}
       </section>
+
+      <MemberGroupsSection memberId={member.id} />
 
       {actionMessage ? (
         <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
