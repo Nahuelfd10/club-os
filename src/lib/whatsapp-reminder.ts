@@ -94,6 +94,45 @@ export type BuildWhatsAppLinkParams = {
  * Genera `https://wa.me/{telefono}?text={mensaje}` o `null` si no hay teléfono válido o sin meses adeudados.
  * El texto se codifica con `encodeURIComponent` para WhatsApp Web / app.
  */
+/**
+ * Mensaje corto por cargo/grupo pendiente (member_charges), para cobros extraordinarios.
+ */
+export function buildChargeDebtWhatsAppMessage(params: {
+  fullName: string;
+  chargeName: string;
+  groupName: string;
+  remainingFormatted: string;
+}): string {
+  const name = firstNameFromFullName(params.fullName);
+  const group = params.groupName.trim() || "el grupo";
+  const charge = params.chargeName.trim() || "un cargo";
+  return `Hola ${name}!
+
+Tenés pendiente ${charge} (${params.remainingFormatted}) del equipo ${group}.
+
+Cuando puedas, acercate a regularizar. ¡Gracias!`;
+}
+
+export function buildChargeDebtWhatsAppLink(params: {
+  fullName: string;
+  phone?: string | null;
+  chargeName: string;
+  groupName: string;
+  remainingFormatted: string;
+}): string | null {
+  const digits = digitsOnly(params.phone ?? "");
+  if (digits.length < 8) {
+    return null;
+  }
+  const message = buildChargeDebtWhatsAppMessage({
+    fullName: params.fullName,
+    chargeName: params.chargeName,
+    groupName: params.groupName,
+    remainingFormatted: params.remainingFormatted,
+  });
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+
 export function buildWhatsAppLink(params: BuildWhatsAppLinkParams): string | null {
   const { member, debtMonths, clubName, totalDebtAmount, paymentAlias } = params;
   const digits = digitsOnly(member.phone ?? "");

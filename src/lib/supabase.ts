@@ -160,6 +160,53 @@ export type Database = {
         };
         Relationships: [];
       };
+      member_charges: {
+        Row: {
+          id: string;
+          member_id: string;
+          charge_id: string;
+          amount: number;
+          paid_amount: number;
+          status: "pending" | "partial" | "paid";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          charge_id: string;
+          amount: number;
+          paid_amount?: number;
+          status?: "pending" | "partial" | "paid";
+          created_at?: string;
+        };
+        Update: {
+          amount?: number;
+          paid_amount?: number;
+          status?: "pending" | "partial" | "paid";
+        };
+        Relationships: [];
+      };
+      charge_payments: {
+        Row: {
+          id: string;
+          member_charge_id: string;
+          amount: number;
+          paid_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_charge_id: string;
+          amount: number;
+          paid_at: string;
+          created_at?: string;
+        };
+        Update: {
+          amount?: number;
+          paid_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       member_payment_summary: {
@@ -170,7 +217,16 @@ export type Database = {
         Relationships: [];
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      register_charge_payment: {
+        Args: {
+          p_member_charge_id: string;
+          p_amount: number;
+          p_paid_at: string;
+        };
+        Returns: void;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

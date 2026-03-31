@@ -151,7 +151,7 @@ export async function getMembersInGroup(groupId: string): Promise<GroupMemberRow
     } | null;
   };
 
-  const rows = (data ?? []) as RawRow[];
+  const rows = (data ?? []) as unknown as RawRow[];
 
   return rows
     .filter((row) => row.members)
@@ -190,7 +190,7 @@ export async function getGroupsForMember(memberId: string): Promise<MemberGroupR
     groups: { id: string; name: string; description: string | null } | null;
   };
 
-  const rows = (data ?? []) as RawRow[];
+  const rows = (data ?? []) as unknown as RawRow[];
 
   return rows
     .filter((row) => row.groups)

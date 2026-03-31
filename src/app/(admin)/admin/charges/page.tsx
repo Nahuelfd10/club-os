@@ -93,11 +93,21 @@ export default function AdminChargesPage() {
       setCreateOpen(false);
       setActionMessage("Cargo creado correctamente.");
       await load();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
-      setActionMessage(
-        error instanceof Error ? error.message : "No se pudo crear el cargo."
-      );
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String((error as { code?: string }).code)
+          : "";
+      if (code === "23505") {
+        setActionMessage(
+          "No se pudo generar las deudas: hay un duplicado (socio y cargo). El cargo no se guardó."
+        );
+      } else {
+        setActionMessage(
+          error instanceof Error ? error.message : "No se pudo crear el cargo."
+        );
+      }
     } finally {
       setIsCreating(false);
     }
