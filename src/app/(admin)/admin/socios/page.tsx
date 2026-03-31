@@ -5,7 +5,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AdminModal } from "@/components/admin/admin-modal";
-import { Badge, Button, Card, Input } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  Table,
+  TableBody,
+  TableHead,
+  TableRow,
+  Td,
+  Th,
+} from "@/components/ui";
 import {
   CLUB_PAYMENT_METHOD_OPTIONS,
   DEFAULT_PAYMENT_METHOD,
@@ -264,38 +278,48 @@ export default function SociosPage() {
 
   return (
     <section className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Socios</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`}
-          </p>
-        </div>
-        <Link
-          href="/registro"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Anadir socio
-        </Link>
-      </header>
+      <PageHeader
+        title="Socios"
+        description={
+          isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`
+        }
+        actions={
+          <Link
+            href="/registro"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Anadir socio
+          </Link>
+        }
+      />
 
       <Card className="w-full p-6">
 
         {isLoading ? <p className="mt-4 text-slate-600">Cargando socios...</p> : null}
 
         {!isLoading && errorMessage ? (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>
+          <Alert className="mt-4" variant="danger">
+            {errorMessage}
+          </Alert>
         ) : null}
         {!isLoading && actionMessage ? (
-          <p className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            {actionMessage}
-          </p>
+          <Alert className="mt-4">{actionMessage}</Alert>
         ) : null}
 
         {!isLoading && !errorMessage && members.length === 0 ? (
-          <p className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            Todavia no hay socios registrados.
-          </p>
+          <EmptyState
+            className="mt-4"
+            title="Todavia no hay socios registrados."
+            description="Podés dar de alta un socio desde el registro público."
+            actions={
+              <Link
+                href="/registro"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              >
+                Anadir socio
+              </Link>
+            }
+          />
         ) : null}
 
         {!isLoading && !errorMessage && members.length > 0 ? (
@@ -396,23 +420,24 @@ export default function SociosPage() {
             </div>
 
             {filteredMembers.length === 0 ? (
-              <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-                No hay socios que coincidan con el filtro actual.
-              </p>
+              <EmptyState
+                title="No hay socios que coincidan con el filtro actual."
+                description="Probá limpiando filtros o cambiando el término de búsqueda."
+              />
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
-                      <th className="px-3 py-2 font-semibold text-slate-700">DNI</th>
-                      <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                      <th className="px-3 py-2 font-semibold text-slate-700">Pago</th>
-                      <th className="px-3 py-2 font-semibold text-slate-700">Fecha de creacion</th>
-                      <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <Th>Nombre</Th>
+                      <Th>DNI</Th>
+                      <Th>Estado</Th>
+                      <Th>Pago</Th>
+                      <Th>Fecha de creacion</Th>
+                      <Th>Acciones</Th>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {filteredMembers.map((member) => (
                       (() => {
                         const { debtMonthsCount } = getMonthOptionsForMember(member);
@@ -430,16 +455,16 @@ export default function SociosPage() {
                             onClick={() => router.push(`/admin/socios/${member.id}`)}
                             className="cursor-pointer transition-colors hover:bg-slate-50"
                           >
-                            <td className="px-3 py-2 text-slate-900">{member.full_name}</td>
-                            <td className="px-3 py-2 text-slate-700">{member.dni}</td>
-                            <td className="px-3 py-2 text-slate-700">
+                            <Td className="text-slate-900">{member.full_name}</Td>
+                            <Td className="text-slate-700">{member.dni}</Td>
+                            <Td className="text-slate-700">
                               {member.status === "active" ? (
                                 <Badge variant="success">Activo</Badge>
                               ) : (
                                 <Badge variant="warning">Pendiente</Badge>
                               )}
-                            </td>
-                            <td className="px-3 py-2 text-slate-700">
+                            </Td>
+                            <Td className="text-slate-700">
                               {member.status === "pending" ? (
                                 <Badge variant="slate">No aplica</Badge>
                               ) : isInDebt ? (
@@ -447,11 +472,11 @@ export default function SociosPage() {
                               ) : (
                                 <Badge variant="success">{debtLabel}</Badge>
                               )}
-                            </td>
-                            <td className="px-3 py-2 text-slate-700">
+                            </Td>
+                            <Td className="text-slate-700">
                               {new Date(member.created_at).toLocaleString("es-AR")}
-                            </td>
-                            <td className="px-3 py-2">
+                            </Td>
+                            <Td>
                               {member.status === "pending" ? (
                                 <button
                                   type="button"
@@ -473,18 +498,18 @@ export default function SociosPage() {
                                     openPaymentModal(member.id);
                                   }}
                                   disabled={payingId === member.id}
-                                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                                  className="rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
                                   Registrar pago
                                 </button>
                               ) : null}
-                            </td>
+                            </Td>
                           </tr>
                         );
                       })()
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
@@ -520,7 +545,7 @@ export default function SociosPage() {
           ))}
         </div>
         {modalUnpaidMonths.length === 0 ? (
-          <p className="mt-2 text-sm text-amber-800">No hay meses impagos para registrar.</p>
+          <p className="mt-2 text-sm text-warning">No hay meses impagos para registrar.</p>
         ) : null}
 
         <p className="mt-4 text-xl font-bold tabular-nums text-slate-900">
@@ -568,7 +593,7 @@ export default function SociosPage() {
               modalUnpaidMonths.length === 0
             }
             size="md"
-            style={{ backgroundColor: "#059669" }}
+            className="bg-success text-white"
           >
             {payingId === paymentModalMemberId ? "Registrando..." : "Confirmar"}
           </Button>

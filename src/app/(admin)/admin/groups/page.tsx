@@ -5,7 +5,20 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AdminModal } from "@/components/admin/admin-modal";
-import { Button, Card, Input } from "@/components/ui";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  Table,
+  TableBody,
+  TableHead,
+  TableRow,
+  Td,
+  Th,
+} from "@/components/ui";
 import {
   createGroup,
   deleteGroup,
@@ -99,67 +112,78 @@ export default function AdminGroupsPage() {
 
   return (
     <section className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Grupos</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Equipos o categorías para organizar socios.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setCreateOpen(true);
-            setCreateName("");
-            setCreateDescription("");
-          }}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Crear grupo
-        </button>
-      </header>
+      <PageHeader
+        title="Grupos"
+        description="Equipos o categorías para organizar socios."
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              setCreateOpen(true);
+              setCreateName("");
+              setCreateDescription("");
+            }}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Crear grupo
+          </button>
+        }
+      />
 
       <Card className="w-full border border-slate-200/80 p-6">
         {isLoading ? <p className="text-slate-600">Cargando grupos...</p> : null}
 
         {!isLoading && errorMessage ? (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>
+          <Alert variant="danger">{errorMessage}</Alert>
         ) : null}
 
         {!isLoading && actionMessage ? (
-          <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            {actionMessage}
-          </p>
+          <Alert>{actionMessage}</Alert>
         ) : null}
 
         {!isLoading && !errorMessage && groups.length === 0 ? (
-          <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            Todavía no hay grupos. Creá el primero con el botón de arriba.
-          </p>
+          <EmptyState
+            className="mt-2"
+            title="Todavía no hay grupos."
+            description="Creá el primero para empezar a asignar socios y registrar cargos."
+            actions={
+              <Button
+                type="button"
+                size="md"
+                onClick={() => {
+                  setCreateOpen(true);
+                  setCreateName("");
+                  setCreateDescription("");
+                }}
+              >
+                Crear grupo
+              </Button>
+            }
+          />
         ) : null}
 
         {!isLoading && !errorMessage && groups.length > 0 ? (
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Descripción</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Miembros</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <Th>Nombre</Th>
+                  <Th>Descripción</Th>
+                  <Th>Miembros</Th>
+                  <Th>Acciones</Th>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {groups.map((group) => (
-                  <tr key={group.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-3 py-2 font-medium text-slate-900">{group.name}</td>
-                    <td className="max-w-md px-3 py-2 text-slate-700">
+                  <TableRow key={group.id} className="transition-colors hover:bg-slate-50">
+                    <Td className="font-medium text-slate-900">{group.name}</Td>
+                    <Td className="max-w-md text-slate-700">
                       {group.description?.trim() ? group.description : (
                         <span className="text-slate-400">—</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700 tabular-nums">{group.memberCount}</td>
-                    <td className="px-3 py-2">
+                    </Td>
+                    <Td className="text-slate-700 tabular-nums">{group.memberCount}</Td>
+                    <Td>
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/admin/groups/${group.id}`}
@@ -171,16 +195,16 @@ export default function AdminGroupsPage() {
                           type="button"
                           onClick={() => void handleDelete(group)}
                           disabled={deletingId === group.id}
-                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                          className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           {deletingId === group.id ? "Eliminando..." : "Eliminar"}
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </Td>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         ) : null}
       </Card>
@@ -192,7 +216,7 @@ export default function AdminGroupsPage() {
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="group-name" className="mb-1 block text-sm font-medium text-slate-700">
-              Nombre <span className="text-red-600">*</span>
+              Nombre <span className="text-danger">*</span>
             </label>
             <Input
               id="group-name"

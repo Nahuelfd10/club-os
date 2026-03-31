@@ -6,11 +6,26 @@
   --club-primary: #03033f;
   --club-secondary: #ffffff;
   --club-accent: #f97316;
+  --club-success: #16a34a;
+  --club-warning: #f59e0b;
+  --club-danger: #dc2626;
+  --club-info: #2563eb;
+  --club-border: #cbd5e1;
+  --club-muted: #f1f5f9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--club-primary);
+  --color-secondary: var(--club-secondary);
+  --color-accent: var(--club-accent);
+  --color-success: var(--club-success);
+  --color-warning: var(--club-warning);
+  --color-danger: var(--club-danger);
+  --color-info: var(--club-info);
+  --color-border: var(--club-border);
+  --color-muted: var(--club-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -29,7 +44,7 @@ button:not(:disabled) {
 select,
 .app-select {
   width: 100%;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--club-border);
   border-radius: 0.5rem;
   background-color: #ffffff;
   color: #0f172a;

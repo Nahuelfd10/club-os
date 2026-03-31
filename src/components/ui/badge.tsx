@@ -11,11 +11,11 @@ type BadgeProps = {
 };
 
 const variantClassMap: Record<BadgeVariant, string> = {
-  slate: "bg-slate-100 text-slate-700",
-  success: "bg-emerald-100 text-emerald-700",
-  warning: "bg-amber-100 text-amber-700",
-  danger: "bg-red-100 text-red-700",
-  info: "bg-indigo-100 text-indigo-700",
+  slate: "bg-muted text-foreground/70",
+  success: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  danger: "bg-danger/10 text-danger",
+  info: "bg-info/10 text-info",
 };
 
 export function Badge({ children, variant = "slate", className = "" }: BadgeProps) {

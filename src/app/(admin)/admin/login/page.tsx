@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
         </form>
 
         {errorMessage ? (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</p>
+          <p className="mt-4 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{errorMessage}</p>
         ) : null}
       </Card>
     </main>

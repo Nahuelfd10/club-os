@@ -498,7 +498,7 @@ export default function MemberDetailPage() {
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={isSaving}
-                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-md bg-success px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSaving ? "Guardando..." : "Guardar"}
                 </button>
@@ -566,7 +566,7 @@ export default function MemberDetailPage() {
                     }}
                     className={
                       whatsappReminderUrl
-                        ? "inline-flex items-center gap-1.5 rounded-md border border-emerald-600 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-50"
+                        ? "inline-flex items-center gap-1.5 rounded-md border border-success bg-white px-3 py-1.5 text-xs font-semibold text-success shadow-sm transition-colors hover:bg-success/10"
                         : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-90 shadow-sm"
                     }
                   >
@@ -577,7 +577,7 @@ export default function MemberDetailPage() {
                   type="button"
                   onClick={() => openPayAllModal()}
                   disabled={isPayingAllDebt}
-                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPayingAllDebt ? "Pagando deuda..." : "Pagar toda la deuda"}
                 </button>
@@ -652,7 +652,7 @@ export default function MemberDetailPage() {
                             type="button"
                             onClick={() => openPayMonthModal(row.month)}
                             disabled={payingMonth === row.month}
-                            className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                            className="rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             {payingMonth === row.month ? "Pagando..." : "Pagar"}
                           </button>
@@ -686,7 +686,7 @@ export default function MemberDetailPage() {
                               type="button"
                               onClick={() => void handleDeletePayment(payment.id)}
                               disabled={deletingPaymentId === payment.id}
-                              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                              className="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                             >
                               {deletingPaymentId === payment.id ? "Eliminando..." : "Eliminar"}
                             </button>
@@ -750,7 +750,7 @@ export default function MemberDetailPage() {
           size="md"
           onClick={() => void confirmPayModal()}
           disabled={isPayingAllDebt || payingMonth !== null}
-          style={{ backgroundColor: "#059669" }}
+          className="bg-success text-white"
         >
           Confirmar pago
         </Button>

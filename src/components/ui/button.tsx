@@ -13,9 +13,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantClassMap: Record<ButtonVariant, string> = {
-  primary: "bg-slate-900 text-white",
-  accent: "bg-slate-700 text-white",
-  neutral: "bg-slate-200 text-slate-700",
+  primary: "bg-primary text-white",
+  accent: "bg-accent text-white",
+  neutral: "bg-muted text-foreground/70",
 };
 
 const sizeClassMap: Record<ButtonSize, string> = {

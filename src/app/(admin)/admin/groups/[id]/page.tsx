@@ -257,7 +257,7 @@ export default function AdminGroupDetailPage() {
                         type="button"
                         onClick={() => void handleRemove(row.member.id)}
                         disabled={removingKey === row.member.id}
-                        className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {removingKey === row.member.id ? "Quitando..." : "Quitar del grupo"}
                       </button>

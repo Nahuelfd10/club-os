@@ -28,8 +28,20 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const config = await getActiveClubConfig();
+
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html
+      lang="es"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={
+        {
+          "--club-primary": config.primary_color,
+          "--club-secondary": config.secondary_color,
+          "--club-accent": config.accent_color,
+        } as React.CSSProperties
+      }
+    >
       <body className="flex min-h-full flex-col">
         {children}
       </body>

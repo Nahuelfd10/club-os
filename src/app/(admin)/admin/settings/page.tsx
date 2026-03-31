@@ -213,7 +213,7 @@ export default function AdminSettingsPage() {
           className="mb-5 rounded-xl border border-slate-200 p-4"
           style={{
             backgroundImage:
-              "linear-gradient(120deg, #f8fafc, #e2e8f0)",
+              "linear-gradient(120deg, var(--club-muted), var(--club-border))",
           }}
         >
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Preview del tema</p>
@@ -335,7 +335,7 @@ export default function AdminSettingsPage() {
 
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-4 inline-flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-orange-50 text-orange-600">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent">
                 <Mail className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               </span>
               <h3 className="text-base font-semibold text-slate-900">Notificaciones</h3>

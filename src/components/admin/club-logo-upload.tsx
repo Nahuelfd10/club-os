@@ -115,7 +115,7 @@ export function ClubLogoUpload({ settingsId, logoUrl, onLogoUpdated }: ClubLogoU
           </FormField>
 
           {localError ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {localError}
             </p>
           ) : null}

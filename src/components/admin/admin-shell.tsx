@@ -118,7 +118,7 @@ export function AdminShell({ children }: AdminShellProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+              className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 hover:text-danger"
             >
               <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               Salir

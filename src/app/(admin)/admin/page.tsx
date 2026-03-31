@@ -96,7 +96,7 @@ export default async function AdminDashboardPage() {
                       {debtor.debtMonths} {debtor.debtMonths === 1 ? "mes" : "meses"} sin pagar
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-orange-600">{formatMoney(debtor.debtAmount)}</p>
+                  <p className="text-sm font-semibold text-warning">{formatMoney(debtor.debtAmount)}</p>
                 </article>
               ))
             )}

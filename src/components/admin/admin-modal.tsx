@@ -11,11 +11,7 @@ type AdminModalProps = {
 
 /** Modal fijo en `document.body` para que el backdrop cubra toda la vista (incl. sidebar). */
 export function AdminModal({ open, onClose, children }: AdminModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [mounted] = useState(() => typeof document !== "undefined");
 
   useEffect(() => {
     if (!open) {
