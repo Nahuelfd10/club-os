@@ -35,6 +35,7 @@ export default function AdminChargesPage() {
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formAmount, setFormAmount] = useState("");
+  const [formType, setFormType] = useState<"per_member" | "total">("per_member");
   const [formGroupId, setFormGroupId] = useState("");
   const [formDueDate, setFormDueDate] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -87,6 +88,7 @@ export default function AdminChargesPage() {
         name,
         description: formDescription.trim() || null,
         amount,
+        type: formType,
         group_id: formGroupId,
         due_date: formDueDate.trim() || null,
       });
@@ -149,6 +151,7 @@ export default function AdminChargesPage() {
             setFormName("");
             setFormDescription("");
             setFormAmount("");
+            setFormType("per_member");
             setFormGroupId(groupOptions[0]?.id ?? "");
             setFormDueDate("");
           }}
@@ -184,6 +187,7 @@ export default function AdminChargesPage() {
                 <tr>
                   <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Grupo</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Tipo</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Vencimiento</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
@@ -201,19 +205,30 @@ export default function AdminChargesPage() {
                         {charge.group.name}
                       </Link>
                     </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {charge.type === "total" ? "Total a dividir" : "Por persona"}
+                    </td>
                     <td className="px-3 py-2 tabular-nums text-slate-900">
                       {formatMoney(charge.amount)}
                     </td>
                     <td className="px-3 py-2 text-slate-700">{formatDueDate(charge.due_date)}</td>
                     <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(charge)}
-                        disabled={deletingId === charge.id}
-                        className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/charges/${charge.id}`}
+                          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                        >
+                          Ver detalle
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(charge)}
+                          disabled={deletingId === charge.id}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -268,6 +283,25 @@ export default function AdminChargesPage() {
               placeholder="0"
               className="text-sm"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              {formType === "total"
+                ? "Monto total del cargo (se divide entre los miembros del grupo al crear)."
+                : "Monto por persona (se asigna igual a cada miembro)."}
+            </p>
+          </div>
+          <div>
+            <label htmlFor="charge-type" className="mb-1 block text-sm font-medium text-slate-700">
+              Tipo de cargo <span className="text-red-600">*</span>
+            </label>
+            <select
+              id="charge-type"
+              value={formType}
+              onChange={(e) => setFormType(e.target.value as "per_member" | "total")}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+            >
+              <option value="per_member">Por persona</option>
+              <option value="total">Total a dividir</option>
+            </select>
           </div>
           <div>
             <label htmlFor="charge-group" className="mb-1 block text-sm font-medium text-slate-700">

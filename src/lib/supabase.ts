@@ -138,6 +138,7 @@ export type Database = {
           name: string;
           description: string | null;
           amount: number;
+          type: "per_member" | "total";
           group_id: string;
           due_date: string | null;
           created_at: string;
@@ -147,6 +148,7 @@ export type Database = {
           name: string;
           description?: string | null;
           amount: number;
+          type?: "per_member" | "total";
           group_id: string;
           due_date?: string | null;
           created_at?: string;
@@ -155,6 +157,7 @@ export type Database = {
           name?: string;
           description?: string | null;
           amount?: number;
+          type?: "per_member" | "total";
           group_id?: string;
           due_date?: string | null;
         };
@@ -223,6 +226,18 @@ export type Database = {
           p_member_charge_id: string;
           p_amount: number;
           p_paid_at: string;
+        };
+        Returns: void;
+      };
+      charge_has_payments: {
+        Args: {
+          p_charge_id: string;
+        };
+        Returns: boolean;
+      };
+      assign_charge_to_missing_members: {
+        Args: {
+          p_charge_id: string;
         };
         Returns: void;
       };
