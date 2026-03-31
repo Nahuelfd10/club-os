@@ -132,6 +132,34 @@ export type Database = {
         };
         Relationships: [];
       };
+      charges: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          amount: number;
+          group_id: string;
+          due_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          amount: number;
+          group_id: string;
+          due_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          amount?: number;
+          group_id?: string;
+          due_date?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       member_payment_summary: {

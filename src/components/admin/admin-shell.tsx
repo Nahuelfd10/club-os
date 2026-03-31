@@ -4,6 +4,7 @@ import {
   House,
   LayoutDashboard,
   LogOut,
+  Receipt,
   Settings,
   Users,
   UsersRound,
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/socios", label: "Socios", icon: Users },
   { href: "/admin/groups", label: "Grupos", icon: UsersRound },
+  { href: "/admin/charges", label: "Cargos", icon: Receipt },
   { href: "/admin/settings", label: "Configuracion", icon: Settings },
 ];
 

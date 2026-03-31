@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Badge, Button, Card, Input } from "@/components/ui";
+import { getChargesByGroupId, type ChargeWithGroup } from "@/lib/charges";
 import {
   addMemberToGroup,
   getGroupById,
@@ -14,6 +15,7 @@ import {
   type GroupMemberRow,
   type GroupRow,
 } from "@/lib/groups";
+import { formatMoney } from "@/lib/formatters";
 import { listMembers } from "@/lib/supabase";
 
 type MemberOption = {
@@ -22,12 +24,24 @@ type MemberOption = {
   dni: string;
 };
 
+function formatChargeDueDate(iso: string | null): string {
+  if (!iso) {
+    return "—";
+  }
+  try {
+    return new Date(`${iso}T12:00:00`).toLocaleDateString("es-AR");
+  } catch {
+    return iso;
+  }
+}
+
 export default function AdminGroupDetailPage() {
   const params = useParams<{ id: string }>();
   const groupId = params?.id ?? "";
 
   const [group, setGroup] = useState<GroupRow | null>(null);
   const [membersInGroup, setMembersInGroup] = useState<GroupMemberRow[]>([]);
+  const [groupCharges, setGroupCharges] = useState<ChargeWithGroup[]>([]);
   const [allMembers, setAllMembers] = useState<MemberOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,14 +61,16 @@ export default function AdminGroupDetailPage() {
     setActionMessage(null);
 
     try {
-      const [g, inGroup, everyone] = await Promise.all([
+      const [g, inGroup, charges, everyone] = await Promise.all([
         getGroupById(groupId),
         getMembersInGroup(groupId),
+        getChargesByGroupId(groupId),
         listMembers(),
       ]);
 
       setGroup(g);
       setMembersInGroup(inGroup);
+      setGroupCharges(charges);
       setAllMembers(
         everyone.map((m) => ({
           id: m.id,
@@ -246,6 +262,40 @@ export default function AdminGroupDetailPage() {
                         {removingKey === row.member.id ? "Quitando..." : "Quitar del grupo"}
                       </button>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="border border-slate-200/80 p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Cargos del grupo</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          {groupCharges.length === 0
+            ? "No hay cargos asociados a este grupo."
+            : `${groupCharges.length} cargo(s) registrado(s).`}
+        </p>
+
+        {groupCharges.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Vencimiento</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {groupCharges.map((charge) => (
+                  <tr key={charge.id}>
+                    <td className="px-3 py-2 font-medium text-slate-900">{charge.name}</td>
+                    <td className="px-3 py-2 tabular-nums text-slate-800">
+                      {formatMoney(charge.amount)}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{formatChargeDueDate(charge.due_date)}</td>
                   </tr>
                 ))}
               </tbody>
