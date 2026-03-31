@@ -12,21 +12,26 @@ export default async function AdminDashboardPage() {
   const overviewCards = [
     { title: "Total socios", value: stats.totalMembers, helper: "Socios registrados" },
     {
-      title: "Ingresos del mes",
+      title: "Ingresos (cuotas) del mes",
       value: formatMoney(stats.monthlyIncome),
       helper: `${stats.incomeChangePercent >= 0 ? "+" : "-"}${percentFormatter.format(
         Math.abs(stats.incomeChangePercent)
       )} vs mes anterior`,
     },
     {
-      title: "Deuda total",
-      value: formatMoney(stats.totalDebt),
-      helper: `${stats.membersWithDebt} socios deben cuotas`,
+      title: "Cobrado por cargos (mes)",
+      value: formatMoney(stats.monthlyChargesCollected),
+      helper: "Cobros registrados por cargos",
     },
     {
-      title: "Proyeccion mensual",
-      value: formatMoney(stats.nextMonthProjectedIncome),
-      helper: "Ingresos proyectados",
+      title: "Egresos del mes",
+      value: formatMoney(stats.monthlyExpenses),
+      helper: "Gastos reales del club",
+    },
+    {
+      title: "Balance del mes",
+      value: formatMoney(stats.monthlyBalance),
+      helper: "Cuotas + cobros - egresos",
     },
   ];
   const maxSeriesIncome = Math.max(...stats.recentMonthlyIncome.map((item) => item.income), 1);
@@ -40,7 +45,7 @@ export default async function AdminDashboardPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {overviewCards.map((card) => (
           <article key={card.title} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-slate-500">{card.title}</p>
@@ -52,7 +57,7 @@ export default async function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <section className="rounded-2xl border border-slate-200/80 bg-white p-5 xl:col-span-2">
-          <h2 className="text-lg font-semibold text-slate-900">Ingresos mensuales</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Ingresos (cuotas) mensuales</h2>
           <p className="text-sm text-slate-500">Ultimos 6 meses</p>
 
           <div className="mt-5 flex h-56 items-end justify-between gap-3 rounded-xl bg-slate-50 p-4">
@@ -118,8 +123,8 @@ export default async function AdminDashboardPage() {
           <p className="mt-1 text-2xl font-bold text-slate-900">{stats.pendingMembers}</p>
         </article>
         <article>
-          <p className="text-sm text-slate-500">Ingresos mes anterior</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{formatMoney(stats.lastMonthIncome)}</p>
+          <p className="text-sm text-slate-500">Deuda total</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{formatMoney(stats.totalDebt)}</p>
         </article>
       </section>
     </section>

@@ -7,6 +7,9 @@ type DashboardStats = {
   pendingMembers: number;
   monthlyFee: number;
   monthlyIncome: number;
+  monthlyChargesCollected: number;
+  monthlyExpenses: number;
+  monthlyBalance: number;
   totalDebt: number;
   nextMonthProjectedIncome: number;
   membersWithDebt: number;
@@ -47,15 +50,29 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const previousMonth = formatMonth(previousMonthDate);
   const recentMonths = getRecentMonths(now, 6);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const [
     { data: membersRows, error: membersError },
     { data: allPaymentsRows, error: allPaymentsError },
     { data: clubSettings, error: clubSettingsError },
+    { data: chargePaymentsRows, error: chargePaymentsError },
+    { data: expensesRows, error: expensesError },
   ] = await Promise.all([
     supabase.from("members").select("id, full_name, status, created_at"),
     supabase.from("payments").select("member_id, month, amount"),
     supabase.from("club_settings").select("monthly_fee").single(),
+    supabase
+      .from("charge_payments")
+      .select("amount, paid_at")
+      .gte("paid_at", monthStart.toISOString())
+      .lt("paid_at", nextMonthStart.toISOString()),
+    supabase
+      .from("expenses")
+      .select("amount, date")
+      .gte("date", monthStart.toISOString().slice(0, 10))
+      .lt("date", nextMonthStart.toISOString().slice(0, 10)),
   ]);
 
   if (membersError) {
@@ -66,6 +83,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
   if (clubSettingsError && (clubSettingsError as { code?: string }).code !== "PGRST116") {
     throw clubSettingsError;
+  }
+  if (chargePaymentsError) {
+    throw chargePaymentsError;
+  }
+  if (expensesError) {
+    throw expensesError;
   }
 
   const monthlyFee =
@@ -141,12 +164,27 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const incomeChangePercent =
     lastMonthIncome > 0 ? (incomeChange / lastMonthIncome) * 100 : monthlyIncome > 0 ? 100 : 0;
 
+  const monthlyChargesCollected = (chargePaymentsRows ?? []).reduce((sum, row) => {
+    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
+    return Number.isNaN(amount) ? sum : sum + amount;
+  }, 0);
+
+  const monthlyExpenses = (expensesRows ?? []).reduce((sum, row) => {
+    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
+    return Number.isNaN(amount) ? sum : sum + amount;
+  }, 0);
+
+  const monthlyBalance = monthlyIncome + monthlyChargesCollected - monthlyExpenses;
+
   return {
     totalMembers: members.length,
     activeMembers,
     pendingMembers,
     monthlyFee,
     monthlyIncome,
+    monthlyChargesCollected,
+    monthlyExpenses,
+    monthlyBalance,
     totalDebt,
     nextMonthProjectedIncome,
     membersWithDebt,

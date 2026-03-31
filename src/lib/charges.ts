@@ -17,6 +17,8 @@ export type ChargeWithGroup = ChargeRow & {
 
 export type ChargeDetail = ChargeWithGroup;
 
+export type ChargeOption = { id: string; name: string };
+
 export type MemberChargeStatus = "pending" | "partial" | "paid";
 
 export type MemberChargeWithDetails = {
@@ -171,6 +173,39 @@ export async function listChargesWithGroup(): Promise<ChargeWithGroup[]> {
     .map(mapRawToChargeWithGroup)
     .filter((row): row is ChargeWithGroup => row !== null)
     .sort(sortChargesByDate);
+}
+
+export async function listChargesForSelect(): Promise<ChargeOption[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("charges")
+    .select("id, name")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as ChargeOption[];
+}
+
+export async function getChargeFinancials(chargeId: string): Promise<{
+  total_expected: number;
+  total_collected: number;
+  total_expenses: number;
+}> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("get_charge_financials", { p_charge_id: chargeId });
+  if (error) {
+    throw error;
+  }
+
+  const first = Array.isArray(data) && data.length > 0 ? data[0] : null;
+  const total_expected = normalizeAmount(first?.total_expected ?? 0);
+  const total_collected = normalizeAmount(first?.total_collected ?? 0);
+  const total_expenses = normalizeAmount(first?.total_expenses ?? 0);
+
+  return { total_expected, total_collected, total_expenses };
 }
 
 export async function getChargeById(chargeId: string): Promise<ChargeDetail | null> {

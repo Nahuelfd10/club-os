@@ -13,6 +13,7 @@ import {
   assignChargeToMember,
   chargeHasPayments,
   getChargeById,
+  getChargeFinancials,
   getChargePaymentsByMemberChargeId,
   getMemberChargesForCharge,
   getMissingMembersForCharge,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/charges-ui";
 import { formatDueDate, formatPaidAt } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
+import { createExpense, deleteExpense, listExpensesByChargeId, updateExpense, type ExpenseRow } from "@/lib/expenses";
 import { buildChargeDebtWhatsAppLink } from "@/lib/whatsapp-reminder";
 
 type FilterKey = "all" | "pending" | "partial" | "paid";
@@ -48,6 +50,14 @@ export default function AdminChargeDetailPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
+  const [financials, setFinancials] = useState<{
+    total_expected: number;
+    total_collected: number;
+    total_expenses: number;
+  } | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const [expandedMcId, setExpandedMcId] = useState<string | null>(null);
@@ -66,6 +76,22 @@ export default function AdminChargeDetailPage() {
   const [assigningMissing, setAssigningMissing] = useState(false);
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
 
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
+  const [expenseDesc, setExpenseDesc] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseSaving, setExpenseSaving] = useState(false);
+  const [expenseDeletingId, setExpenseDeletingId] = useState<string | null>(null);
+
+  const formatExpenseDate = (value: string) => {
+    if (!value) {
+      return "—";
+    }
+    return new Date(`${value}T12:00:00`).toLocaleDateString("es-AR");
+  };
+
   const loadAll = useCallback(async () => {
     if (!chargeId) {
       return;
@@ -80,17 +106,29 @@ export default function AdminChargeDetailPage() {
         setRows([]);
         setMissingMembers([]);
         setHasPayments(null);
+        setFinancials(null);
+        setExpenses([]);
         return;
       }
 
-      const [hp, memberCharges, missing] = await Promise.all([
+      const [hp, memberCharges, missing, fin] = await Promise.all([
         chargeHasPayments(chargeId),
         getMemberChargesForCharge(chargeId),
         getMissingMembersForCharge({ chargeId, groupId: ch.group.id }),
+        getChargeFinancials(chargeId),
       ]);
       setHasPayments(hp);
       setRows(memberCharges);
       setMissingMembers(missing);
+      setFinancials(fin);
+
+      setExpensesLoading(true);
+      try {
+        const exp = await listExpensesByChargeId(chargeId);
+        setExpenses(exp);
+      } finally {
+        setExpensesLoading(false);
+      }
     } catch (error) {
       console.error(error);
       setErrorMessage(error instanceof Error ? error.message : "No se pudo cargar el cargo.");
@@ -164,6 +202,101 @@ export default function AdminChargeDetailPage() {
     await loadAll();
     if (expandedMcId === memberChargeId) {
       await loadHistory(memberChargeId);
+    }
+  };
+
+  const openCreateExpense = () => {
+    setEditingExpense(null);
+    setExpenseDesc("");
+    setExpenseCategory("");
+    setExpenseAmount("");
+    setExpenseDate(new Date().toISOString().slice(0, 10));
+    setExpenseModalOpen(true);
+  };
+
+  const openEditExpense = (expense: ExpenseRow) => {
+    setEditingExpense(expense);
+    setExpenseDesc(expense.description ?? "");
+    setExpenseCategory(expense.category ?? "");
+    setExpenseAmount(String(expense.amount ?? ""));
+    setExpenseDate(expense.date ?? new Date().toISOString().slice(0, 10));
+    setExpenseModalOpen(true);
+  };
+
+  const closeExpenseModal = () => {
+    if (expenseSaving) {
+      return;
+    }
+    setExpenseModalOpen(false);
+  };
+
+  const saveExpense = async () => {
+    if (!charge) {
+      return;
+    }
+    const description = expenseDesc.trim();
+    if (!description) {
+      setActionMessage("La descripción del egreso es obligatoria.");
+      return;
+    }
+    const raw = expenseAmount.replace(",", ".").trim();
+    const amount = Number(raw);
+    if (raw === "" || Number.isNaN(amount)) {
+      setActionMessage("Indicá un monto válido para el egreso.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setActionMessage("El monto del egreso debe ser mayor a cero.");
+      return;
+    }
+    const date = expenseDate.trim() || new Date().toISOString().slice(0, 10);
+
+    setExpenseSaving(true);
+    try {
+      if (editingExpense) {
+        await updateExpense(editingExpense.id, {
+          description,
+          amount,
+          category: expenseCategory.trim() || null,
+          date,
+          charge_id: charge.id,
+        });
+        setActionMessage("Egreso actualizado.");
+      } else {
+        await createExpense({
+          description,
+          amount,
+          category: expenseCategory.trim() || null,
+          date,
+          charge_id: charge.id,
+        });
+        setActionMessage("Egreso registrado.");
+      }
+      setExpenseModalOpen(false);
+      await loadAll();
+    } catch (error) {
+      console.error(error);
+      setActionMessage(error instanceof Error ? error.message : "No se pudo guardar el egreso.");
+    } finally {
+      setExpenseSaving(false);
+    }
+  };
+
+  const removeExpense = async (expense: ExpenseRow) => {
+    const ok = window.confirm(`¿Eliminar el egreso "${expense.description}"?`);
+    if (!ok) {
+      return;
+    }
+    setExpenseDeletingId(expense.id);
+    try {
+      await deleteExpense(expense.id);
+      setActionMessage("Egreso eliminado.");
+      await loadAll();
+    } catch (error) {
+      console.error(error);
+      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar el egreso.");
+    } finally {
+      setExpenseDeletingId(null);
     }
   };
 
@@ -339,6 +472,13 @@ export default function AdminChargeDetailPage() {
           <div className="flex flex-col items-end gap-2">
             <button
               type="button"
+              onClick={openCreateExpense}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Registrar egreso
+            </button>
+            <button
+              type="button"
               onClick={openEdit}
               disabled={Boolean(hasPayments)}
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
@@ -366,14 +506,25 @@ export default function AdminChargeDetailPage() {
 
         <Card className="border border-slate-200/80 p-6">
           {(() => {
-            const totalExpected = rows.reduce((sum, r) => sum + r.amount, 0);
-            const totalPaid = rows.reduce((sum, r) => sum + r.paid_amount, 0);
-            const totalRemaining = Math.max(0, totalExpected - totalPaid);
-            const pct = totalExpected > 0 ? Math.round((totalPaid / totalExpected) * 100) : 0;
+            const totalExpected = financials?.total_expected ?? rows.reduce((sum, r) => sum + r.amount, 0);
+            const totalCollected = financials?.total_collected ?? rows.reduce((sum, r) => sum + r.paid_amount, 0);
+            const totalExpenses = financials?.total_expenses ?? expenses.reduce((sum, e) => sum + e.amount, 0);
+            const difference = totalCollected - totalExpenses;
+            const pct = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+            const status =
+              Math.abs(totalExpenses - totalCollected) < 0.01
+                ? { label: "Cubierto", variant: "success" as const }
+                : totalExpenses > totalCollected
+                  ? { label: "Déficit", variant: "danger" as const }
+                  : { label: "Sobrante", variant: "slate" as const };
 
             return (
               <>
-                <h2 className="text-lg font-semibold text-slate-900">Resumen del cargo</h2>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold text-slate-900">Resumen financiero</h2>
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -388,34 +539,107 @@ export default function AdminChargeDetailPage() {
                       Recaudado
                     </p>
                     <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
-                      {formatMoney(totalPaid)}
+                      {formatMoney(totalCollected)}
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Restante
+                      Egresado
                     </p>
                     <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
-                      {formatMoney(totalRemaining)}
+                      {formatMoney(totalExpenses)}
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Progreso
+                      Diferencia
                     </p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{pct}%</p>
-                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-success transition-all"
-                        style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                        aria-hidden
-                      />
-                    </div>
+                    <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{formatMoney(difference)}</p>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">Progreso de recaudación</p>
+                    <p className="text-sm font-semibold tabular-nums text-slate-700">{pct}%</p>
+                  </div>
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-success transition-all"
+                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                      aria-hidden
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    {formatMoney(totalCollected)} / {formatMoney(totalExpected)}
+                  </p>
                 </div>
               </>
             );
           })()}
+        </Card>
+
+        <Card className="border border-slate-200/80 p-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Egresos asociados</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {expensesLoading ? "Cargando..." : `${expenses.length} egreso(s) asociado(s) a este cargo.`}
+              </p>
+            </div>
+            <Button type="button" size="md" onClick={openCreateExpense}>
+              Registrar egreso
+            </Button>
+          </div>
+
+          {expensesLoading ? (
+            <p className="text-sm text-slate-600">Cargando egresos...</p>
+          ) : expenses.length === 0 ? (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              No hay egresos asociados a este cargo.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Descripción</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Fecha</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {expenses.map((e) => (
+                    <tr key={e.id} className="transition-colors hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium text-slate-900">{e.description}</td>
+                      <td className="px-3 py-2 tabular-nums text-slate-900">{formatMoney(e.amount)}</td>
+                      <td className="px-3 py-2 text-slate-700">{formatExpenseDate(e.date)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditExpense(e)}
+                            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeExpense(e)}
+                            disabled={expenseDeletingId === e.id}
+                            className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {expenseDeletingId === e.id ? "Eliminando..." : "Eliminar"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
 
         <Card className="border border-slate-200/80 p-6">
@@ -731,6 +955,82 @@ export default function AdminChargeDetailPage() {
           </Button>
           <Button type="button" size="md" onClick={() => void saveEdit()} disabled={editSaving}>
             {editSaving ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      </AdminModal>
+
+      <AdminModal open={expenseModalOpen} onClose={closeExpenseModal}>
+        <h2 className="text-lg font-semibold text-slate-900">
+          {editingExpense ? "Editar egreso" : "Registrar egreso"}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Este egreso quedará asociado al cargo <span className="font-semibold text-slate-900">{charge.name}</span>.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <label htmlFor="charge-exp-desc" className="mb-1 block text-sm font-medium text-slate-700">
+              Descripción <span className="text-danger">*</span>
+            </label>
+            <Input
+              id="charge-exp-desc"
+              value={expenseDesc}
+              onChange={(e) => setExpenseDesc(e.target.value)}
+              placeholder="Ej. Pago seguro"
+              className="text-sm"
+              autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="charge-exp-cat" className="mb-1 block text-sm font-medium text-slate-700">
+              Categoría
+            </label>
+            <Input
+              id="charge-exp-cat"
+              value={expenseCategory}
+              onChange={(e) => setExpenseCategory(e.target.value)}
+              placeholder="Opcional"
+              className="text-sm"
+              autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="charge-exp-amount" className="mb-1 block text-sm font-medium text-slate-700">
+              Monto <span className="text-danger">*</span>
+            </label>
+            <Input
+              id="charge-exp-amount"
+              type="text"
+              inputMode="decimal"
+              value={expenseAmount}
+              onChange={(e) => setExpenseAmount(e.target.value)}
+              placeholder="0"
+              className="text-sm"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="charge-exp-date" className="mb-1 block text-sm font-medium text-slate-700">
+              Fecha
+            </label>
+            <Input
+              id="charge-exp-date"
+              type="date"
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <Button type="button" variant="neutral" size="md" onClick={closeExpenseModal} disabled={expenseSaving}>
+            Cancelar
+          </Button>
+          <Button type="button" size="md" onClick={() => void saveExpense()} disabled={expenseSaving}>
+            {expenseSaving ? "Guardando..." : "Guardar"}
           </Button>
         </div>
       </AdminModal>

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowDownCircle,
   House,
   LayoutDashboard,
   LogOut,
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { href: "/admin/socios", label: "Socios", icon: Users },
   { href: "/admin/groups", label: "Grupos", icon: UsersRound },
   { href: "/admin/charges", label: "Cargos", icon: Receipt },
+  { href: "/admin/expenses", label: "Egresos", icon: ArrowDownCircle },
   { href: "/admin/settings", label: "Configuracion", icon: Settings },
 ];
 

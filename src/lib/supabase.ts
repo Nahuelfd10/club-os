@@ -210,6 +210,34 @@ export type Database = {
         };
         Relationships: [];
       };
+      expenses: {
+        Row: {
+          id: string;
+          amount: number;
+          description: string;
+          category: string | null;
+          date: string;
+          charge_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          amount: number;
+          description: string;
+          category?: string | null;
+          date?: string;
+          charge_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          amount?: number;
+          description?: string;
+          category?: string | null;
+          date?: string;
+          charge_id?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       member_payment_summary: {
@@ -240,6 +268,16 @@ export type Database = {
           p_charge_id: string;
         };
         Returns: void;
+      };
+      get_charge_financials: {
+        Args: {
+          p_charge_id: string;
+        };
+        Returns: {
+          total_expected: number;
+          total_collected: number;
+          total_expenses: number;
+        }[];
       };
     };
     Enums: Record<string, never>;
