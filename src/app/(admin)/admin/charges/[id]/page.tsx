@@ -23,6 +23,7 @@ import {
   type MemberChargeStatus,
 } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
+import { buildChargeDebtWhatsAppLink } from "@/lib/whatsapp-reminder";
 
 function formatDueDate(iso: string | null): string {
   if (!iso) {
@@ -102,6 +103,7 @@ export default function AdminChargeDetailPage() {
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeForChargeRow | null>(null);
+  const [payIsFull, setPayIsFull] = useState(true);
   const [payAmount, setPayAmount] = useState("");
   const [payPaidAt, setPayPaidAt] = useState(() => toDatetimeLocalValue(new Date()));
   const [paySubmitting, setPaySubmitting] = useState(false);
@@ -193,12 +195,13 @@ export default function AdminChargeDetailPage() {
     }
   };
 
-  const openPayModal = (row: MemberChargeForChargeRow, mode: "full" | "partial") => {
+  const openPayModal = (row: MemberChargeForChargeRow) => {
     setPayModalRow(row);
     setPayPaidAt(toDatetimeLocalValue(new Date()));
     setPayError(null);
+    setPayIsFull(true);
     const rem = remainingAmount(row);
-    setPayAmount(mode === "full" ? String(rem % 1 === 0 ? rem : rem.toFixed(2)) : "");
+    setPayAmount(String(rem % 1 === 0 ? rem : rem.toFixed(2)));
   };
 
   const closePayModal = () => {
@@ -245,6 +248,20 @@ export default function AdminChargeDetailPage() {
     } finally {
       setPaySubmitting(false);
     }
+  };
+
+  const partialAmountInvalid = !payIsFull && (() => {
+    const raw = payAmount.replace(",", ".").trim();
+    const n = Number(raw);
+    return raw === "" || Number.isNaN(n) || n <= 0;
+  })();
+
+  const syncFullAmount = () => {
+    if (!payModalRow) {
+      return;
+    }
+    const rem = remainingAmount(payModalRow);
+    setPayAmount(String(rem % 1 === 0 ? rem : rem.toFixed(2)));
   };
 
   const openEdit = () => {
@@ -558,6 +575,16 @@ export default function AdminChargeDetailPage() {
                     const canPay = rem > 0.001;
                     const expanded = expandedMcId === row.id;
                     const history = historyByMc[row.id];
+                    const waUrl =
+                      canPay && row.member.phone
+                        ? buildChargeDebtWhatsAppLink({
+                            fullName: row.member.full_name,
+                            phone: row.member.phone,
+                            chargeName: charge.name,
+                            groupName: charge.group.name,
+                            remainingFormatted: formatMoney(rem),
+                          })
+                        : null;
 
                     return (
                       <Fragment key={row.id}>
@@ -604,23 +631,32 @@ export default function AdminChargeDetailPage() {
                             <Badge variant={statusBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
                           </td>
                           <td className="px-3 py-2 align-top">
-                            <div className="flex min-w-[10.5rem] flex-col gap-1.5">
+                            <div className="flex min-w-[10.5rem] gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => openPayModal(row, "full")}
+                                onClick={() => openPayModal(row)}
                                 disabled={!canPay}
                                 className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-center text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Registrar pago
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => openPayModal(row, "partial")}
-                                disabled={!canPay}
-                                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-center text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Pago parcial
-                              </button>
+                              {waUrl ? (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-md border border-emerald-600 bg-emerald-50/80 px-2.5 py-1.5 text-center text-xs font-semibold text-emerald-900 transition-colors hover:bg-emerald-100"
+                                >
+                                  WhatsApp
+                                </a>
+                              ) : canPay ? (
+                                <span
+                                  className="text-[11px] leading-tight text-slate-500"
+                                  title="El socio no tiene teléfono configurado"
+                                >
+                                  Sin teléfono para WhatsApp
+                                </span>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -732,6 +768,45 @@ export default function AdminChargeDetailPage() {
           </>
         ) : null}
 
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de pago</p>
+          <div className="mt-2 inline-flex flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1" role="group">
+            <button
+              type="button"
+              onClick={() => {
+                setPayIsFull(true);
+                syncFullAmount();
+              }}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                payIsFull ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Pago total
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPayIsFull(false);
+                setPayAmount("");
+              }}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                !payIsFull ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Pago parcial
+            </button>
+          </div>
+          {!payIsFull ? (
+            <p className="mt-2 text-xs text-slate-600">
+              Ingresá un monto menor o igual al pendiente.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-600">
+              El monto se completa automáticamente con el saldo pendiente.
+            </p>
+          )}
+        </div>
+
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="charge-pay-amount" className="mb-1 block text-sm font-medium text-slate-700">
@@ -742,10 +817,16 @@ export default function AdminChargeDetailPage() {
               type="text"
               inputMode="decimal"
               value={payAmount}
+              disabled={payIsFull}
               onChange={(e) => setPayAmount(e.target.value)}
               placeholder="0"
-              className="text-sm"
+              className={payIsFull ? "text-sm opacity-80" : "text-sm"}
             />
+            {payIsFull ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Desactivá “Pago total” para editar el monto.
+              </p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="charge-pay-at" className="mb-1 block text-sm font-medium text-slate-700">
@@ -764,6 +845,11 @@ export default function AdminChargeDetailPage() {
         {payError ? (
           <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{payError}</p>
         ) : null}
+        {partialAmountInvalid ? (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Ingresá un monto mayor a 0 para confirmar el pago parcial.
+          </p>
+        ) : null}
 
         <div className="mt-6 flex items-center justify-end gap-2">
           <Button type="button" variant="neutral" size="md" onClick={closePayModal} disabled={paySubmitting}>
@@ -773,7 +859,7 @@ export default function AdminChargeDetailPage() {
             type="button"
             size="md"
             onClick={() => void submitPayment()}
-            disabled={paySubmitting}
+            disabled={paySubmitting || partialAmountInvalid}
             style={{ backgroundColor: "#059669" }}
           >
             {paySubmitting ? "Guardando..." : "Confirmar pago"}

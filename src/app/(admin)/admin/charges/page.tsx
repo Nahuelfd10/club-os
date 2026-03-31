@@ -196,7 +196,14 @@ export default function AdminChargesPage() {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {charges.map((charge) => (
                   <tr key={charge.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-3 py-2 font-medium text-slate-900">{charge.name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <Link
+                        href={`/admin/charges/${charge.id}`}
+                        className="text-slate-900 underline-offset-2 hover:underline"
+                      >
+                        {charge.name}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2 text-slate-700">
                       <Link
                         href={`/admin/groups/${charge.group.id}`}

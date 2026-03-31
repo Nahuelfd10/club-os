@@ -67,6 +67,7 @@ export type MemberChargeForChargeRow = {
     id: string;
     full_name: string;
     dni: string;
+    phone: string | null;
     status: "pending" | "active";
   };
 };
@@ -250,6 +251,7 @@ const MEMBER_CHARGES_FOR_CHARGE_SELECT = `
     id,
     full_name,
     dni,
+    phone,
     status
   )
 `;
@@ -266,6 +268,7 @@ type RawMemberChargeForChargeRow = {
     id: string;
     full_name: string;
     dni: string;
+    phone: string | null;
     status: "pending" | "active";
   } | null;
 };
