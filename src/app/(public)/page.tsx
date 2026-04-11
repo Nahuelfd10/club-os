@@ -6,12 +6,14 @@ import {
   FolderKanban,
   Layers3,
   MessageSquareMore,
-  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
 
+import { ClubOsMiniDashboard } from "@/components/marketing/clubos-mini-dashboard";
+import { ClubOsSystemFlow } from "@/components/marketing/clubos-system-flow";
 import { Reveal } from "@/components/marketing/reveal";
+import { WhatsAppReminderPreview } from "@/components/marketing/whatsapp-reminder-preview";
 import { buttonClassNames } from "@/components/ui";
 
 const productBenefits = [
@@ -106,32 +108,7 @@ export default function Home() {
 
           <aside className="grid gap-4">
             <Reveal delayMs={120}>
-              <div className="clubos-sheen rounded-[2rem] border border-white/10 bg-[linear-gradient(160deg,rgba(15,23,42,0.94)_0%,rgba(17,24,39,0.88)_50%,rgba(30,41,59,0.94)_100%)] p-6 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.95)] sm:p-8">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300/70">Posicionamiento</p>
-                    <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">Club OS no vende humo: primero resuelve.</h2>
-                  </div>
-                  <div className="rounded-full bg-white/8 p-3 text-sky-300">
-                    <ShieldCheck className="h-5 w-5" aria-hidden />
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-semibold text-white">Caso real antes que plantilla generica</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">El producto nace dentro de un club concreto, con necesidades concretas y validacion diaria.</p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-semibold text-white">Diseno con foco operativo</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Cada decision visual tiene impacto directo en claridad, percepcion y uso real del sistema.</p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm font-semibold text-white">Listo para productoizar despues</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">Cuando cierre bien el caso actual, la base ya va a estar preparada para abrirse a otros clubes.</p>
-                  </div>
-                </div>
-              </div>
+              <ClubOsSystemFlow />
             </Reveal>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -153,6 +130,10 @@ export default function Home() {
           </aside>
         </section>
 
+        <Reveal delayMs={60}>
+          <ClubOsMiniDashboard />
+        </Reveal>
+
         <section id="beneficios" className="grid gap-4 lg:grid-cols-4">
           {productBenefits.map((benefit, index) => {
             const Icon = benefit.icon;
@@ -170,6 +151,10 @@ export default function Home() {
             );
           })}
         </section>
+
+        <Reveal delayMs={90}>
+          <WhatsAppReminderPreview />
+        </Reveal>
 
         <section id="producto" className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <Reveal delayMs={70}>
