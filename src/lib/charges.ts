@@ -204,34 +204,103 @@ export type MemberChargeBalance = {
   pendingLines: number;
 };
 
-/** Agrega saldos por socio a partir de `member_charges` (útil para listados y filtros). */
-export async function listMemberChargeBalances(): Promise<MemberChargeBalance[]> {
+/** Saldos por socio separando cuota club (`membership`) del resto de cargos. */
+export type MemberChargeBalancesSplit = {
+  member_id: string;
+  membershipRemaining: number;
+  membershipPendingLines: number;
+  otherRemaining: number;
+  otherPendingLines: number;
+};
+
+type MemberChargeSplitRow = {
+  member_id: string;
+  amount: unknown;
+  paid_amount: unknown;
+  charges: {
+    charge_definitions: { category: string | null } | null;
+  } | null;
+};
+
+/**
+ * Agrega saldos por socio separando cuota mensual (`charge_definitions.category = membership`)
+ * del resto (actividades, tasas, cargos sin categoría, etc.).
+ * Misma convención que el dashboard (`getDashboardStats`).
+ */
+export async function listMemberChargeBalancesSplit(): Promise<MemberChargeBalancesSplit[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("member_charges").select("member_id, amount, paid_amount");
+  const { data, error } = await supabase.from("member_charges").select(`
+    member_id,
+    amount,
+    paid_amount,
+    charges (
+      charge_definitions (
+        category
+      )
+    )
+  `);
 
   if (error) {
     throw error;
   }
 
-  const byMember = new Map<string, { remaining: number; pendingLines: number }>();
-
-  for (const row of data ?? []) {
-    const mid = row.member_id as string;
-    const amount = normalizeAmount((row as { amount: unknown }).amount);
-    const paid = normalizeAmount((row as { paid_amount: unknown }).paid_amount);
-    const rem = Math.max(0, roundMoney(amount - paid));
-    const cur = byMember.get(mid) ?? { remaining: 0, pendingLines: 0 };
-    cur.remaining = roundMoney(cur.remaining + rem);
-    if (rem > 0.001) {
-      cur.pendingLines += 1;
+  const byMember = new Map<
+    string,
+    {
+      membershipRemaining: number;
+      membershipPendingLines: number;
+      otherRemaining: number;
+      otherPendingLines: number;
     }
+  >();
+
+  for (const raw of (data ?? []) as unknown as MemberChargeSplitRow[]) {
+    const row = raw;
+    const mid = row.member_id as string;
+    const amount = normalizeAmount(row.amount);
+    const paid = normalizeAmount(row.paid_amount);
+    const rem = Math.max(0, roundMoney(amount - paid));
+    const cat = row.charges?.charge_definitions?.category ?? null;
+    const isMembership = isMembershipCategory(cat);
+
+    const cur = byMember.get(mid) ?? {
+      membershipRemaining: 0,
+      membershipPendingLines: 0,
+      otherRemaining: 0,
+      otherPendingLines: 0,
+    };
+
+    if (isMembership) {
+      cur.membershipRemaining = roundMoney(cur.membershipRemaining + rem);
+      if (rem > 0.001) {
+        cur.membershipPendingLines += 1;
+      }
+    } else {
+      cur.otherRemaining = roundMoney(cur.otherRemaining + rem);
+      if (rem > 0.001) {
+        cur.otherPendingLines += 1;
+      }
+    }
+
     byMember.set(mid, cur);
   }
 
   return [...byMember.entries()].map(([member_id, v]) => ({
     member_id,
-    remaining: v.remaining,
-    pendingLines: v.pendingLines,
+    membershipRemaining: v.membershipRemaining,
+    membershipPendingLines: v.membershipPendingLines,
+    otherRemaining: v.otherRemaining,
+    otherPendingLines: v.otherPendingLines,
+  }));
+}
+
+/** Agrega saldos por socio a partir de `member_charges` (total cuota + otros cargos). */
+export async function listMemberChargeBalances(): Promise<MemberChargeBalance[]> {
+  const split = await listMemberChargeBalancesSplit();
+  return split.map((s) => ({
+    member_id: s.member_id,
+    remaining: roundMoney(s.membershipRemaining + s.otherRemaining),
+    pendingLines: s.membershipPendingLines + s.otherPendingLines,
   }));
 }
 
