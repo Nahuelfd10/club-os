@@ -17,6 +17,7 @@ type SettingsSnapshot = Pick<
   ClubSettings,
   | "name"
   | "monthly_fee"
+  | "monthly_due_day"
   | "primary_color"
   | "accent_color"
   | "send_payment_confirmation_email"
@@ -26,6 +27,7 @@ type SettingsSnapshot = Pick<
 const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
   name: settings.name,
   monthly_fee: settings.monthly_fee,
+  monthly_due_day: settings.monthly_due_day,
   primary_color: settings.primary_color,
   accent_color: settings.accent_color,
   send_payment_confirmation_email: settings.send_payment_confirmation_email,
@@ -51,6 +53,7 @@ export default function AdminSettingsPage() {
     return (
       currentSnapshot.name !== initialSettings.name ||
       currentSnapshot.monthly_fee !== initialSettings.monthly_fee ||
+      currentSnapshot.monthly_due_day !== initialSettings.monthly_due_day ||
       currentSnapshot.primary_color !== initialSettings.primary_color ||
       currentSnapshot.accent_color !== initialSettings.accent_color ||
       currentSnapshot.send_payment_confirmation_email !== initialSettings.send_payment_confirmation_email ||
@@ -73,6 +76,7 @@ export default function AdminSettingsPage() {
           id: "",
           name: config.name,
           monthly_fee: config.monthly_fee,
+          monthly_due_day: config.monthly_due_day,
           primary_color: config.primary_color,
           accent_color: config.accent_color,
           send_payment_confirmation_email: false,
@@ -112,6 +116,7 @@ export default function AdminSettingsPage() {
       await updateClubSettingsById(clubSettings.id, {
         name: clubSettings.name,
         monthly_fee: clubSettings.monthly_fee,
+        monthly_due_day: clubSettings.monthly_due_day,
         primary_color: clubSettings.primary_color,
         accent_color: clubSettings.accent_color,
         send_payment_confirmation_email: clubSettings.send_payment_confirmation_email,
@@ -258,6 +263,32 @@ export default function AdminSettingsPage() {
               }
               required
             />
+          </FormField>
+
+          <FormField htmlFor="monthly_due_day" label="Día de vencimiento mensual">
+            <div className="space-y-1">
+              <Input
+                id="monthly_due_day"
+                type="number"
+                min="1"
+                max="31"
+                value={clubSettings.monthly_due_day ?? 10}
+                onChange={(event) =>
+                  setClubSettings((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          monthly_due_day: Number(event.target.value) || 1,
+                        }
+                      : prev
+                  )
+                }
+                required
+              />
+              <p className="text-xs text-slate-500">
+                Se usar&aacute; para calcular el vencimiento de las cuotas mensuales generadas autom&aacute;ticamente.
+              </p>
+            </div>
           </FormField>
 
           <FormField htmlFor="payment_alias" label="Alias para transferencias">

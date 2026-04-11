@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
@@ -21,14 +22,77 @@ import {
 import {
   createCharge,
   deleteCharge,
+  formatBillingPeriod,
+  generateMonthlyCharges,
   listChargesWithGroup,
   type ChargeWithGroup,
+  type CreateChargeDefinitionCategory,
 } from "@/lib/charges";
 import { formatDueDate } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 import { listAllGroupsForSelect } from "@/lib/groups";
 
+function categoryTableLabel(category: string | null): string {
+  if (!category) {
+    return "—";
+  }
+  if (category === "membership") {
+    return "Cuota mensual";
+  }
+  if (category === "activity") {
+    return "Actividad";
+  }
+  if (category === "fee") {
+    return "Inscripción / otro";
+  }
+  return category;
+}
+
+function categoryHelpText(
+  category: Exclude<CreateChargeDefinitionCategory, "membership">,
+  groupId: string
+): string {
+  const scope = groupId.trim() ? "el grupo elegido" : "todos los socios activos";
+  if (category === "activity") {
+    return `Cargo de actividad (entrenamiento, viaje, torneo, etc.). Se asigna a ${scope}.`;
+  }
+  return `Inscripción u otros cargos no mensuales. Se asigna a ${scope}.`;
+}
+
+function categoryCardCopy(category: Exclude<CreateChargeDefinitionCategory, "membership">): {
+  title: string;
+  description: string;
+} {
+  if (category === "activity") {
+    return {
+      title: "Actividad",
+      description: "Cobros por entrenamientos, viajes, torneos u otros conceptos del club o de un grupo.",
+    };
+  }
+  return {
+    title: "Inscripción / otro",
+    description: "Matrículas, gastos administrativos o cualquier cobro no mensual.",
+  };
+}
+
+type ManualChargeCategory = Exclude<CreateChargeDefinitionCategory, "membership">;
+
+type ChargeCounts = {
+  total: number;
+  membership: number;
+  activity: number;
+  fee: number;
+};
+
+const initialChargeCounts: ChargeCounts = {
+  total: 0,
+  membership: 0,
+  activity: 0,
+  fee: 0,
+};
+
 export default function AdminChargesPage() {
+  const { config, isConfigLoading } = useActiveClubConfig();
   const [charges, setCharges] = useState<ChargeWithGroup[]>([]);
   const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,8 +104,11 @@ export default function AdminChargesPage() {
   const [formAmount, setFormAmount] = useState("");
   const [formType, setFormType] = useState<"per_member" | "total">("per_member");
   const [formGroupId, setFormGroupId] = useState("");
+  const [formDefinitionCategory, setFormDefinitionCategory] =
+    useState<ManualChargeCategory>("activity");
   const [formDueDate, setFormDueDate] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isGeneratingMembership, setIsGeneratingMembership] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -57,12 +124,23 @@ export default function AdminChargesPage() {
       setGroupOptions(groups);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "No se pudieron cargar los cargos."
+        error instanceof Error ? error.message : "No se pudieron cargar los cobros."
       );
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const openCreateModal = (category: ManualChargeCategory = "activity") => {
+    setCreateOpen(true);
+    setFormName("");
+    setFormDescription("");
+    setFormAmount("");
+    setFormType("per_member");
+    setFormDefinitionCategory(category);
+    setFormGroupId("");
+    setFormDueDate("");
+  };
 
   useEffect(() => {
     void load();
@@ -72,10 +150,6 @@ export default function AdminChargesPage() {
     const name = formName.trim();
     if (!name) {
       setActionMessage("El nombre es obligatorio.");
-      return;
-    }
-    if (!formGroupId) {
-      setActionMessage("Elegí un grupo.");
       return;
     }
     const raw = formAmount.replace(",", ".").trim();
@@ -92,11 +166,12 @@ export default function AdminChargesPage() {
         description: formDescription.trim() || null,
         amount,
         type: formType,
-        group_id: formGroupId,
+        group_id: formGroupId.trim() || null,
         due_date: formDueDate.trim() || null,
+        definition_category: formDefinitionCategory,
       });
       setCreateOpen(false);
-      setActionMessage("Cargo creado correctamente.");
+      setActionMessage("Cobro creado correctamente.");
       await load();
     } catch (error: unknown) {
       console.error(error);
@@ -106,11 +181,11 @@ export default function AdminChargesPage() {
           : "";
       if (code === "23505") {
         setActionMessage(
-          "No se pudo generar las deudas: hay un duplicado (socio y cargo). El cargo no se guardó."
+          "No se pudo generar las deudas: hay un duplicado entre socio y cargo. El cobro no se guardó."
         );
       } else {
         setActionMessage(
-          error instanceof Error ? error.message : "No se pudo crear el cargo."
+          error instanceof Error ? error.message : "No se pudo crear el cobro."
         );
       }
     } finally {
@@ -119,157 +194,387 @@ export default function AdminChargesPage() {
   };
 
   const handleDelete = async (charge: ChargeWithGroup) => {
-    const ok = window.confirm(`¿Eliminar el cargo "${charge.name}"?`);
+    const ok = window.confirm(`¿Eliminar el cobro "${charge.name}"?`);
     if (!ok) {
       return;
     }
     setDeletingId(charge.id);
     try {
       await deleteCharge(charge.id);
-      setActionMessage("Cargo eliminado.");
+      setActionMessage("Cobro eliminado.");
       await load();
     } catch (error) {
       console.error(error);
       setActionMessage(
-        error instanceof Error ? error.message : "No se pudo eliminar el cargo."
+        error instanceof Error ? error.message : "No se pudo eliminar el cobro."
       );
     } finally {
       setDeletingId(null);
     }
   };
 
+  const handleGenerateMembershipCharges = async () => {
+    setIsGeneratingMembership(true);
+    setActionMessage(null);
+    try {
+      await generateMonthlyCharges();
+      setActionMessage("Cuotas del club generadas y asignadas correctamente.");
+      await load();
+    } catch (error) {
+      console.error(error);
+      setActionMessage(
+        error instanceof Error ? error.message : "No se pudieron generar las cuotas del club."
+      );
+    } finally {
+      setIsGeneratingMembership(false);
+    }
+  };
+
+  const chargeCounts = useMemo(
+    () =>
+      charges.reduce<ChargeCounts>((acc, charge) => {
+        acc.total += 1;
+        if (charge.category === "membership") {
+          acc.membership += 1;
+        } else if (charge.category === "activity") {
+          acc.activity += 1;
+        } else {
+          acc.fee += 1;
+        }
+        return acc;
+      }, { ...initialChargeCounts }),
+    [charges]
+  );
+
+  const membershipCharges = useMemo(
+    () => charges.filter((charge) => charge.category === "membership"),
+    [charges]
+  );
+
+  const manualCharges = useMemo(
+    () => charges.filter((charge) => charge.category !== "membership"),
+    [charges]
+  );
+
+  const lastPeriod = useMemo(() => {
+    return membershipCharges
+      .map((c) => c.billing_period)
+      .filter((p): p is string => Boolean(p && String(p).trim()))
+      .sort()
+      .at(-1);
+  }, [membershipCharges]);
+
   return (
     <section className="space-y-4">
       <PageHeader
-        title="Cargos"
-        description="Gastos o cuotas extraordinarias asociados a un grupo."
+        title="Cobros"
+        description="La cuota del club y los cobros manuales usan el mismo motor, pero no necesitan el mismo flujo."
         actions={
           <button
             type="button"
-            onClick={() => {
-              setCreateOpen(true);
-              setFormName("");
-              setFormDescription("");
-              setFormAmount("");
-              setFormType("per_member");
-              setFormGroupId(groupOptions[0]?.id ?? "");
-              setFormDueDate("");
-            }}
+            onClick={() => openCreateModal("activity")}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
-            Crear cargo
+            Nuevo cobro manual
           </button>
         }
       />
 
       <Card className="w-full border border-slate-200/80 p-6">
-        {isLoading ? <p className="text-slate-600">Cargando cargos...</p> : null}
+        {!isLoading && !errorMessage ? (
+          <div className="mb-5 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+            <section className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Cuota del club</p>
+              <h2 className="mt-1 text-xl font-bold text-indigo-950">
+                {isConfigLoading ? "Cargando..." : formatMoney(config.monthly_fee)}
+              </h2>
+              <p className="mt-2 text-sm text-indigo-900/80">
+                Se configura desde el club y se genera por mes. No debería cargarse manualmente como un cobro común.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-white/80 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cuotas generadas</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{membershipCharges.length}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Último período generado</p>
+                  <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
+                    {lastPeriod ? formatBillingPeriod(lastPeriod) : "—"}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white/80 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Día configurado</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{config.monthly_due_day ?? "—"}</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateMembershipCharges()}
+                    disabled={isGeneratingMembership}
+                    className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isGeneratingMembership ? "Generando..." : "Generar cuotas pendientes"}
+                  </button>
+                  <Link
+                    href="/admin/settings"
+                    className="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50"
+                  >
+                    Configurar cuota del club
+                  </Link>
+                </div>
+              </div>
+            </section>
 
-        {!isLoading && errorMessage ? (
-          <Alert variant="danger">{errorMessage}</Alert>
+            <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cobros manuales</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">{manualCharges.length}</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Usa <span className="font-semibold text-slate-900">Nuevo cobro manual</span> para actividades, inscripciones y otros cargos extraordinarios.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                <li>Actividades por grupo o para todo el club.</li>
+                <li>Inscripciones, viajes, torneos y cobros puntuales.</li>
+                <li>Montos por persona o totales a dividir.</li>
+              </ul>
+            </section>
+          </div>
         ) : null}
 
-        {!isLoading && actionMessage ? (
-          <Alert>{actionMessage}</Alert>
+        {!isLoading ? (
+          <div className="mb-5 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{chargeCounts.total}</p>
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Cuota mensual</p>
+              <p className="mt-1 text-2xl font-bold text-indigo-950">{chargeCounts.membership}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Actividad</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-950">{chargeCounts.activity}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Inscripción / otro</p>
+              <p className="mt-1 text-2xl font-bold text-amber-950">{chargeCounts.fee}</p>
+            </div>
+          </div>
         ) : null}
 
-        {!isLoading && !errorMessage && charges.length === 0 ? (
-          <EmptyState
-            className="mt-2"
-            title="Todavía no hay cargos registrados."
-            description="Creá el primero para asignarlo a los miembros de un grupo."
-            actions={
-              <Button
-                type="button"
-                size="md"
-                onClick={() => {
-                  setCreateOpen(true);
-                  setFormName("");
-                  setFormDescription("");
-                  setFormAmount("");
-                  setFormType("per_member");
-                  setFormGroupId(groupOptions[0]?.id ?? "");
-                  setFormDueDate("");
-                }}
-              >
-                Crear cargo
-              </Button>
-            }
-          />
+        {!isLoading && !errorMessage ? (
+          <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <p className="text-sm font-semibold text-slate-900">Criterio de uso</p>
+            <p className="mt-1 text-sm text-slate-600">
+              La cuota del club queda separada a nivel operativo. En esta pantalla, el flujo manual queda reservado para actividades, inscripciones y otros cargos extraordinarios.
+            </p>
+          </div>
         ) : null}
 
-        {!isLoading && !errorMessage && charges.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <Th>Nombre</Th>
-                  <Th>Grupo</Th>
-                  <Th>Tipo</Th>
-                  <Th>Monto</Th>
-                  <Th>Vencimiento</Th>
-                  <Th>Acciones</Th>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {charges.map((charge) => (
-                  <TableRow key={charge.id} className="transition-colors hover:bg-slate-50">
-                    <Td className="font-medium">
-                      <Link
-                        href={`/admin/charges/${charge.id}`}
-                        className="text-slate-900 underline-offset-2 hover:underline"
-                      >
-                        {charge.name}
-                      </Link>
-                    </Td>
-                    <Td className="text-slate-700">
-                      <Link
-                        href={`/admin/groups/${charge.group.id}`}
-                        className="text-slate-700 underline-offset-2 hover:text-slate-900 hover:underline"
-                      >
-                        {charge.group.name}
-                      </Link>
-                    </Td>
-                    <Td className="text-slate-700">
-                      {charge.type === "total" ? "Total a dividir" : "Por persona"}
-                    </Td>
-                    <Td className="tabular-nums text-slate-900">
-                      {formatMoney(charge.amount)}
-                    </Td>
-                    <Td className="text-slate-700">{formatDueDate(charge.due_date)}</Td>
-                    <Td>
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/admin/charges/${charge.id}`}
-                          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-                        >
-                          Ver detalle
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(charge)}
-                          disabled={deletingId === charge.id}
-                          className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
-                        </button>
-                      </div>
-                    </Td>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        {isLoading ? <p className="text-slate-600">Cargando cobros...</p> : null}
+
+        {!isLoading && errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+
+        {!isLoading && actionMessage ? <Alert>{actionMessage}</Alert> : null}
+
+        {!isLoading && !errorMessage ? (
+          <div className="mt-8 space-y-10">
+            <section>
+              <h3 className="text-base font-semibold text-slate-900">Cuota del club</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Cargos de categoría cuota mensual, generados por período facturado.
+              </p>
+              {membershipCharges.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-600">No hay cuotas del club generadas todavía.</p>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <Th>Nombre</Th>
+                        <Th>Período</Th>
+                        <Th>Monto</Th>
+                        <Th>Vencimiento</Th>
+                        <Th>Acciones</Th>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {membershipCharges.map((charge) => (
+                        <TableRow key={charge.id} className="transition-colors hover:bg-slate-50">
+                          <Td className="font-medium">
+                            <Link
+                              href={`/admin/charges/${charge.id}`}
+                              className="text-slate-900 underline-offset-2 hover:underline"
+                            >
+                              {charge.name}
+                            </Link>
+                          </Td>
+                          <Td className="capitalize text-slate-700">
+                            {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "—"}
+                          </Td>
+                          <Td className="tabular-nums text-slate-900">{formatMoney(charge.amount)}</Td>
+                          <Td className="text-slate-700">{formatDueDate(charge.due_date)}</Td>
+                          <Td>
+                            <div className="flex flex-wrap gap-2">
+                              <Link
+                                href={`/admin/charges/${charge.id}`}
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                              >
+                                Ver detalle
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(charge)}
+                                disabled={deletingId === charge.id}
+                                className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
+                              </button>
+                            </div>
+                          </Td>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-base font-semibold text-slate-900">Cobros manuales</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Actividades, inscripciones y otros cargos (no cuota del club).
+              </p>
+              {manualCharges.length === 0 ? (
+                <EmptyState
+                  className="mt-4"
+                  title="Todavía no hay cobros manuales registrados."
+                  description="La cuota del club se gestiona arriba. Aquí solo aparecerán actividades, inscripciones y otros cobros manuales."
+                  actions={
+                    <Button type="button" size="md" onClick={() => openCreateModal("activity")}>
+                      Nuevo cobro manual
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <Th>Nombre</Th>
+                        <Th>Categoría</Th>
+                        <Th>Grupo</Th>
+                        <Th>Tipo</Th>
+                        <Th>Monto</Th>
+                        <Th>Vencimiento</Th>
+                        <Th>Acciones</Th>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {manualCharges.map((charge) => (
+                        <TableRow key={charge.id} className="transition-colors hover:bg-slate-50">
+                          <Td className="font-medium">
+                            <Link
+                              href={`/admin/charges/${charge.id}`}
+                              className="text-slate-900 underline-offset-2 hover:underline"
+                            >
+                              {charge.name}
+                            </Link>
+                          </Td>
+                          <Td className="text-slate-700">{categoryTableLabel(charge.category)}</Td>
+                          <Td className="text-slate-700">
+                            {charge.group ? (
+                              <Link
+                                href={`/admin/groups/${charge.group.id}`}
+                                className="text-slate-700 underline-offset-2 hover:text-slate-900 hover:underline"
+                              >
+                                {charge.group.name}
+                              </Link>
+                            ) : (
+                              <span className="text-slate-500">Todo el club</span>
+                            )}
+                          </Td>
+                          <Td className="text-slate-700">
+                            {charge.type === "total" ? "Total a dividir" : "Por persona"}
+                          </Td>
+                          <Td className="tabular-nums text-slate-900">
+                            {formatMoney(charge.amount)}
+                          </Td>
+                          <Td className="text-slate-700">{formatDueDate(charge.due_date)}</Td>
+                          <Td>
+                            <div className="flex flex-wrap gap-2">
+                              <Link
+                                href={`/admin/charges/${charge.id}`}
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                              >
+                                Ver detalle
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(charge)}
+                                disabled={deletingId === charge.id}
+                                className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
+                              </button>
+                            </div>
+                          </Td>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </section>
           </div>
         ) : null}
       </Card>
 
       <AdminModal open={createOpen} onClose={() => !isCreating && setCreateOpen(false)}>
-        <h2 className="text-lg font-semibold text-slate-900">Nuevo cargo</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Nuevo cobro manual</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Asociá un gasto o cobro al grupo correspondiente.
+          Este flujo queda para cobros manuales: actividades, inscripciones y otros conceptos extraordinarios.
         </p>
 
         <div className="mt-4 space-y-3">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Categoría <span className="text-danger">*</span>
+            </label>
+            <div className="grid gap-2 md:grid-cols-2">
+              {(["activity", "fee"] as const satisfies ManualChargeCategory[]).map((category) => {
+                const selected = formDefinitionCategory === category;
+                const copy = categoryCardCopy(category);
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setFormDefinitionCategory(category)}
+                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                      selected
+                        ? "border-slate-900 bg-slate-900 text-white"
+                        : "border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{copy.title}</p>
+                    <p
+                      className={`mt-1 text-xs leading-5 ${
+                        selected ? "text-slate-200" : "text-slate-600"
+                      }`}
+                    >
+                      {copy.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {categoryHelpText(formDefinitionCategory, formGroupId)}
+            </p>
+          </div>
+
           <div>
             <label htmlFor="charge-name" className="mb-1 block text-sm font-medium text-slate-700">
               Nombre <span className="text-danger">*</span>
@@ -282,6 +587,7 @@ export default function AdminChargesPage() {
               className="text-sm"
             />
           </div>
+
           <div>
             <label htmlFor="charge-desc" className="mb-1 block text-sm font-medium text-slate-700">
               Descripción
@@ -295,6 +601,7 @@ export default function AdminChargesPage() {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
             />
           </div>
+
           <div>
             <label htmlFor="charge-amount" className="mb-1 block text-sm font-medium text-slate-700">
               Monto <span className="text-danger">*</span>
@@ -310,10 +617,15 @@ export default function AdminChargesPage() {
             />
             <p className="mt-1 text-xs text-slate-500">
               {formType === "total"
-                ? "Monto total del cargo (se divide entre los miembros del grupo al crear)."
-                : "Monto por persona (se asigna igual a cada miembro)."}
+                ? formGroupId.trim()
+                  ? "Monto total del cobro. Se divide entre los miembros del grupo al crear."
+                  : "Monto total del cobro. Se divide entre todos los socios activos al crear."
+                : formGroupId.trim()
+                  ? "Monto por persona. Se asigna igual a cada miembro del grupo."
+                  : "Monto por persona. Se asigna a cada socio activo."}
             </p>
           </div>
+
           <div>
             <label htmlFor="charge-type" className="mb-1 block text-sm font-medium text-slate-700">
               Tipo de cargo <span className="text-danger">*</span>
@@ -328,9 +640,10 @@ export default function AdminChargesPage() {
               <option value="total">Total a dividir</option>
             </select>
           </div>
+
           <div>
             <label htmlFor="charge-group" className="mb-1 block text-sm font-medium text-slate-700">
-              Grupo <span className="text-danger">*</span>
+              Grupo deportivo
             </label>
             <select
               id="charge-group"
@@ -338,19 +651,23 @@ export default function AdminChargesPage() {
               onChange={(e) => setFormGroupId(e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
             >
-              <option value="">Seleccionar...</option>
+              <option value="">Todo el club (socios activos)</option>
               {groupOptions.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Deja “Todo el club” para cobros que aplican a todos los socios activos, sin filtrar por equipo.
+            </p>
             {groupOptions.length === 0 ? (
               <p className="mt-1 text-xs text-warning">
-                No hay grupos. Creá uno antes desde Grupos.
+                No hay grupos creados; igual puedes usar “Todo el club”.
               </p>
             ) : null}
           </div>
+
           <div>
             <label htmlFor="charge-due" className="mb-1 block text-sm font-medium text-slate-700">
               Fecha de vencimiento
@@ -379,7 +696,7 @@ export default function AdminChargesPage() {
             type="button"
             size="md"
             onClick={() => void handleCreate()}
-            disabled={isCreating || groupOptions.length === 0}
+            disabled={isCreating}
           >
             {isCreating ? "Guardando..." : "Guardar"}
           </Button>

@@ -1,21 +1,31 @@
 import { clubConfig } from "@/config/club";
 import { getSupabaseClient } from "@/lib/supabase";
 
-type DashboardStats = {
+export type DashboardStats = {
   totalMembers: number;
   activeMembers: number;
   pendingMembers: number;
   monthlyFee: number;
-  monthlyIncome: number;
-  monthlyChargesCollected: number;
-  monthlyExpenses: number;
-  monthlyBalance: number;
+  /** sum(member_charges.amount) */
+  totalExpected: number;
+  /** sum(member_charges.paid_amount) */
+  totalCollected: number;
+  /** sum(amount - paid_amount) en member_charges */
   totalDebt: number;
+  /** Suma de saldos pendientes con charge_definitions.category = membership */
+  membershipDebtTotal: number;
+  /** Resto de deuda (activity, fee, sin categoría, etc.) */
+  otherDebtTotal: number;
+  /** Ingresos por cobros registrados en el mes calendario actual (charge_payments) */
+  monthlyCashIn: number;
+  monthlyExpenses: number;
+  /** Cobros del mes menos egresos del mes */
+  monthlyBalance: number;
   nextMonthProjectedIncome: number;
   membersWithDebt: number;
   incomeChange: number;
   incomeChangePercent: number;
-  lastMonthIncome: number;
+  lastMonthCashIn: number;
   recentMonthlyIncome: Array<{
     month: string;
     income: number;
@@ -24,50 +34,81 @@ type DashboardStats = {
     memberId: string;
     fullName: string;
     debtAmount: number;
-    debtMonths: number;
   }>;
 };
 
 const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
+
+const normalizeAmount = (value: unknown): number => {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return value;
+  }
+  const n = Number(value);
+  return Number.isNaN(n) ? 0 : n;
+};
+
+const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
 const getRecentMonths = (now: Date, total: number) =>
   Array.from({ length: total }, (_, idx) => {
     const date = new Date(now.getFullYear(), now.getMonth() - (total - 1 - idx), 1);
     return formatMonth(date);
   });
 
-const countMonthsFromCreationToNow = (createdAt: string, now: Date) => {
-  const createdDate = new Date(createdAt);
-  const yearDiff = now.getFullYear() - createdDate.getFullYear();
-  const monthDiff = now.getMonth() - createdDate.getMonth();
-  const total = yearDiff * 12 + monthDiff + 1;
-  return total > 0 ? total : 0;
-};
+/** Suma `amount` de charge_payments con paid_at dentro del mes calendario [start, end). */
+function sumChargePaymentsForMonth(
+  rows: Array<{ amount: unknown; paid_at: string }>,
+  monthStart: Date,
+  nextMonthStart: Date
+): number {
+  const startMs = monthStart.getTime();
+  const endMs = nextMonthStart.getTime();
+  let sum = 0;
+  for (const row of rows) {
+    const t = new Date(row.paid_at).getTime();
+    if (t >= startMs && t < endMs) {
+      const a = normalizeAmount(row.amount);
+      if (!Number.isNaN(a)) {
+        sum += a;
+      }
+    }
+  }
+  return roundMoney(sum);
+}
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const supabase = getSupabaseClient();
   const now = new Date();
-  const currentMonth = formatMonth(now);
-  const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const previousMonth = formatMonth(previousMonthDate);
   const recentMonths = getRecentMonths(now, 6);
+
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = monthStart;
+
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
   const [
     { data: membersRows, error: membersError },
-    { data: allPaymentsRows, error: allPaymentsError },
+    { data: memberChargesRows, error: memberChargesError },
+    { data: memberChargesWithCategory, error: memberChargesCatError },
     { data: clubSettings, error: clubSettingsError },
-    { data: chargePaymentsRows, error: chargePaymentsError },
+    { data: allChargePaymentsForTrend, error: chargePaymentsTrendError },
     { data: expensesRows, error: expensesError },
   ] = await Promise.all([
     supabase.from("members").select("id, full_name, status, created_at"),
-    supabase.from("payments").select("member_id, month, amount"),
+    supabase.from("member_charges").select("member_id, amount, paid_amount"),
+    supabase.from("member_charges").select(`
+      amount,
+      paid_amount,
+      charges (
+        charge_definitions (
+          category
+        )
+      )
+    `),
     supabase.from("club_settings").select("monthly_fee").single(),
-    supabase
-      .from("charge_payments")
-      .select("amount, paid_at")
-      .gte("paid_at", monthStart.toISOString())
-      .lt("paid_at", nextMonthStart.toISOString()),
+    supabase.from("charge_payments").select("amount, paid_at").gte("paid_at", sixMonthsAgo.toISOString()),
     supabase
       .from("expenses")
       .select("amount, date")
@@ -78,14 +119,17 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   if (membersError) {
     throw membersError;
   }
-  if (allPaymentsError) {
-    throw allPaymentsError;
+  if (memberChargesError) {
+    throw memberChargesError;
+  }
+  if (memberChargesCatError) {
+    console.warn("No se pudo cargar categorías para el dashboard:", memberChargesCatError);
   }
   if (clubSettingsError && (clubSettingsError as { code?: string }).code !== "PGRST116") {
     throw clubSettingsError;
   }
-  if (chargePaymentsError) {
-    throw chargePaymentsError;
+  if (chargePaymentsTrendError) {
+    throw chargePaymentsTrendError;
   }
   if (expensesError) {
     throw expensesError;
@@ -100,97 +144,120 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     status: "pending" | "active";
     created_at: string;
   }>;
-  const monthlyIncomeMap = new Map<string, number>(recentMonths.map((month) => [month, 0]));
-  monthlyIncomeMap.set(currentMonth, monthlyIncomeMap.get(currentMonth) ?? 0);
-  monthlyIncomeMap.set(previousMonth, monthlyIncomeMap.get(previousMonth) ?? 0);
-  const paymentsByMemberId = new Map<string, number>();
 
-  for (const row of allPaymentsRows ?? []) {
-    if (row.member_id) {
-      paymentsByMemberId.set(row.member_id, (paymentsByMemberId.get(row.member_id) ?? 0) + 1);
+  let totalExpected = 0;
+  let totalCollected = 0;
+  const debtByMember = new Map<string, number>();
+
+  for (const row of memberChargesRows ?? []) {
+    const amount = normalizeAmount(row.amount);
+    const paid = normalizeAmount(row.paid_amount);
+    totalExpected += amount;
+    totalCollected += paid;
+    const rem = roundMoney(amount - paid);
+    if (rem > 0.001) {
+      const mid = row.member_id as string;
+      debtByMember.set(mid, roundMoney((debtByMember.get(mid) ?? 0) + rem));
     }
-
-    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
-    if (Number.isNaN(amount)) {
-      continue;
-    }
-
-    monthlyIncomeMap.set(row.month, (monthlyIncomeMap.get(row.month) ?? 0) + amount);
   }
 
-  const monthlyIncome = monthlyIncomeMap.get(currentMonth) ?? 0;
-  const lastMonthIncome = monthlyIncomeMap.get(previousMonth) ?? 0;
-  const recentMonthlyIncome = recentMonths.map((month) => ({
-    month,
-    income: monthlyIncomeMap.get(month) ?? 0,
-  }));
+  const totalDebt = roundMoney(totalExpected - totalCollected);
+
+  let membershipDebtTotal = 0;
+  let otherDebtTotal = 0;
+
+  if (!memberChargesCatError && memberChargesWithCategory) {
+    type CatRow = {
+      amount: unknown;
+      paid_amount: unknown;
+      charges: { charge_definitions: { category: string | null } | null } | null;
+    };
+    const categorized = memberChargesWithCategory as unknown as CatRow[];
+    for (const row of categorized) {
+      const amount = normalizeAmount(row.amount);
+      const paid = normalizeAmount(row.paid_amount);
+      const rem = roundMoney(amount - paid);
+      if (rem <= 0.001) {
+        continue;
+      }
+      const cat = row.charges?.charge_definitions?.category ?? null;
+      if (cat === "membership") {
+        membershipDebtTotal = roundMoney(membershipDebtTotal + rem);
+      } else {
+        otherDebtTotal = roundMoney(otherDebtTotal + rem);
+      }
+    }
+  } else {
+    otherDebtTotal = totalDebt;
+  }
+
+  const cpRows = (allChargePaymentsForTrend ?? []) as Array<{ amount: unknown; paid_at: string }>;
+
+  const monthlyCashIn = sumChargePaymentsForMonth(cpRows, monthStart, nextMonthStart);
+  const lastMonthCashIn = sumChargePaymentsForMonth(cpRows, prevMonthStart, prevMonthEnd);
+
+  const recentMonthlyIncome = recentMonths.map((monthKey) => {
+    const d = new Date(`${monthKey}-01T12:00:00`);
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    return {
+      month: monthKey,
+      income: sumChargePaymentsForMonth(cpRows, start, end),
+    };
+  });
+
+  const incomeChange = monthlyCashIn - lastMonthCashIn;
+  const incomeChangePercent =
+    lastMonthCashIn > 0 ? (incomeChange / lastMonthCashIn) * 100 : monthlyCashIn > 0 ? 100 : 0;
+
+  const monthlyExpenses = (expensesRows ?? []).reduce((sum, row) => {
+    const amount = normalizeAmount(row.amount);
+    return Number.isNaN(amount) ? sum : sum + amount;
+  }, 0);
+
+  const monthlyBalance = roundMoney(monthlyCashIn - monthlyExpenses);
 
   const activeMembersRows = members.filter((member) => member.status === "active");
-  const pendingMembers = members.filter((member) => member.status === "pending").length;
 
   let membersWithDebt = 0;
-  const debtRows: Array<{
-    memberId: string;
-    fullName: string;
-    debtAmount: number;
-    debtMonths: number;
-  }> = [];
-  const totalDebt = activeMembersRows.reduce((sum, member) => {
-    const createdAt = member.created_at;
-    if (!createdAt) {
-      return sum;
-    }
+  const debtRows: Array<{ memberId: string; fullName: string; debtAmount: number }> = [];
 
-    const monthsExpected = countMonthsFromCreationToNow(createdAt, now);
-    const paymentsCount = paymentsByMemberId.get(member.id) ?? 0;
-    const debtMonths = Math.max(0, monthsExpected - (Number.isNaN(paymentsCount) ? 0 : paymentsCount));
-    if (debtMonths > 0) {
+  for (const member of activeMembersRows) {
+    const debtAmount = debtByMember.get(member.id) ?? 0;
+    if (debtAmount > 0.001) {
       membersWithDebt += 1;
       debtRows.push({
         memberId: member.id,
         fullName: member.full_name,
-        debtAmount: debtMonths * monthlyFee,
-        debtMonths,
+        debtAmount,
       });
     }
+  }
 
-    return sum + debtMonths * monthlyFee;
-  }, 0);
   const topDebtMembers = debtRows.sort((a, b) => b.debtAmount - a.debtAmount).slice(0, 4);
 
   const activeMembers = activeMembersRows.length;
+  const pendingMembers = members.filter((member) => member.status === "pending").length;
   const nextMonthProjectedIncome = activeMembers * monthlyFee;
-  const incomeChange = monthlyIncome - lastMonthIncome;
-  const incomeChangePercent =
-    lastMonthIncome > 0 ? (incomeChange / lastMonthIncome) * 100 : monthlyIncome > 0 ? 100 : 0;
-
-  const monthlyChargesCollected = (chargePaymentsRows ?? []).reduce((sum, row) => {
-    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
-    return Number.isNaN(amount) ? sum : sum + amount;
-  }, 0);
-
-  const monthlyExpenses = (expensesRows ?? []).reduce((sum, row) => {
-    const amount = typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0);
-    return Number.isNaN(amount) ? sum : sum + amount;
-  }, 0);
-
-  const monthlyBalance = monthlyIncome + monthlyChargesCollected - monthlyExpenses;
 
   return {
     totalMembers: members.length,
     activeMembers,
     pendingMembers,
     monthlyFee,
-    monthlyIncome,
-    monthlyChargesCollected,
+    totalExpected: roundMoney(totalExpected),
+    totalCollected: roundMoney(totalCollected),
+    totalDebt,
+    membershipDebtTotal,
+    otherDebtTotal,
+    monthlyCashIn,
     monthlyExpenses,
     monthlyBalance,
-    totalDebt,
     nextMonthProjectedIncome,
     membersWithDebt,
     incomeChange,
     incomeChangePercent,
-    lastMonthIncome,
+    lastMonthCashIn,
     recentMonthlyIncome,
     topDebtMembers,
   };

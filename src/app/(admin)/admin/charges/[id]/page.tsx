@@ -12,6 +12,7 @@ import {
   assignChargeToMissingMembers,
   assignChargeToMember,
   chargeHasPayments,
+  formatBillingPeriod,
   getChargeById,
   getChargeFinancials,
   getChargePaymentsByMemberChargeId,
@@ -114,7 +115,7 @@ export default function AdminChargeDetailPage() {
       const [hp, memberCharges, missing, fin] = await Promise.all([
         chargeHasPayments(chargeId),
         getMemberChargesForCharge(chargeId),
-        getMissingMembersForCharge({ chargeId, groupId: ch.group.id }),
+        getMissingMembersForCharge({ chargeId, groupId: ch.group?.id ?? null }),
         getChargeFinancials(chargeId),
       ]);
       setHasPayments(hp);
@@ -453,8 +454,25 @@ export default function AdminChargeDetailPage() {
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                Grupo: <span className="text-slate-900">{charge.group.name}</span>
+                Grupo:{" "}
+                <span className="text-slate-900">
+                  {charge.group?.name ?? "Todo el club (socios activos)"}
+                </span>
               </span>
+              {charge.category ? (
+                <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-900">
+                  Categoría:{" "}
+                  <span className="font-mono">
+                    {charge.category === "membership"
+                      ? "Cuota mensual"
+                      : charge.category === "activity"
+                        ? "Actividad"
+                        : charge.category === "fee"
+                          ? "Inscripción / otro"
+                          : charge.category}
+                  </span>
+                </span>
+              ) : null}
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                 Tipo:{" "}
                 <span className="text-slate-900">
@@ -464,9 +482,25 @@ export default function AdminChargeDetailPage() {
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                 Monto: <span className="text-slate-900">{formatMoney(charge.amount)}</span>
               </span>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                Vence: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
-              </span>
+              {charge.category === "membership" ? (
+                <>
+                  <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-900">
+                    Mes facturado:{" "}
+                    <span className="font-mono capitalize text-indigo-950">
+                      {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "—"}
+                    </span>
+                  </span>
+                  {charge.due_date ? (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      Vence: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  Vence: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
+                </span>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -708,7 +742,7 @@ export default function AdminChargeDetailPage() {
                             fullName: row.member.full_name,
                             phone: row.member.phone,
                             chargeName: charge.name,
-                            groupName: charge.group.name,
+                            groupName: charge.group?.name ?? "Sin grupo",
                             remainingFormatted: formatMoney(rem),
                           })
                         : null;
@@ -728,7 +762,7 @@ export default function AdminChargeDetailPage() {
                           </td>
                           <td className="px-3 py-2">
                             <Link
-                              href={`/admin/members/${row.member.id}`}
+                              href={`/admin/socios/${row.member.id}`}
                               className="font-medium text-slate-900 underline-offset-2 hover:underline"
                             >
                               {row.member.full_name}
@@ -833,7 +867,9 @@ export default function AdminChargeDetailPage() {
               <p className="mt-1 text-sm text-slate-600">
                 {missingMembers.length === 0
                   ? "No hay miembros faltantes."
-                  : `${missingMembers.length} miembro(s) del grupo no tienen este cargo.`}
+                  : charge.group
+                    ? `${missingMembers.length} miembro(s) del grupo no tienen este cargo.`
+                    : `${missingMembers.length} socio(s) activo(s) aún no tienen este cargo asignado.`}
               </p>
             </div>
             <Button
@@ -870,7 +906,7 @@ export default function AdminChargeDetailPage() {
                       {assigningMemberId === m.id ? "Asignando..." : "Asignar"}
                     </button>
                     <Link
-                      href={`/admin/members/${m.id}`}
+                      href={`/admin/socios/${m.id}`}
                       className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
                     >
                       Ver socio
@@ -1037,4 +1073,3 @@ export default function AdminChargeDetailPage() {
     </>
   );
 }
-

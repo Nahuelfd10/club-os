@@ -4,11 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
   Badge,
-  Button,
   Card,
   EmptyState,
   Input,
@@ -20,16 +18,10 @@ import {
   Td,
   Th,
 } from "@/components/ui";
-import {
-  CLUB_PAYMENT_METHOD_OPTIONS,
-  DEFAULT_PAYMENT_METHOD,
-  normalizePaymentMethod,
-  type ClubPaymentMethod,
-} from "@/config/payment-method";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
-import { createPayment, listMembers, listPayments, updateMemberStatus } from "@/lib/supabase";
-import { uiMessages } from "@/lib/ui-messages";
+import { listMemberChargeBalances } from "@/lib/charges";
+import { listMembers, updateMemberStatus } from "@/lib/supabase";
 
 type MemberRow = {
   id: string;
@@ -41,91 +33,46 @@ type MemberRow = {
 
 type StatusFilter = "all" | "pending" | "active";
 
-/** Filtro por columna Pago: deuda mensual vs al día vs socios pendientes (no aplica). */
-type PaymentFilter = "all" | "in_debt" | "up_to_date" | "na";
-
-type PaymentRow = {
-  member_id: string;
-  month: string;
-};
-
-type MemberMonthOptions = {
-  options: string[];
-  /** Meses impagos desde alta hasta el mes actual (para registrar varios). */
-  unpaidMonths: string[];
-  preselectedMonth: string;
-  paidMonths: Set<string>;
-  debtMonthsCount: number;
-};
-
-const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
-
-const addMonths = (month: string, offset: number) => {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1 + offset, 1);
-  return formatMonth(date);
-};
-
-const formatMonthLabel = (month: string) => {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1, 1);
-  return date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
-};
+/** Saldo de cargos: con deuda vs al día vs no aplica (pendiente de aprobación). */
+type DebtFilter = "all" | "in_debt" | "up_to_date" | "na";
 
 export default function SociosPage() {
   const router = useRouter();
   const { config, isConfigLoading } = useActiveClubConfig();
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [balanceByMemberId, setBalanceByMemberId] = useState<
+    Map<string, { remaining: number; pendingLines: number }>
+  >(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const [paymentModalMemberId, setPaymentModalMemberId] = useState<string | null>(null);
-  const [modalUnpaidMonths, setModalUnpaidMonths] = useState<string[]>([]);
-  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
-  const [modalPaymentMethod, setModalPaymentMethod] =
-    useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
+  const [debtFilter, setDebtFilter] = useState<DebtFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const currentMonth = new Date().toISOString().slice(0, 7);
 
-  const totalMembers = members.length;
-  const pendingMembers = members.filter((member) => member.status === "pending").length;
-  const activeMembers = members.filter((member) => member.status === "active").length;
+  const loadAdminData = useCallback(async () => {
+    setErrorMessage(null);
+    setIsLoading(true);
 
-  const getMonthOptionsForMember = useCallback((member: MemberRow): MemberMonthOptions => {
-    const memberPayments = payments
-      .filter((payment) => payment.member_id === member.id)
-      .map((payment) => payment.month);
-    const paidMonths = new Set(memberPayments);
-
-    const createdMonth = formatMonth(new Date(member.created_at));
-    const unpaidMonths: string[] = [];
-
-    let cursorMonth = createdMonth;
-    while (cursorMonth <= currentMonth) {
-      if (!paidMonths.has(cursorMonth)) {
-        unpaidMonths.push(cursorMonth);
+    try {
+      const [membersData, balances] = await Promise.all([listMembers(), listMemberChargeBalances()]);
+      setMembers(membersData);
+      const map = new Map<string, { remaining: number; pendingLines: number }>();
+      for (const b of balances) {
+        map.set(b.member_id, { remaining: b.remaining, pendingLines: b.pendingLines });
       }
-      cursorMonth = addMonths(cursorMonth, 1);
+      setBalanceByMemberId(map);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudieron cargar los datos.";
+      setErrorMessage(message);
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
 
-    const oldestDebtMonths = unpaidMonths.slice(0, 3);
-    const nextMonth = addMonths(currentMonth, 1);
-    const options = Array.from(new Set([...oldestDebtMonths, currentMonth, nextMonth]));
-    const preselectedMonth = oldestDebtMonths.length > 0 ? oldestDebtMonths[0] : currentMonth;
-
-    return {
-      options,
-      unpaidMonths,
-      preselectedMonth,
-      paidMonths,
-      debtMonthsCount: unpaidMonths.length,
-    };
-  }, [payments, currentMonth]);
+  useEffect(() => {
+    void loadAdminData();
+  }, [loadAdminData]);
 
   const filteredMembers = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -138,72 +85,22 @@ export default function SociosPage() {
           : member.full_name.toLowerCase().includes(normalizedSearch) ||
             member.dni.toLowerCase().includes(normalizedSearch);
 
-      const { debtMonthsCount } = getMonthOptionsForMember(member);
-      const matchesPayment =
-        paymentFilter === "all"
+      const bal = balanceByMemberId.get(member.id);
+      const remaining = bal?.remaining ?? 0;
+      const inDebt = member.status === "active" && remaining > 0.001;
+
+      const matchesDebt =
+        debtFilter === "all"
           ? true
-          : paymentFilter === "na"
+          : debtFilter === "na"
             ? member.status === "pending"
-            : paymentFilter === "in_debt"
-              ? member.status === "active" && debtMonthsCount > 0
-              : member.status === "active" && debtMonthsCount === 0;
+            : debtFilter === "in_debt"
+              ? inDebt
+              : member.status === "active" && !inDebt;
 
-      return matchesStatus && matchesSearch && matchesPayment;
+      return matchesStatus && matchesSearch && matchesDebt;
     });
-  }, [members, searchTerm, statusFilter, paymentFilter, getMonthOptionsForMember]);
-
-  const openPaymentModal = (memberId: string) => {
-    const member = members.find((item) => item.id === memberId);
-    if (!member) {
-      return;
-    }
-
-    const { unpaidMonths } = getMonthOptionsForMember(member);
-    setPaymentModalMemberId(memberId);
-    setModalUnpaidMonths(unpaidMonths);
-    setSelectedMonths(unpaidMonths.length > 0 ? new Set(unpaidMonths) : new Set());
-    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
-  };
-
-  const closePaymentModal = () => {
-    setPaymentModalMemberId(null);
-    setModalUnpaidMonths([]);
-    setSelectedMonths(new Set());
-    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
-  };
-
-  const toggleSelectedMonth = (month: string) => {
-    setSelectedMonths((prev) => {
-      const next = new Set(prev);
-      if (next.has(month)) {
-        next.delete(month);
-      } else {
-        next.add(month);
-      }
-      return next;
-    });
-  };
-
-  const loadAdminData = async () => {
-    setErrorMessage(null);
-    setActionMessage(null);
-    setIsLoading(true);
-
-    try {
-      const [membersData, paymentsData] = await Promise.all([listMembers(), listPayments()]);
-      setMembers(membersData);
-      setPayments(paymentsData as PaymentRow[]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudieron cargar los datos.";
-      setErrorMessage(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadAdminData();
-  }, []);
+  }, [members, searchTerm, statusFilter, debtFilter, balanceByMemberId]);
 
   const handleApprove = async (memberId: string) => {
     setApprovingId(memberId);
@@ -227,74 +124,28 @@ export default function SociosPage() {
     }
   };
 
-  const handleRegisterPayment = async () => {
-    const memberId = paymentModalMemberId;
-    if (!memberId) {
-      return;
-    }
-
-    const member = members.find((item) => item.id === memberId);
-    if (!member) {
-      return;
-    }
-
-    const months = Array.from(selectedMonths).sort();
-    if (months.length === 0) {
-      setActionMessage("Seleccioná al menos un mes.");
-      return;
-    }
-
-    const monthlyFee = config.monthly_fee || 1000;
-    setPayingId(memberId);
-
-    try {
-      for (const month of months) {
-        await createPayment({
-          member_id: memberId,
-          amount: monthlyFee,
-          month,
-          payment_method: modalPaymentMethod,
-        });
-      }
-      await loadAdminData();
-      closePaymentModal();
-      setActionMessage(
-        months.length === 1
-          ? uiMessages.payment.createSuccess
-          : `Se registraron ${months.length} pagos correctamente.`
-      );
-    } catch (error) {
-      console.error("Error al registrar pago:", error);
-      setActionMessage(error instanceof Error ? error.message : uiMessages.payment.createError);
-    } finally {
-      setPayingId(null);
-    }
-  };
-
-  const modalMember = paymentModalMemberId
-    ? members.find((m) => m.id === paymentModalMemberId)
-    : null;
-  const modalTotalAmount = (config.monthly_fee || 1000) * selectedMonths.size;
+  const totalMembers = members.length;
+  const pendingMembers = members.filter((member) => member.status === "pending").length;
+  const activeMembers = members.filter((member) => member.status === "active").length;
 
   return (
     <section className="space-y-4">
       <PageHeader
         title="Socios"
         description={
-          isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`
+          isConfigLoading ? "Cargando configuración..." : `Gestión de socios de ${config.name}`
         }
         actions={
           <Link
             href="/registro"
             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
-            Anadir socio
+            Añadir socio
           </Link>
         }
       />
 
       <Card className="w-full p-6">
-
         {isLoading ? <p className="mt-4 text-slate-600">Cargando socios...</p> : null}
 
         {!isLoading && errorMessage ? (
@@ -302,21 +153,18 @@ export default function SociosPage() {
             {errorMessage}
           </Alert>
         ) : null}
-        {!isLoading && actionMessage ? (
-          <Alert className="mt-4">{actionMessage}</Alert>
-        ) : null}
 
         {!isLoading && !errorMessage && members.length === 0 ? (
           <EmptyState
             className="mt-4"
-            title="Todavia no hay socios registrados."
+            title="Todavía no hay socios registrados."
             description="Podés dar de alta un socio desde el registro público."
             actions={
               <Link
                 href="/registro"
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               >
-                Anadir socio
+                Añadir socio
               </Link>
             }
           />
@@ -371,32 +219,29 @@ export default function SociosPage() {
                   </div>
                 </div>
 
-                <div
-                  className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block"
-                  aria-hidden
-                />
+                <div className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block" aria-hidden />
 
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  <span className="shrink-0 text-sm font-medium text-slate-600">Pago</span>
+                  <span className="shrink-0 text-sm font-medium text-slate-600">Cargos</span>
                   <div
                     className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
                     role="group"
-                    aria-label="Filtrar por situacion de pago"
+                    aria-label="Filtrar por saldo de cargos"
                   >
                     {(
                       [
                         ["all", "Todos"],
-                        ["in_debt", "Deben"],
-                        ["up_to_date", "Al dia"],
+                        ["in_debt", "Con deuda"],
+                        ["up_to_date", "Al día"],
                         ["na", "No aplica"],
                       ] as const
                     ).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
-                        onClick={() => setPaymentFilter(value)}
+                        onClick={() => setDebtFilter(value)}
                         className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                          paymentFilter === value
+                          debtFilter === value
                             ? "bg-white text-slate-900 shadow-sm"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
@@ -432,82 +277,78 @@ export default function SociosPage() {
                       <Th>Nombre</Th>
                       <Th>DNI</Th>
                       <Th>Estado</Th>
-                      <Th>Pago</Th>
-                      <Th>Fecha de creacion</Th>
+                      <Th>Saldo cargos</Th>
+                      <Th>Fecha de creación</Th>
                       <Th>Acciones</Th>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredMembers.map((member) => (
-                      (() => {
-                        const { debtMonthsCount } = getMonthOptionsForMember(member);
-                        const isInDebt = debtMonthsCount > 0;
-                        const debtLabel =
-                          debtMonthsCount === 1
-                            ? "Debe 1 mes"
-                            : debtMonthsCount > 1
-                              ? `Debe ${debtMonthsCount} meses`
-                              : "Al dia";
+                    {filteredMembers.map((member) => {
+                      const bal = balanceByMemberId.get(member.id);
+                      const remaining = bal?.remaining ?? 0;
+                      const pendingLines = bal?.pendingLines ?? 0;
+                      const isInDebt = member.status === "active" && remaining > 0.001;
 
-                        return (
-                          <tr
-                            key={member.id}
-                            onClick={() => router.push(`/admin/socios/${member.id}`)}
-                            className="cursor-pointer transition-colors hover:bg-slate-50"
-                          >
-                            <Td className="text-slate-900">{member.full_name}</Td>
-                            <Td className="text-slate-700">{member.dni}</Td>
-                            <Td className="text-slate-700">
-                              {member.status === "active" ? (
-                                <Badge variant="success">Activo</Badge>
-                              ) : (
-                                <Badge variant="warning">Pendiente</Badge>
-                              )}
-                            </Td>
-                            <Td className="text-slate-700">
-                              {member.status === "pending" ? (
-                                <Badge variant="slate">No aplica</Badge>
-                              ) : isInDebt ? (
-                                <Badge variant="danger">{debtLabel}</Badge>
-                              ) : (
-                                <Badge variant="success">{debtLabel}</Badge>
-                              )}
-                            </Td>
-                            <Td className="text-slate-700">
-                              {new Date(member.created_at).toLocaleString("es-AR")}
-                            </Td>
-                            <Td>
-                              {member.status === "pending" ? (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleApprove(member.id);
-                                  }}
-                                  disabled={approvingId === member.id}
-                                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                  {approvingId === member.id ? "Aprobando..." : "Aprobar"}
-                                </button>
-                              ) : null}{" "}
-                              {member.status === "active" && isInDebt ? (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openPaymentModal(member.id);
-                                  }}
-                                  disabled={payingId === member.id}
-                                  className="rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                  Registrar pago
-                                </button>
-                              ) : null}
-                            </Td>
-                          </tr>
-                        );
-                      })()
-                    ))}
+                      return (
+                        <tr
+                          key={member.id}
+                          onClick={() => router.push(`/admin/socios/${member.id}`)}
+                          className="cursor-pointer transition-colors hover:bg-slate-50"
+                        >
+                          <Td className="text-slate-900">{member.full_name}</Td>
+                          <Td className="text-slate-700">{member.dni}</Td>
+                          <Td className="text-slate-700">
+                            {member.status === "active" ? (
+                              <Badge variant="success">Activo</Badge>
+                            ) : (
+                              <Badge variant="warning">Pendiente</Badge>
+                            )}
+                          </Td>
+                          <Td className="text-slate-700">
+                            {member.status === "pending" ? (
+                              <Badge variant="slate">No aplica</Badge>
+                            ) : isInDebt ? (
+                              <span className="inline-flex flex-col gap-0.5">
+                                <Badge variant="danger">{formatMoney(remaining)}</Badge>
+                                {pendingLines > 0 ? (
+                                  <span className="text-xs text-slate-500">
+                                    {pendingLines} cargo{pendingLines === 1 ? "" : "s"} pend.
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              <Badge variant="success">Al día</Badge>
+                            )}
+                          </Td>
+                          <Td className="text-slate-700">
+                            {new Date(member.created_at).toLocaleString("es-AR")}
+                          </Td>
+                          <Td>
+                            {member.status === "pending" ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleApprove(member.id);
+                                }}
+                                disabled={approvingId === member.id}
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {approvingId === member.id ? "Aprobando..." : "Aprobar"}
+                              </button>
+                            ) : (
+                              <Link
+                                href={`/admin/socios/${member.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                              >
+                                Cargos y pagos
+                              </Link>
+                            )}
+                          </Td>
+                        </tr>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -515,90 +356,6 @@ export default function SociosPage() {
           </div>
         ) : null}
       </Card>
-
-      <AdminModal open={paymentModalMemberId !== null} onClose={closePaymentModal}>
-        <h2 className="text-lg font-semibold text-slate-900">Registrar pago</h2>
-        {modalMember ? (
-          <p className="mt-1 text-sm font-medium text-slate-800">{modalMember.full_name}</p>
-        ) : null}
-        <p className="mt-1 text-sm text-slate-600">
-          Marcá uno o más meses impagos y el método de cobro. El total se actualiza según la selección.
-        </p>
-
-        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
-          {[...modalUnpaidMonths].sort().map((monthKey) => (
-            <label
-              key={monthKey}
-              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50"
-            >
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={selectedMonths.has(monthKey)}
-                onChange={() => toggleSelectedMonth(monthKey)}
-              />
-              <span>
-                <span className="font-medium text-slate-900">{formatMonthLabel(monthKey)}</span>
-                <span className="ml-1 text-xs text-slate-500">{monthKey}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-        {modalUnpaidMonths.length === 0 ? (
-          <p className="mt-2 text-sm text-warning">No hay meses impagos para registrar.</p>
-        ) : null}
-
-        <p className="mt-4 text-xl font-bold tabular-nums text-slate-900">
-          Total: {formatMoney(modalTotalAmount)}
-        </p>
-
-        <div className="mt-4 space-y-2">
-          <label htmlFor="payment-method-modal" className="text-sm font-medium text-slate-700">
-            Método de pago
-          </label>
-          <select
-            id="payment-method-modal"
-            name="payment_method"
-            required
-            value={modalPaymentMethod}
-            onChange={(event) =>
-              setModalPaymentMethod(normalizePaymentMethod(event.target.value))
-            }
-            className="app-select w-full"
-          >
-            {CLUB_PAYMENT_METHOD_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            onClick={closePaymentModal}
-            disabled={payingId === paymentModalMemberId}
-            variant="neutral"
-            size="md"
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void handleRegisterPayment()}
-            disabled={
-              payingId === paymentModalMemberId ||
-              selectedMonths.size === 0 ||
-              modalUnpaidMonths.length === 0
-            }
-            size="md"
-            className="bg-success text-white"
-          >
-            {payingId === paymentModalMemberId ? "Registrando..." : "Confirmar"}
-          </Button>
-        </div>
-      </AdminModal>
     </section>
   );
 }

@@ -251,7 +251,7 @@ export default function AdminExpensesPage() {
               <TableHead>
                 <TableRow>
                   <Th>Descripción</Th>
-                  <Th>Charge</Th>
+                  <Th>Cargo</Th>
                   <Th>Categoría</Th>
                   <Th>Monto</Th>
                   <Th>Fecha</Th>
@@ -394,4 +394,3 @@ export default function AdminExpensesPage() {
     </section>
   );
 }
-

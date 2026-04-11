@@ -153,3 +153,41 @@ export function buildWhatsAppLink(params: BuildWhatsAppLinkParams): string | nul
 
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
+
+/** Recordatorio por saldo total de cargos (member_charges), sin eje por meses. */
+export function buildTotalChargesDebtReminderMessage(params: {
+  fullName: string;
+  clubName: string;
+  totalDebtFormatted: string;
+  paymentAlias?: string | null;
+}): string {
+  const name = firstNameFromFullName(params.fullName);
+  const clubTail = params.clubName.trim()
+    ? ` del club ${params.clubName.trim()}`
+    : " del club";
+  const optionsBlock = buildReminderPaymentOptionsSuffix(params.paymentAlias);
+  return `Hola ${name}!
+
+Tenés cargos pendientes por un total de ${params.totalDebtFormatted}${clubTail}.
+
+Por favor ponete al día cuando puedas.${optionsBlock}`;
+}
+
+export function buildTotalChargesDebtWhatsAppLink(params: {
+  member: WhatsAppReminderMember;
+  clubName: string;
+  totalDebtFormatted: string;
+  paymentAlias?: string | null;
+}): string | null {
+  const digits = digitsOnly(params.member.phone ?? "");
+  if (digits.length < 8) {
+    return null;
+  }
+  const message = buildTotalChargesDebtReminderMessage({
+    fullName: params.member.full_name,
+    clubName: params.clubName,
+    totalDebtFormatted: params.totalDebtFormatted,
+    paymentAlias: params.paymentAlias,
+  });
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}

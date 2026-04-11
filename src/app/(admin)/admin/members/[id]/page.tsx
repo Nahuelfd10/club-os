@@ -3,70 +3,35 @@
 import {
   Calendar,
   ChevronLeft,
-  FileText,
   IdCard,
-  type LucideIcon,
   Mail,
   MapPin,
   Phone,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { AdminModal } from "@/components/admin/admin-modal";
 import { MemberChargesSection } from "@/components/admin/member-charges-section";
 import { MemberGroupsSection } from "@/components/admin/member-groups-section";
-import { Badge, Button } from "@/components/ui";
-import {
-  CLUB_PAYMENT_METHOD_OPTIONS,
-  DEFAULT_PAYMENT_METHOD,
-  normalizePaymentMethod,
-  paymentMethodDisplay,
-  type ClubPaymentMethod,
-} from "@/config/payment-method";
+import { MembershipMonthlySection } from "@/components/admin/membership-monthly-section";
+import { Badge } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
-import { formatMoney } from "@/lib/formatters";
-import { generateReceipt } from "@/lib/generate-receipt-pdf";
-import { buildWhatsAppLink } from "@/lib/whatsapp-reminder";
 import {
-  createPayment,
-  deletePayment,
-  getMemberById,
-  getPaymentsByMemberId,
-  updateMember,
-} from "@/lib/supabase";
-import { uiMessages } from "@/lib/ui-messages";
+  getMemberChargesForMember,
+  isMembershipCategory,
+  type MemberChargeWithDetails,
+} from "@/lib/charges";
+import { formatMoney } from "@/lib/formatters";
+import { getMemberById, updateMember } from "@/lib/supabase";
 import type { Member } from "@/types";
-
-type PaymentRow = {
-  id: string;
-  member_id: string;
-  amount: number;
-  month: string;
-  paid_at: string | null;
-  payment_method?: string | null;
-};
 
 type EditForm = {
   full_name: string;
   email: string;
   address: string;
   phone: string;
-};
-
-const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
-
-const addMonths = (month: string, offset: number) => {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1 + offset, 1);
-  return formatMonth(date);
-};
-
-const formatMonthLabel = (month: string) => {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1, 1);
-  return date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
 };
 
 type InfoIconName = "email" | "phone" | "location" | "calendar" | "id";
@@ -84,27 +49,20 @@ function InfoIcon({ name }: { name: InfoIconName }) {
   return <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden />;
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
   const memberId = params?.id ?? "";
-  const currentMonth = formatMonth(new Date());
   const { config, isConfigLoading } = useActiveClubConfig();
-  const monthlyFee = config.monthly_fee || 1000;
 
   const [member, setMember] = useState<Member | null>(null);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [memberCharges, setMemberCharges] = useState<MemberChargeWithDetails[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [payingMonth, setPayingMonth] = useState<string | null>(null);
-  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
-  const [isPayingAllDebt, setIsPayingAllDebt] = useState(false);
-  const [paymentModal, setPaymentModal] = useState<
-    null | { mode: "single"; month: string } | { mode: "all" }
-  >(null);
-  const [modalPaymentMethod, setModalPaymentMethod] =
-    useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm>({
     full_name: "",
     email: "",
@@ -112,71 +70,13 @@ export default function MemberDetailPage() {
     phone: "",
   });
 
-  const monthlyStatus = useMemo(() => {
-    if (!member) {
-      return [];
+  const loadCharges = useCallback(async () => {
+    if (!memberId) {
+      return;
     }
-
-    const paidMonths = new Set(payments.map((payment) => payment.month));
-    const currentMonth = formatMonth(new Date());
-    const maxPaidMonth = payments.reduce(
-      (maxMonth, payment) => (payment.month > maxMonth ? payment.month : maxMonth),
-      currentMonth
-    );
-    const endMonth = maxPaidMonth > currentMonth ? maxPaidMonth : currentMonth;
-
-    const rows: Array<{ month: string; paid: boolean }> = [];
-    let cursorMonth = formatMonth(new Date(member.created_at));
-    while (cursorMonth <= endMonth) {
-      rows.push({
-        month: cursorMonth,
-        paid: paidMonths.has(cursorMonth),
-      });
-      cursorMonth = addMonths(cursorMonth, 1);
-    }
-
-    return rows.reverse();
-  }, [member, payments]);
-
-  const paymentByMonth = useMemo(() => {
-    const sortedByPaidAt = [...payments].sort((a, b) => {
-      const aDate = a.paid_at ? new Date(a.paid_at).getTime() : 0;
-      const bDate = b.paid_at ? new Date(b.paid_at).getTime() : 0;
-      return bDate - aDate;
-    });
-
-    const map = new Map<string, PaymentRow>();
-    for (const payment of sortedByPaidAt) {
-      if (!map.has(payment.month)) {
-        map.set(payment.month, payment);
-      }
-    }
-
-    return map;
-  }, [payments]);
-
-  const pendingDebtMonths = useMemo(
-    () =>
-      member?.status === "active"
-        ? monthlyStatus.filter((row) => !paymentByMonth.has(row.month)).map((row) => row.month)
-        : [],
-    [member?.status, monthlyStatus, paymentByMonth]
-  );
-
-  const totalDebtAmount = pendingDebtMonths.length * monthlyFee;
-
-  const whatsappReminderUrl = useMemo(() => {
-    if (!member || member.status !== "active" || pendingDebtMonths.length === 0) {
-      return null;
-    }
-    return buildWhatsAppLink({
-      member,
-      debtMonths: pendingDebtMonths,
-      clubName: config.name,
-      totalDebtAmount,
-      paymentAlias: config.payment_alias,
-    });
-  }, [member, pendingDebtMonths, config.name, totalDebtAmount, config.payment_alias]);
+    const data = await getMemberChargesForMember(memberId);
+    setMemberCharges(data);
+  }, [memberId]);
 
   const loadMemberData = useCallback(async () => {
     if (!memberId) {
@@ -184,15 +84,10 @@ export default function MemberDetailPage() {
     }
 
     setIsLoading(true);
-    setActionMessage(null);
     try {
-      const [memberData, paymentsData] = await Promise.all([
-        getMemberById(memberId),
-        getPaymentsByMemberId(memberId),
-      ]);
+      const [memberData] = await Promise.all([getMemberById(memberId), loadCharges()]);
 
       setMember(memberData);
-      setPayments(paymentsData as PaymentRow[]);
 
       if (memberData) {
         setForm({
@@ -207,11 +102,40 @@ export default function MemberDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [memberId]);
+  }, [memberId, loadCharges]);
 
   useEffect(() => {
     void loadMemberData();
   }, [loadMemberData]);
+
+  const membershipCharges = useMemo(
+    () => memberCharges?.filter((c) => isMembershipCategory(c.category)) ?? [],
+    [memberCharges]
+  );
+
+  const otherCharges = useMemo(
+    () => memberCharges?.filter((c) => !isMembershipCategory(c.category)) ?? [],
+    [memberCharges]
+  );
+
+  const membershipDebt = useMemo(
+    () =>
+      roundMoney(
+        membershipCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
+      ),
+    [membershipCharges]
+  );
+
+  const otherDebt = useMemo(
+    () =>
+      roundMoney(
+        otherCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
+      ),
+    [otherCharges]
+  );
+
+  const totalDebt = useMemo(() => roundMoney(membershipDebt + otherDebt), [membershipDebt, otherDebt]);
+  const hasCharges = (memberCharges?.length ?? 0) > 0;
 
   const handleSave = async () => {
     if (!member) {
@@ -235,95 +159,6 @@ export default function MemberDetailPage() {
     }
   };
 
-  const openPayMonthModal = (month: string) => {
-    if (!member || member.status !== "active") {
-      return;
-    }
-    const alreadyPaid = payments.some((payment) => payment.month === month);
-    if (alreadyPaid) {
-      setActionMessage(uiMessages.payment.duplicate);
-      return;
-    }
-    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
-    setPaymentModal({ mode: "single", month });
-  };
-
-  const openPayAllModal = () => {
-    if (!member || member.status !== "active" || pendingDebtMonths.length === 0) {
-      return;
-    }
-    setModalPaymentMethod(DEFAULT_PAYMENT_METHOD);
-    setPaymentModal({ mode: "all" });
-  };
-
-  const confirmPayModal = async () => {
-    if (!member || !paymentModal) {
-      return;
-    }
-
-    if (paymentModal.mode === "single") {
-      const month = paymentModal.month;
-      setPaymentModal(null);
-      setPayingMonth(month);
-      try {
-        await createPayment({
-          member_id: member.id,
-          amount: monthlyFee,
-          month,
-          payment_method: modalPaymentMethod,
-        });
-        await loadMemberData();
-        setActionMessage(uiMessages.payment.createSuccess);
-      } catch (error) {
-        console.error("Error al registrar pago del mes:", error);
-        setActionMessage(error instanceof Error ? error.message : uiMessages.payment.createError);
-      } finally {
-        setPayingMonth(null);
-      }
-      return;
-    }
-
-    const monthsToPay = [...pendingDebtMonths];
-    setPaymentModal(null);
-    setIsPayingAllDebt(true);
-    try {
-      for (const month of monthsToPay) {
-        await createPayment({
-          member_id: member.id,
-          amount: monthlyFee,
-          month,
-          payment_method: modalPaymentMethod,
-        });
-      }
-      await loadMemberData();
-      setActionMessage(uiMessages.payment.payAllSuccess);
-    } catch (error) {
-      console.error("Error al pagar toda la deuda:", error);
-      setActionMessage(error instanceof Error ? error.message : uiMessages.payment.payAllError);
-    } finally {
-      setIsPayingAllDebt(false);
-    }
-  };
-
-  const handleDeletePayment = async (paymentId: string) => {
-    const shouldContinue = window.confirm(uiMessages.payment.confirmDelete);
-    if (!shouldContinue) {
-      return;
-    }
-
-    setDeletingPaymentId(paymentId);
-    try {
-      await deletePayment(paymentId);
-      await loadMemberData();
-      setActionMessage(uiMessages.payment.deleteSuccess);
-    } catch (error) {
-      console.error("Error al eliminar pago:", error);
-      setActionMessage(error instanceof Error ? error.message : uiMessages.payment.deleteError);
-    } finally {
-      setDeletingPaymentId(null);
-    }
-  };
-
   if (isLoading) {
     return (
       <section className="space-y-6">
@@ -338,7 +173,7 @@ export default function MemberDetailPage() {
     return (
       <section className="space-y-6">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-          <p className="text-slate-700">No se encontro el socio solicitado.</p>
+          <p className="text-slate-700">No se encontró el socio solicitado.</p>
           <Link
             href="/admin/socios"
             className="mt-3 inline-block text-sm font-medium text-slate-600 hover:text-slate-900"
@@ -350,15 +185,7 @@ export default function MemberDetailPage() {
     );
   }
 
-  const paymentModalTotal =
-    paymentModal?.mode === "single"
-      ? monthlyFee
-      : paymentModal?.mode === "all"
-        ? monthlyFee * pendingDebtMonths.length
-        : 0;
-
   return (
-    <>
     <section className="space-y-6">
       <div>
         <Link
@@ -370,13 +197,13 @@ export default function MemberDetailPage() {
         </Link>
       </div>
 
-      <header className="flex flex-wrap items-end justify-between gap-3 mt-[-24px]">
+      <header className="mt-[-24px] flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900">
             {member.full_name}
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            {isConfigLoading ? "Cargando..." : `Perfil y pagos · ${config.name}`}
+            {isConfigLoading ? "Cargando..." : `Perfil financiero y de contacto · ${config.name}`}
           </p>
         </div>
         {!isEditing ? (
@@ -412,6 +239,37 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
+      <section className="grid gap-3 md:grid-cols-4">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Deuda total</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{formatMoney(totalDebt)}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {hasCharges ? "Suma de cuota mensual y otros cargos." : "Todavía no tiene cargos asignados."}
+          </p>
+        </article>
+        <article className="rounded-2xl border border-indigo-200/80 bg-indigo-50/70 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Cuota mensual</p>
+          <p className="mt-1 text-2xl font-bold text-indigo-950">{formatMoney(membershipDebt)}</p>
+          <p className="mt-1 text-xs text-indigo-800/80">{membershipCharges.length} registro(s)</p>
+        </article>
+        <article className="rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Otros cargos</p>
+          <p className="mt-1 text-2xl font-bold text-amber-950">{formatMoney(otherDebt)}</p>
+          <p className="mt-1 text-xs text-amber-800/80">{otherCharges.length} registro(s)</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contacto</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900">
+            {member.phone?.trim() ? member.phone : "Sin teléfono"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {member.phone?.trim()
+              ? "Disponible para recordatorios y coordinación."
+              : "Conviene cargar un teléfono para recordatorios por WhatsApp."}
+          </p>
+        </article>
+      </section>
+
       <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-slate-900">Datos de contacto</h2>
         {!isEditing ? (
@@ -426,14 +284,14 @@ export default function MemberDetailPage() {
             <article className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
                 <InfoIcon name="phone" />
-                Telefono
+                Teléfono
               </p>
               <p className="text-sm font-semibold text-slate-900">{member.phone || "-"}</p>
             </article>
             <article className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
                 <InfoIcon name="location" />
-                Direccion
+                Dirección
               </p>
               <p className="text-sm font-semibold text-slate-900">{member.address}</p>
             </article>
@@ -446,316 +304,107 @@ export default function MemberDetailPage() {
             </article>
           </div>
         ) : (
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-slate-700">
-                  Nombre
-                </label>
-                <input
-                  id="full_name"
-                  value={form.full_name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="address" className="mb-1 block text-sm font-medium text-slate-700">
-                  Direccion
-                </label>
-                <input
-                  id="address"
-                  value={form.address}
-                  onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="phone" className="mb-1 block text-sm font-medium text-slate-700">
-                  Telefono
-                </label>
-                <input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={isSaving}
-                  className="rounded-md bg-success px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isSaving ? "Guardando..." : "Guardar"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditing(false);
-                    setForm({
-                      full_name: member.full_name,
-                      email: member.email ?? "",
-                      address: member.address,
-                      phone: member.phone ?? "",
-                    });
-                  }}
-                  className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700"
-                >
-                  Cancelar
-                </button>
-              </div>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-slate-700">
+                Nombre
+              </label>
+              <input
+                id="full_name"
+                value={form.full_name}
+                onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              />
             </div>
+            <div>
+              <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="address" className="mb-1 block text-sm font-medium text-slate-700">
+                Dirección
+              </label>
+              <input
+                id="address"
+                value={form.address}
+                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="mb-1 block text-sm font-medium text-slate-700">
+                Teléfono
+              </label>
+              <input
+                id="phone"
+                value={form.phone}
+                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={isSaving}
+                className="rounded-md bg-success px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isSaving ? "Guardando..." : "Guardar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setForm({
+                    full_name: member.full_name,
+                    email: member.email ?? "",
+                    address: member.address,
+                    phone: member.phone ?? "",
+                  });
+                }}
+                className="rounded-md bg-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         )}
       </section>
 
       <MemberGroupsSection memberId={member.id} />
 
-      <MemberChargesSection
-        memberId={member.id}
-        memberFullName={member.full_name}
-        memberPhone={member.phone}
-      />
+      {memberCharges === null ? (
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-600">Cargando cargos...</p>
+        </div>
+      ) : (
+        <>
+          <MembershipMonthlySection
+            rows={membershipCharges}
+            memberStatus={member.status}
+            onPaid={loadCharges}
+          />
 
-      {actionMessage ? (
-        <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
-      ) : null}
-
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">Estado y pagos mensuales</h2>
-
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 py-2">
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold">Deuda total:</span>{" "}
-              {totalDebtAmount > 0 ? (
-                <Badge variant="danger">{formatMoney(totalDebtAmount)}</Badge>
-              ) : (
-                <Badge variant="success">{formatMoney(0)}</Badge>
-              )}
-            </p>
-            {member.status === "active" && pendingDebtMonths.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <span
-                  title={
-                    whatsappReminderUrl
-                      ? undefined
-                      : "No podés enviar un recordatorio porque el socio no tiene un número de teléfono configurado."
-                  }
-                  className="inline-flex"
-                >
-                  <button
-                    type="button"
-                    disabled={!whatsappReminderUrl}
-                    onClick={() => {
-                      if (whatsappReminderUrl) {
-                        window.open(whatsappReminderUrl, "_blank", "noopener,noreferrer");
-                      }
-                    }}
-                    className={
-                      whatsappReminderUrl
-                        ? "inline-flex items-center gap-1.5 rounded-md border border-success bg-white px-3 py-1.5 text-xs font-semibold text-success shadow-sm transition-colors hover:bg-success/10"
-                        : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-90 shadow-sm"
-                    }
-                  >
-                    Enviar recordatorio
-                  </button>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => openPayAllModal()}
-                  disabled={isPayingAllDebt}
-                  className="rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isPayingAllDebt ? "Pagando deuda..." : "Pagar toda la deuda"}
-                </button>
-              </div>
-            ) : (
-              <span className="text-xs font-semibold text-slate-500">Sin deuda pendiente</span>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Mes</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Medio de pago</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Fecha de pago</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Accion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {monthlyStatus.map((row) => {
-                  const payment = paymentByMonth.get(row.month);
-                  const isPaid = Boolean(payment);
-
-                  return (
-                    <tr key={row.month}>
-                      <td className="px-3 py-2 text-slate-900">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="font-medium" title={row.month}>
-                            {formatMonthLabel(row.month)}
-                          </span>
-                          {row.month === currentMonth ? (
-                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                              Actual
-                            </span>
-                          ) : null}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {member.status === "pending" ? (
-                          <Badge variant="slate">No aplica</Badge>
-                        ) : isPaid ? (
-                          <Badge variant="success">Pagado</Badge>
-                        ) : (
-                          <Badge variant="danger">Debe</Badge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {member.status === "pending"
-                          ? "-"
-                          : payment
-                            ? formatMoney(payment.amount)
-                            : formatMoney(monthlyFee)}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {member.status === "pending" || !payment ? (
-                          "-"
-                        ) : (
-                          <span className="inline-flex items-center rounded-md bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-800">
-                            {paymentMethodDisplay(payment.payment_method ?? DEFAULT_PAYMENT_METHOD)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {payment?.paid_at ? new Date(payment.paid_at).toLocaleString("es-AR") : "-"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {member.status === "active" && !isPaid ? (
-                          <button
-                            type="button"
-                            onClick={() => openPayMonthModal(row.month)}
-                            disabled={payingMonth === row.month}
-                            className="rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            {payingMonth === row.month ? "Pagando..." : "Pagar"}
-                          </button>
-                        ) : isPaid && payment ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {member.status !== "pending" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  generateReceipt(
-                                    {
-                                      amount: payment.amount,
-                                      month: payment.month,
-                                      paid_at: payment.paid_at,
-                                    },
-                                    { full_name: member.full_name, dni: member.dni }
-                                  )
-                                }
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
-                                title="Descargar comprobante PDF"
-                              >
-                                <FileText
-                                  className="h-3.5 w-3.5 shrink-0"
-                                  strokeWidth={1.8}
-                                  aria-hidden
-                                />
-                                Comprobante
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => void handleDeletePayment(payment.id)}
-                              disabled={deletingPaymentId === payment.id}
-                              className="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                            >
-                              {deletingPaymentId === payment.id ? "Eliminando..." : "Eliminar"}
-                            </button>
-                          </div>
-                        ) : member.status === "pending" ? (
-                          <span className="text-xs font-semibold text-slate-500">No aplica</span>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-500">Pagado</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+          <MemberChargesSection
+            memberId={member.id}
+            memberFullName={member.full_name}
+            memberPhone={member.phone}
+            clubName={config.name}
+            paymentAlias={config.payment_alias}
+            charges={otherCharges}
+            onChargesRefresh={loadCharges}
+          />
+        </>
+      )}
     </section>
-
-    <AdminModal open={paymentModal !== null} onClose={() => setPaymentModal(null)}>
-      <h2 className="text-lg font-semibold text-slate-900">Registrar pago</h2>
-      <p className="mt-1 text-sm text-slate-600">
-        {paymentModal?.mode === "single"
-          ? `Vas a registrar un mes: ${formatMonthLabel(paymentModal.month)}.`
-          : paymentModal?.mode === "all"
-            ? `Vas a registrar ${pendingDebtMonths.length} mes(es) pendiente(s).`
-            : null}
-      </p>
-      <p className="mt-3 text-xl font-bold tabular-nums text-slate-900">
-        Total: {formatMoney(paymentModalTotal)}
-      </p>
-
-      <div className="mt-4 space-y-2">
-        <label htmlFor="member-pay-modal-method" className="text-sm font-medium text-slate-700">
-          Método de pago
-        </label>
-        <select
-          id="member-pay-modal-method"
-          name="payment_method"
-          required
-          value={modalPaymentMethod}
-          onChange={(event) =>
-            setModalPaymentMethod(normalizePaymentMethod(event.target.value))
-          }
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
-        >
-          {CLUB_PAYMENT_METHOD_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-6 flex items-center justify-end gap-2">
-        <Button type="button" variant="neutral" size="md" onClick={() => setPaymentModal(null)}>
-          Cancelar
-        </Button>
-        <Button
-          type="button"
-          size="md"
-          onClick={() => void confirmPayModal()}
-          disabled={isPayingAllDebt || payingMonth !== null}
-          className="bg-success text-white"
-        >
-          Confirmar pago
-        </Button>
-      </div>
-    </AdminModal>
-    </>
   );
 }

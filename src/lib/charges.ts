@@ -6,13 +6,17 @@ export type ChargeRow = {
   description: string | null;
   amount: number;
   type: "per_member" | "total";
-  group_id: string;
+  /** `null` = cargo del club completo (socios activos), no asociado a un grupo deportivo. */
+  group_id: string | null;
   due_date: string | null;
+  billing_period: string | null;
   created_at: string;
 };
 
 export type ChargeWithGroup = ChargeRow & {
-  group: { id: string; name: string };
+  group: { id: string; name: string } | null;
+  /** Desde `charge_definitions.category` en el join. */
+  category: string | null;
 };
 
 export type ChargeDetail = ChargeWithGroup;
@@ -20,6 +24,9 @@ export type ChargeDetail = ChargeWithGroup;
 export type ChargeOption = { id: string; name: string };
 
 export type MemberChargeStatus = "pending" | "partial" | "paid";
+
+/** Valores habituales en BD: `membership` | `activity` | `fee`. */
+export type ChargeDefinitionCategory = "membership" | "activity" | "fee" | string;
 
 export type MemberChargeWithDetails = {
   id: string;
@@ -29,13 +36,56 @@ export type MemberChargeWithDetails = {
   paid_amount: number;
   status: MemberChargeStatus;
   created_at: string;
+  /** Nombre del concepto: `charge_definitions.name` si existe, si no `charges.name`. */
+  conceptName: string;
+  /** Categoría desde `charge_definitions.category`; `null` si no hay definición o legacy. */
+  category: string | null;
+  /** Mes facturado de la cuota (`charges.billing_period`, YYYY-MM-DD); `membership` lo usa como período. */
+  billing_period: string | null;
+  /** Fecha de vencimiento (YYYY-MM-DD) o cadena vacía. */
+  dueDate: string;
   charge: {
     id: string;
     name: string;
     due_date: string | null;
-    group: { id: string; name: string };
+    /** `null` si el cargo no tiene grupo (p. ej. cuota club) o el embed falló. */
+    group: { id: string; name: string } | null;
   };
 };
+
+/** Vista plana para listados / exports. */
+export type MemberChargeFlat = {
+  conceptName: string;
+  category: string | null;
+  dueDate: string;
+  amount: number;
+  paidAmount: number;
+  status: string;
+};
+
+export function toMemberChargeFlat(mc: MemberChargeWithDetails): MemberChargeFlat {
+  return {
+    conceptName: mc.conceptName,
+    category: mc.category,
+    dueDate: mc.dueDate,
+    amount: mc.amount,
+    paidAmount: mc.paid_amount,
+    status: mc.status,
+  };
+}
+
+export function isMembershipCategory(category: string | null | undefined): boolean {
+  return category === "membership";
+}
+
+export function formatBillingPeriod(dateString: string): string {
+  const date = new Date(dateString);
+
+  return date.toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 function normalizeAmount(value: unknown): number {
   if (typeof value === "number" && !Number.isNaN(value)) {
@@ -119,6 +169,72 @@ export async function registerChargePayment(payload: {
   }
 }
 
+/**
+ * Registra un pago sobre un `member_charge` (inserta en `charge_payments` y actualiza totales vía RPC).
+ * Por defecto usa la fecha/hora actual como `paid_at`.
+ */
+export async function createChargePayment(
+  memberChargeId: string,
+  amount: number,
+  paidAt: string = new Date().toISOString()
+) {
+  return registerChargePayment({
+    member_charge_id: memberChargeId,
+    amount,
+    paid_at: paidAt,
+  });
+}
+
+/** Genera cargos mensuales en BD y los asigna a socios (RPC). Duplicados mismo `charge_definition_id` + `billing_period` se omiten en BD (trigger). */
+export async function generateMonthlyCharges(): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error: genError } = await supabase.rpc("generate_monthly_charges");
+  if (genError) {
+    throw new Error(genError.message?.trim() || "No se pudieron generar las cuotas mensuales.");
+  }
+  const { error: assignError } = await supabase.rpc("assign_charges_to_members");
+  if (assignError) {
+    throw new Error(assignError.message?.trim() || "No se pudieron asignar los cargos a los socios.");
+  }
+}
+
+export type MemberChargeBalance = {
+  member_id: string;
+  remaining: number;
+  pendingLines: number;
+};
+
+/** Agrega saldos por socio a partir de `member_charges` (útil para listados y filtros). */
+export async function listMemberChargeBalances(): Promise<MemberChargeBalance[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.from("member_charges").select("member_id, amount, paid_amount");
+
+  if (error) {
+    throw error;
+  }
+
+  const byMember = new Map<string, { remaining: number; pendingLines: number }>();
+
+  for (const row of data ?? []) {
+    const mid = row.member_id as string;
+    const amount = normalizeAmount((row as { amount: unknown }).amount);
+    const paid = normalizeAmount((row as { paid_amount: unknown }).paid_amount);
+    const rem = Math.max(0, roundMoney(amount - paid));
+    const cur = byMember.get(mid) ?? { remaining: 0, pendingLines: 0 };
+    cur.remaining = roundMoney(cur.remaining + rem);
+    if (rem > 0.001) {
+      cur.pendingLines += 1;
+    }
+    byMember.set(mid, cur);
+  }
+
+  return [...byMember.entries()].map(([member_id, v]) => ({
+    member_id,
+    remaining: v.remaining,
+    pendingLines: v.pendingLines,
+  }));
+}
+
 const CHARGE_SELECT_WITH_GROUP = `
   id,
   name,
@@ -127,6 +243,52 @@ const CHARGE_SELECT_WITH_GROUP = `
   type,
   group_id,
   due_date,
+  billing_period,
+  created_at,
+  charge_definitions (
+    id,
+    category
+  ),
+  groups (
+    id,
+    name
+  )
+`;
+
+type RawChargeWithGroup = Omit<ChargeRow, "amount" | "category"> & {
+  amount: unknown;
+  charge_definitions?: { id: string; category: string | null } | null;
+  groups: { id: string; name: string } | null;
+};
+
+function mapRawToChargeWithGroup(row: RawChargeWithGroup): ChargeWithGroup {
+  const { groups: group, charge_definitions: def, ...rest } = row;
+  const cat = def?.category;
+  const category =
+    cat === undefined || cat === null || String(cat).trim() === "" ? null : String(cat).trim();
+  const billing =
+    rest.billing_period !== undefined && rest.billing_period !== null
+      ? String(rest.billing_period).trim() || null
+      : null;
+  return {
+    ...rest,
+    group_id: rest.group_id ?? null,
+    billing_period: billing,
+    amount: normalizeAmount(rest.amount),
+    group,
+    category,
+  };
+}
+
+const CHARGE_SELECT_WITH_GROUP_LEGACY = `
+  id,
+  name,
+  description,
+  amount,
+  type,
+  group_id,
+  due_date,
+  billing_period,
   created_at,
   groups (
     id,
@@ -134,24 +296,43 @@ const CHARGE_SELECT_WITH_GROUP = `
   )
 `;
 
-type RawChargeWithGroup = Omit<ChargeRow, "amount"> & {
+type RawChargeWithGroupLegacy = Omit<ChargeRow, "amount" | "category"> & {
   amount: unknown;
   groups: { id: string; name: string } | null;
 };
 
-function mapRawToChargeWithGroup(row: RawChargeWithGroup): ChargeWithGroup | null {
-  if (!row.groups) {
-    return null;
-  }
+function mapRawToChargeWithGroupLegacy(row: RawChargeWithGroupLegacy): ChargeWithGroup {
   const { groups: group, ...rest } = row;
+  const billing =
+    rest.billing_period !== undefined && rest.billing_period !== null
+      ? String(rest.billing_period).trim() || null
+      : null;
   return {
     ...rest,
+    group_id: rest.group_id ?? null,
+    billing_period: billing,
     amount: normalizeAmount(rest.amount),
     group,
+    category: null,
   };
 }
 
 function sortChargesByDate(a: ChargeWithGroup, b: ChargeWithGroup): number {
+  const memA = a.category === "membership";
+  const memB = b.category === "membership";
+  if (memA && memB) {
+    const ba = a.billing_period?.trim() ?? "";
+    const bb = b.billing_period?.trim() ?? "";
+    if (ba && bb && ba !== bb) {
+      return ba.localeCompare(bb);
+    }
+    if (ba && !bb) {
+      return -1;
+    }
+    if (!ba && bb) {
+      return 1;
+    }
+  }
   const dueA = a.due_date ? new Date(`${a.due_date}T12:00:00`).getTime() : Number.POSITIVE_INFINITY;
   const dueB = b.due_date ? new Date(`${b.due_date}T12:00:00`).getTime() : Number.POSITIVE_INFINITY;
   if (dueA !== dueB) {
@@ -162,17 +343,27 @@ function sortChargesByDate(a: ChargeWithGroup, b: ChargeWithGroup): number {
 
 export async function listChargesWithGroup(): Promise<ChargeWithGroup[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("charges").select(CHARGE_SELECT_WITH_GROUP);
+  const first = await supabase.from("charges").select(CHARGE_SELECT_WITH_GROUP);
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    const retry =
+      (first.error as { code?: string }).code === "PGRST200" ||
+      msg.includes("charge_definitions") ||
+      msg.includes("schema cache");
+    if (retry) {
+      const second = await supabase.from("charges").select(CHARGE_SELECT_WITH_GROUP_LEGACY);
+      if (!second.error) {
+        const rows = (second.data ?? []) as unknown as RawChargeWithGroupLegacy[];
+        return rows.map(mapRawToChargeWithGroupLegacy).sort(sortChargesByDate);
+      }
+      throw second.error;
+    }
+    throw first.error;
   }
 
-  const rows = (data ?? []) as unknown as RawChargeWithGroup[];
-  return rows
-    .map(mapRawToChargeWithGroup)
-    .filter((row): row is ChargeWithGroup => row !== null)
-    .sort(sortChargesByDate);
+  const rows = (first.data ?? []) as unknown as RawChargeWithGroup[];
+  return rows.map(mapRawToChargeWithGroup).sort(sortChargesByDate);
 }
 
 export async function listChargesForSelect(): Promise<ChargeOption[]> {
@@ -210,17 +401,34 @@ export async function getChargeFinancials(chargeId: string): Promise<{
 
 export async function getChargeById(chargeId: string): Promise<ChargeDetail | null> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("charges")
     .select(CHARGE_SELECT_WITH_GROUP)
     .eq("id", chargeId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    const retry =
+      (first.error as { code?: string }).code === "PGRST200" ||
+      msg.includes("charge_definitions") ||
+      msg.includes("schema cache");
+    if (retry) {
+      const second = await supabase
+        .from("charges")
+        .select(CHARGE_SELECT_WITH_GROUP_LEGACY)
+        .eq("id", chargeId)
+        .maybeSingle();
+      if (!second.error) {
+        const raw = second.data as unknown as RawChargeWithGroupLegacy | null;
+        return raw ? mapRawToChargeWithGroupLegacy(raw) : null;
+      }
+      throw second.error;
+    }
+    throw first.error;
   }
 
-  const raw = data as unknown as RawChargeWithGroup | null;
+  const raw = first.data as unknown as RawChargeWithGroup | null;
   if (!raw) {
     return null;
   }
@@ -258,20 +466,33 @@ export async function updateCharge(
 
 export async function getChargesByGroupId(groupId: string): Promise<ChargeWithGroup[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("charges")
     .select(CHARGE_SELECT_WITH_GROUP)
     .eq("group_id", groupId);
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    const retry =
+      (first.error as { code?: string }).code === "PGRST200" ||
+      msg.includes("charge_definitions") ||
+      msg.includes("schema cache");
+    if (retry) {
+      const second = await supabase
+        .from("charges")
+        .select(CHARGE_SELECT_WITH_GROUP_LEGACY)
+        .eq("group_id", groupId);
+      if (!second.error) {
+        const rows = (second.data ?? []) as unknown as RawChargeWithGroupLegacy[];
+        return rows.map(mapRawToChargeWithGroupLegacy).sort(sortChargesByDate);
+      }
+      throw second.error;
+    }
+    throw first.error;
   }
 
-  const rows = (data ?? []) as unknown as RawChargeWithGroup[];
-  return rows
-    .map(mapRawToChargeWithGroup)
-    .filter((row): row is ChargeWithGroup => row !== null)
-    .sort(sortChargesByDate);
+  const rows = (first.data ?? []) as unknown as RawChargeWithGroup[];
+  return rows.map(mapRawToChargeWithGroup).sort(sortChargesByDate);
 }
 
 const MEMBER_CHARGES_FOR_CHARGE_SELECT = `
@@ -362,41 +583,72 @@ export async function getMemberChargesForCharge(chargeId: string): Promise<Membe
 
 export async function getMissingMembersForCharge(params: {
   chargeId: string;
-  groupId: string;
+  /** `null` = cargo del club completo (comparar con socios activos). */
+  groupId: string | null;
 }): Promise<Array<{ id: string; full_name: string; dni: string; status: "pending" | "active" }>> {
   const supabase = getSupabaseClient();
 
-  const [{ data: groupLinks, error: groupErr }, { data: existingMc, error: mcErr }] =
-    await Promise.all([
-      supabase.from("member_groups").select("member_id").eq("group_id", params.groupId),
-      supabase.from("member_charges").select("member_id").eq("charge_id", params.chargeId),
-    ]);
+  const { data: existingMc, error: mcErr } = await supabase
+    .from("member_charges")
+    .select("member_id")
+    .eq("charge_id", params.chargeId);
 
-  if (groupErr) {
-    throw groupErr;
-  }
   if (mcErr) {
     throw mcErr;
   }
 
-  const groupMemberIds = new Set((groupLinks ?? []).map((r) => r.member_id));
   const alreadyHas = new Set((existingMc ?? []).map((r) => r.member_id));
-  const missingIds = [...groupMemberIds].filter((id) => !alreadyHas.has(id));
-  if (missingIds.length === 0) {
-    return [];
+
+  if (params.groupId) {
+    const { data: groupLinks, error: groupErr } = await supabase
+      .from("member_groups")
+      .select("member_id")
+      .eq("group_id", params.groupId);
+
+    if (groupErr) {
+      throw groupErr;
+    }
+
+    const groupMemberIds = new Set((groupLinks ?? []).map((r) => r.member_id));
+    const missingIds = [...groupMemberIds].filter((id) => !alreadyHas.has(id));
+    if (missingIds.length === 0) {
+      return [];
+    }
+
+    const { data: members, error: memErr } = await supabase
+      .from("members")
+      .select("id, full_name, dni, status")
+      .in("id", missingIds)
+      .order("full_name", { ascending: true });
+
+    if (memErr) {
+      throw memErr;
+    }
+
+    return (members ?? []) as Array<{
+      id: string;
+      full_name: string;
+      dni: string;
+      status: "pending" | "active";
+    }>;
   }
 
-  const { data: members, error: memErr } = await supabase
+  const { data: activeList, error: actErr } = await supabase
     .from("members")
     .select("id, full_name, dni, status")
-    .in("id", missingIds)
+    .eq("status", "active")
     .order("full_name", { ascending: true });
 
-  if (memErr) {
-    throw memErr;
+  if (actErr) {
+    throw actErr;
   }
 
-  return (members ?? []) as Array<{ id: string; full_name: string; dni: string; status: "pending" | "active" }>;
+  return (activeList ?? []).filter((m) => !alreadyHas.has(m.id)) as Array<{
+    id: string;
+    full_name: string;
+    dni: string;
+    status: "pending" | "active";
+  }>;
 }
 
 export async function assignChargeToMissingMembers(chargeId: string) {
@@ -426,6 +678,7 @@ export async function assignChargeToMember(payload: {
   }
 }
 
+/** Incluye `charge_definitions` si en Supabase existe la FK `charges.charge_definition_id`. */
 const MEMBER_CHARGE_SELECT = `
   id,
   member_id,
@@ -438,6 +691,33 @@ const MEMBER_CHARGE_SELECT = `
     id,
     name,
     due_date,
+    billing_period,
+    charge_definitions (
+      id,
+      name,
+      category
+    ),
+    groups (
+      id,
+      name
+    )
+  )
+`;
+
+/** Misma forma sin definiciones (compatibilidad si la tabla/relación aún no existe). */
+const MEMBER_CHARGE_SELECT_LEGACY = `
+  id,
+  member_id,
+  charge_id,
+  amount,
+  paid_amount,
+  status,
+  created_at,
+  charges (
+    id,
+    name,
+    due_date,
+    billing_period,
     groups (
       id,
       name
@@ -457,16 +737,31 @@ type RawMemberChargeRow = {
     id: string;
     name: string;
     due_date: string | null;
+    billing_period?: string | null;
+    charge_definitions?: { id: string; name: string; category?: string | null } | null;
     groups: { id: string; name: string } | null;
   } | null;
 };
 
 function mapRawMemberCharge(row: RawMemberChargeRow): MemberChargeWithDetails | null {
   const c = row.charges;
-  const group = c?.groups;
-  if (!c || !group) {
+  if (!c) {
     return null;
   }
+
+  const group = c.groups ?? null;
+
+  const defName = c.charge_definitions?.name?.trim();
+  const conceptName = (defName && defName.length > 0 ? defName : c.name).trim();
+  const rawCat = c.charge_definitions?.category;
+  const category =
+    rawCat === undefined || rawCat === null || String(rawCat).trim() === ""
+      ? null
+      : String(rawCat).trim();
+  const dueDate = c.due_date?.trim() ?? "";
+  const billingRaw = c.billing_period;
+  const billing_period =
+    billingRaw !== undefined && billingRaw !== null ? String(billingRaw).trim() || null : null;
 
   return {
     id: row.id,
@@ -476,6 +771,10 @@ function mapRawMemberCharge(row: RawMemberChargeRow): MemberChargeWithDetails | 
     paid_amount: normalizeAmount(row.paid_amount),
     status: row.status,
     created_at: row.created_at,
+    conceptName: conceptName.length > 0 ? conceptName : c.name,
+    category,
+    billing_period,
+    dueDate,
     charge: {
       id: c.id,
       name: c.name,
@@ -486,11 +785,26 @@ function mapRawMemberCharge(row: RawMemberChargeRow): MemberChargeWithDetails | 
 }
 
 function sortMemberChargesByDueDate(a: MemberChargeWithDetails, b: MemberChargeWithDetails): number {
-  const dueA = a.charge.due_date
-    ? new Date(`${a.charge.due_date}T12:00:00`).getTime()
+  const mA = isMembershipCategory(a.category);
+  const mB = isMembershipCategory(b.category);
+  if (mA && mB) {
+    const pa = a.billing_period?.trim() ?? "";
+    const pb = b.billing_period?.trim() ?? "";
+    if (pa && pb && pa !== pb) {
+      return pa.localeCompare(pb);
+    }
+    if (pa && !pb) {
+      return -1;
+    }
+    if (!pa && pb) {
+      return 1;
+    }
+  }
+  const dueA = a.dueDate
+    ? new Date(`${a.dueDate}T12:00:00`).getTime()
     : Number.POSITIVE_INFINITY;
-  const dueB = b.charge.due_date
-    ? new Date(`${b.charge.due_date}T12:00:00`).getTime()
+  const dueB = b.dueDate
+    ? new Date(`${b.dueDate}T12:00:00`).getTime()
     : Number.POSITIVE_INFINITY;
   if (dueA !== dueB) {
     return dueA - dueB;
@@ -500,10 +814,33 @@ function sortMemberChargesByDueDate(a: MemberChargeWithDetails, b: MemberChargeW
 
 export async function getMemberChargesForMember(memberId: string): Promise<MemberChargeWithDetails[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("member_charges")
     .select(MEMBER_CHARGE_SELECT)
     .eq("member_id", memberId);
+
+  let data = first.data;
+  let error = first.error;
+
+  if (error) {
+    const code = (error as { code?: string }).code;
+    const msg = error.message?.toLowerCase() ?? "";
+    const retry =
+      code === "PGRST200" ||
+      code === "42703" ||
+      msg.includes("charge_definitions") ||
+      msg.includes("schema cache") ||
+      msg.includes("category") ||
+      msg.includes("billing_period");
+    if (retry) {
+      const second = await supabase
+        .from("member_charges")
+        .select(MEMBER_CHARGE_SELECT_LEGACY)
+        .eq("member_id", memberId);
+      data = second.data;
+      error = second.error;
+    }
+  }
 
   if (error) {
     throw error;
@@ -516,47 +853,100 @@ export async function getMemberChargesForMember(memberId: string): Promise<Membe
     .sort(sortMemberChargesByDueDate);
 }
 
+export type CreateChargeDefinitionCategory = "membership" | "activity" | "fee";
+
 export async function createCharge(payload: {
   name: string;
   description?: string | null;
   amount: number;
   type: "per_member" | "total";
-  group_id: string;
+  /** `null` = todos los socios **activos** (sin filtrar por grupo deportivo). */
+  group_id: string | null;
   due_date?: string | null;
+  definition_category: CreateChargeDefinitionCategory;
 }) {
+  if (payload.definition_category === "membership") {
+    throw new Error("No se puede crear cuota del club manualmente");
+  }
   const supabase = getSupabaseClient();
+  const groupId = payload.group_id?.trim() ? payload.group_id.trim() : null;
+  const startDate = payload.due_date?.trim() || new Date().toISOString().slice(0, 10);
+  const scopeType = groupId ? "group_members" : "all_members";
+
+  const { data: defRow, error: defErr } = await supabase
+    .from("charge_definitions")
+    .insert({
+      name: payload.name.trim(),
+      description: payload.description?.trim() ? payload.description.trim() : null,
+      amount: payload.amount,
+      type: payload.type,
+      recurrence: null,
+      start_date: startDate,
+      end_date: null,
+      scope_type: scopeType,
+      scope_id: groupId,
+      is_active: true,
+      category: payload.definition_category,
+    })
+    .select("id")
+    .single();
+
+  if (defErr) {
+    throw defErr;
+  }
+
+  const definitionId = defRow.id as string;
+
   const { data: created, error } = await supabase
     .from("charges")
     .insert({
       name: payload.name.trim(),
-      description: payload.description?.trim()
-        ? payload.description.trim()
-        : null,
+      description: payload.description?.trim() ? payload.description.trim() : null,
       amount: payload.amount,
       type: payload.type,
-      group_id: payload.group_id,
+      group_id: groupId,
+      charge_definition_id: definitionId,
       due_date: payload.due_date?.trim() ? payload.due_date.trim() : null,
     })
     .select("id")
     .single();
 
   if (error) {
+    await supabase.from("charge_definitions").delete().eq("id", definitionId);
     throw error;
   }
 
   const chargeId = created.id as string;
 
-  const { data: groupMembers, error: membersError } = await supabase
-    .from("member_groups")
-    .select("member_id")
-    .eq("group_id", payload.group_id);
+  let memberIds: string[] = [];
 
-  if (membersError) {
-    await supabase.from("charges").delete().eq("id", chargeId);
-    throw membersError;
+  if (groupId) {
+    const { data: groupMembers, error: membersError } = await supabase
+      .from("member_groups")
+      .select("member_id")
+      .eq("group_id", groupId);
+
+    if (membersError) {
+      await supabase.from("charges").delete().eq("id", chargeId);
+      await supabase.from("charge_definitions").delete().eq("id", definitionId);
+      throw membersError;
+    }
+
+    memberIds = [...new Set((groupMembers ?? []).map((row) => row.member_id))];
+  } else {
+    const { data: activeMembers, error: activeErr } = await supabase
+      .from("members")
+      .select("id")
+      .eq("status", "active");
+
+    if (activeErr) {
+      await supabase.from("charges").delete().eq("id", chargeId);
+      await supabase.from("charge_definitions").delete().eq("id", definitionId);
+      throw activeErr;
+    }
+
+    memberIds = [...new Set((activeMembers ?? []).map((r) => r.id))];
   }
-
-  const memberIds = [...new Set((groupMembers ?? []).map((row) => row.member_id))];
 
   if (memberIds.length > 0) {
     const perMemberAmount =
@@ -576,6 +966,7 @@ export async function createCharge(payload: {
 
     if (insertMcError) {
       await supabase.from("charges").delete().eq("id", chargeId);
+      await supabase.from("charge_definitions").delete().eq("id", definitionId);
       throw insertMcError;
     }
   }

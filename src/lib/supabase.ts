@@ -36,29 +36,49 @@ export type Database = {
         };
         Relationships: [];
       };
-      payments: {
+      charge_definitions: {
         Row: {
           id: string;
-          member_id: string;
+          name: string;
+          description: string | null;
           amount: number;
-          month: string;
-          paid_at: string | null;
-          payment_method: string;
+          type: string;
+          recurrence: string | null;
+          start_date: string;
+          end_date: string | null;
+          scope_type: string;
+          scope_id: string | null;
+          is_active: boolean | null;
+          category: string | null;
+          created_at: string;
         };
         Insert: {
           id?: string;
-          member_id: string;
+          name: string;
+          description?: string | null;
           amount: number;
-          month: string;
-          paid_at?: string | null;
-          payment_method?: string;
+          type: string;
+          recurrence?: string | null;
+          start_date: string;
+          end_date?: string | null;
+          scope_type: string;
+          scope_id?: string | null;
+          is_active?: boolean | null;
+          category?: string | null;
+          created_at?: string;
         };
         Update: {
-          member_id?: string;
+          name?: string;
+          description?: string | null;
           amount?: number;
-          month?: string;
-          paid_at?: string | null;
-          payment_method?: string;
+          type?: string;
+          recurrence?: string | null;
+          start_date?: string;
+          end_date?: string | null;
+          scope_type?: string;
+          scope_id?: string | null;
+          is_active?: boolean | null;
+          category?: string | null;
         };
         Relationships: [];
       };
@@ -72,6 +92,7 @@ export type Database = {
           send_payment_confirmation_email: boolean;
           logo_url: string | null;
           payment_alias: string | null;
+          monthly_due_day: number | null;
         };
         Insert: {
           id?: string;
@@ -82,6 +103,7 @@ export type Database = {
           send_payment_confirmation_email?: boolean;
           logo_url?: string | null;
           payment_alias?: string | null;
+          monthly_due_day?: number | null;
         };
         Update: {
           name?: string;
@@ -91,6 +113,7 @@ export type Database = {
           send_payment_confirmation_email?: boolean;
           logo_url?: string | null;
           payment_alias?: string | null;
+          monthly_due_day?: number | null;
         };
         Relationships: [];
       };
@@ -139,8 +162,12 @@ export type Database = {
           description: string | null;
           amount: number;
           type: "per_member" | "total";
-          group_id: string;
+          /** Null = cargo a nivel club (todos los socios activos), no ligado a un grupo deportivo. */
+          group_id: string | null;
+          charge_definition_id: string | null;
           due_date: string | null;
+          billing_period: string | null;
+          generated_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -149,8 +176,11 @@ export type Database = {
           description?: string | null;
           amount: number;
           type?: "per_member" | "total";
-          group_id: string;
+          group_id?: string | null;
+          charge_definition_id?: string | null;
           due_date?: string | null;
+          billing_period?: string | null;
+          generated_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -158,8 +188,11 @@ export type Database = {
           description?: string | null;
           amount?: number;
           type?: "per_member" | "total";
-          group_id?: string;
+          group_id?: string | null;
+          charge_definition_id?: string | null;
           due_date?: string | null;
+          billing_period?: string | null;
+          generated_at?: string | null;
         };
         Relationships: [];
       };
@@ -249,6 +282,14 @@ export type Database = {
       };
     };
     Functions: {
+      generate_monthly_charges: {
+        Args: Record<string, never>;
+        Returns: void;
+      };
+      assign_charges_to_members: {
+        Args: Record<string, never>;
+        Returns: void;
+      };
       register_charge_payment: {
         Args: {
           p_member_charge_id: string;
@@ -292,13 +333,6 @@ type NewMemberInput = {
   address: string;
   phone?: string;
   status: "pending";
-};
-
-type NewPaymentInput = {
-  member_id: string;
-  amount: number;
-  month: string;
-  payment_method: string;
 };
 
 type UpdateMemberInput = {
@@ -364,49 +398,6 @@ export async function updateMemberStatus(memberId: string, status: Member["statu
   }
 }
 
-export async function createPayment({ member_id, amount, month, payment_method }: NewPaymentInput) {
-  const response = await fetch("/api/payments", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ member_id, amount, month, payment_method }),
-  });
-
-  let payload: { error?: string; payment?: unknown } = {};
-  try {
-    payload = (await response.json()) as { error?: string; payment?: unknown };
-  } catch {
-    payload = {};
-  }
-
-  if (!response.ok) {
-    throw new Error(payload.error ?? "No se pudo registrar el pago");
-  }
-
-  return payload.payment;
-}
-
-export async function deletePayment(id: string) {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from("payments").delete().eq("id", id);
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function listPayments() {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("payments").select("*");
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
-}
-
 export async function getMemberById(id: string) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -420,21 +411,6 @@ export async function getMemberById(id: string) {
   }
 
   return data as Member | null;
-}
-
-export async function getPaymentsByMemberId(memberId: string) {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("payments")
-    .select("id, member_id, amount, month, paid_at, payment_method")
-    .eq("member_id", memberId)
-    .order("paid_at", { ascending: false });
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
 }
 
 export async function updateMember(id: string, data: UpdateMemberInput) {

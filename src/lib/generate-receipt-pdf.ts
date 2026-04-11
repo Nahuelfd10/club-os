@@ -9,7 +9,8 @@ export type ReceiptMember = {
 
 export type ReceiptPayment = {
   amount: number;
-  month: string;
+  /** Texto del concepto (ej. cuota o nombre de cargo). */
+  concept: string;
   paid_at: string | null;
 };
 
@@ -65,9 +66,8 @@ export function generateReceipt(payment: ReceiptPayment, member: ReceiptMember):
 
   line("Nombre del socio", member.full_name);
   line("DNI", member.dni);
-  line("Concepto", `Cuota mensual ${payment.month}`);
+  line("Concepto", payment.concept);
   line("Monto", formatMoney(payment.amount));
-  line("Mes correspondiente", payment.month);
   line("Fecha y hora de pago", formatDateTimeArg(payment.paid_at));
 
   y += 4;
@@ -75,6 +75,6 @@ export function generateReceipt(payment: ReceiptPayment, member: ReceiptMember):
   doc.setTextColor(100, 100, 100);
   doc.text("Documento generado electronicamente.", margin, y);
 
-  const fileName = `comprobante-${sanitizeFileSegment(member.full_name)}-${payment.month}.pdf`;
+  const fileName = `comprobante-${sanitizeFileSegment(member.full_name)}-${sanitizeFileSegment(payment.concept)}.pdf`;
   doc.save(fileName);
 }

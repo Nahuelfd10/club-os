@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { Badge } from "@/components/ui";
@@ -10,6 +10,7 @@ import {
   getMemberChargesForMember,
   registerChargePayment,
   type ChargePaymentRow,
+  type MemberChargeStatus,
   type MemberChargeWithDetails,
 } from "@/lib/charges";
 import {
@@ -19,18 +20,44 @@ import {
 } from "@/lib/charges-ui";
 import { formatDueDate, formatPaidAt } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
-import { buildChargeDebtWhatsAppLink } from "@/lib/whatsapp-reminder";
+import {
+  buildChargeDebtWhatsAppLink,
+  buildTotalChargesDebtWhatsAppLink,
+} from "@/lib/whatsapp-reminder";
+
+type StatusFilter = "all" | MemberChargeStatus;
 
 type Props = {
   memberId: string;
   memberFullName: string;
   memberPhone?: string | null;
+  clubName?: string;
+  paymentAlias?: string | null;
+  /**
+   * Si se pasa (p. ej. excluyendo cuota `membership`), no se vuelve a consultar Supabase:
+   * se muestran solo estas filas.
+   */
+  charges?: MemberChargeWithDetails[];
+  /** Tras registrar un pago cuando `charges` viene del padre. */
+  onChargesRefresh?: () => void | Promise<void>;
 };
 
-export function MemberChargesSection({ memberId, memberFullName, memberPhone }: Props) {
+export function MemberChargesSection({
+  memberId,
+  memberFullName,
+  memberPhone,
+  clubName = "",
+  paymentAlias,
+  charges: chargesFromParent,
+  onChargesRefresh,
+}: Props) {
   const [rows, setRows] = useState<MemberChargeWithDetails[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => chargesFromParent === undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dueFrom, setDueFrom] = useState("");
+  const [dueTo, setDueTo] = useState("");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
@@ -38,7 +65,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeWithDetails | null>(null);
 
-  const load = useCallback(async () => {
+  const loadFromServer = useCallback(async () => {
     if (!memberId) {
       return;
     }
@@ -49,17 +76,68 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
       setRows(data);
     } catch (error) {
       console.error(error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "No se pudieron cargar los cargos."
-      );
+      setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los cargos.");
     } finally {
       setIsLoading(false);
     }
   }, [memberId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (chargesFromParent !== undefined) {
+      setRows(chargesFromParent);
+      setIsLoading(false);
+      setErrorMessage(null);
+      return;
+    }
+    void loadFromServer();
+  }, [memberId, chargesFromParent, loadFromServer]);
+
+  const reload = useCallback(async () => {
+    if (chargesFromParent !== undefined) {
+      await onChargesRefresh?.();
+      return;
+    }
+    await loadFromServer();
+  }, [chargesFromParent, onChargesRefresh, loadFromServer]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (statusFilter !== "all" && row.status !== statusFilter) {
+        return false;
+      }
+      const d = row.dueDate || row.charge.due_date || "";
+      if (dueFrom.trim() && d && d < dueFrom.trim()) {
+        return false;
+      }
+      if (dueTo.trim() && d && d > dueTo.trim()) {
+        return false;
+      }
+      if (dueFrom.trim() && !d) {
+        return false;
+      }
+      if (dueTo.trim() && !d) {
+        return false;
+      }
+      return true;
+    });
+  }, [rows, statusFilter, dueFrom, dueTo]);
+
+  const totalRemaining = useMemo(
+    () => roundMoneySum(rows.map((r) => remainingAmount(r))),
+    [rows]
+  );
+
+  const totalWaUrl = useMemo(() => {
+    if (totalRemaining <= 0.001 || !memberFullName) {
+      return null;
+    }
+    return buildTotalChargesDebtWhatsAppLink({
+      member: { full_name: memberFullName, phone: memberPhone },
+      clubName,
+      totalDebtFormatted: formatMoney(totalRemaining),
+      paymentAlias,
+    });
+  }, [totalRemaining, memberFullName, memberPhone, clubName, paymentAlias]);
 
   const loadHistory = async (memberChargeId: string) => {
     setHistoryLoadingId(memberChargeId);
@@ -93,10 +171,18 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
     setPayModalRow(null);
   };
 
+  const counts = useMemo(() => {
+    const m: Record<StatusFilter, number> = { all: rows.length, pending: 0, partial: 0, paid: 0 };
+    for (const r of rows) {
+      m[r.status] += 1;
+    }
+    return m;
+  }, [rows]);
+
   if (isLoading) {
     return (
       <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos</h2>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos y pagos</h2>
         <p className="text-sm text-slate-600">Cargando...</p>
       </section>
     );
@@ -105,7 +191,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
   if (errorMessage) {
     return (
       <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos</h2>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos y pagos</h2>
         <p className="text-sm text-danger">{errorMessage}</p>
       </section>
     );
@@ -116,21 +202,123 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
   return (
     <>
       <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold text-slate-900">Cargos</h2>
-        <p className="mb-4 text-sm text-slate-600">
-          Deudas por grupo: total, pagos registrados y saldo. Los pagos de cuota mensual no se mezclan
-          aquí.
-        </p>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Otros cargos</h2>
+            <p className="text-sm text-slate-600">
+              Actividades, inscripciones y cargos por grupo (no cuota mensual del club).
+            </p>
+          </div>
+          {totalRemaining > 0.001 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-slate-700">
+                <span className="font-semibold">Saldo total:</span>{" "}
+                <Badge variant="danger">{formatMoney(totalRemaining)}</Badge>
+              </span>
+              <span
+                title={
+                  totalWaUrl
+                    ? undefined
+                    : "Necesitás un teléfono válido en el perfil del socio."
+                }
+                className="inline-flex"
+              >
+                <button
+                  type="button"
+                  disabled={!totalWaUrl}
+                  onClick={() => {
+                    if (totalWaUrl) {
+                      window.open(totalWaUrl, "_blank", "noopener,noreferrer");
+                    }
+                  }}
+                  className={
+                    totalWaUrl
+                      ? "inline-flex items-center gap-1.5 rounded-md border border-success bg-white px-3 py-1.5 text-xs font-semibold text-success shadow-sm transition-colors hover:bg-success/10"
+                      : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-90 shadow-sm"
+                  }
+                >
+                  Recordatorio WhatsApp
+                </button>
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm font-medium text-success">Sin saldo pendiente en cargos.</p>
+          )}
+        </div>
+
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4">
+          <div
+            className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+            role="group"
+            aria-label="Filtrar por estado del cargo"
+          >
+            {(
+              [
+                ["all", "Todos", counts.all],
+                ["pending", "Pendiente", counts.pending],
+                ["partial", "Parcial", counts.partial],
+                ["paid", "Pagado", counts.paid],
+              ] as const
+            ).map(([value, label, n]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  statusFilter === value
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {label} ({n})
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-slate-600">
+              Venc. desde
+              <input
+                type="date"
+                value={dueFrom}
+                onChange={(e) => setDueFrom(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-slate-900"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-slate-600">
+              hasta
+              <input
+                type="date"
+                value={dueTo}
+                onChange={(e) => setDueTo(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-slate-900"
+              />
+            </label>
+            {(dueFrom || dueTo) && (
+              <button
+                type="button"
+                className="text-xs font-semibold text-slate-600 underline"
+                onClick={() => {
+                  setDueFrom("");
+                  setDueTo("");
+                }}
+              >
+                Limpiar fechas
+              </button>
+            )}
+          </div>
+        </div>
 
         {rows.length === 0 ? (
           <p className="text-sm text-slate-600">No tenés cargos asignados.</p>
+        ) : filteredRows.length === 0 ? (
+          <p className="text-sm text-slate-600">Ningún cargo coincide con los filtros.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 font-semibold text-slate-700" aria-hidden />
-                  <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
+                  <th className="px-3 py-2 font-semibold text-slate-700">Concepto</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Grupo</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Vencimiento</th>
                   <th className="px-3 py-2 font-semibold text-slate-700">Total</th>
@@ -143,7 +331,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {rows.map((row) => {
+                {filteredRows.map((row) => {
                   const rem = remainingAmount(row);
                   const canPay = rem > 0.001;
                   const expanded = expandedId === row.id;
@@ -153,8 +341,8 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
                       ? buildChargeDebtWhatsAppLink({
                           fullName: memberFullName,
                           phone: memberPhone,
-                          chargeName: row.charge.name,
-                          groupName: row.charge.group.name,
+                          chargeName: row.conceptName,
+                          groupName: row.charge.group?.name ?? "Sin grupo",
                           remainingFormatted: formatMoney(rem),
                         })
                       : null;
@@ -178,16 +366,20 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
                             onClick={() => toggleExpand(row)}
                             className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
                           >
-                            {row.charge.name}
+                            {row.conceptName}
                           </button>
                         </td>
                         <td className="px-3 py-2 text-slate-700">
-                          <Link
-                            href={`/admin/groups/${row.charge.group.id}`}
-                            className="underline-offset-2 hover:text-slate-900 hover:underline"
-                          >
-                            {row.charge.group.name}
-                          </Link>
+                          {row.charge.group ? (
+                            <Link
+                              href={`/admin/groups/${row.charge.group.id}`}
+                              className="underline-offset-2 hover:text-slate-900 hover:underline"
+                            >
+                              {row.charge.group.name}
+                            </Link>
+                          ) : (
+                            <span className="text-slate-500">Sin grupo</span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-slate-700">{formatDueDate(row.charge.due_date)}</td>
                         <td className="px-3 py-2 tabular-nums text-slate-900">{formatMoney(row.amount)}</td>
@@ -216,7 +408,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
                               disabled={!canPay}
                               className="rounded-md bg-success px-2.5 py-1.5 text-center text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              Registrar pago
+                              Pagar
                             </button>
                             {waUrl ? (
                               <a
@@ -232,7 +424,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
                                 className="text-[11px] leading-tight text-slate-500"
                                 title="Configurá un teléfono en el perfil"
                               >
-                                Sin teléfono para WhatsApp
+                                Sin teléfono
                               </span>
                             ) : null}
                           </div>
@@ -276,7 +468,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
         open={payModalRow !== null}
         onClose={closePayModal}
         title="Registrar pago"
-        subtitle={payModalRow?.charge.name ?? null}
+        subtitle={payModalRow?.conceptName ?? null}
         pendingAmount={payModalRow ? remainingAmount(payModalRow) : 0}
         onConfirm={async ({ amount, paid_at }) => {
           if (!payModalRow) {
@@ -284,7 +476,7 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
           }
           const memberChargeId = payModalRow.id;
           await registerChargePayment({ member_charge_id: memberChargeId, amount, paid_at });
-          await load();
+          await reload();
           if (expandedId === memberChargeId) {
             await loadHistory(memberChargeId);
           }
@@ -292,4 +484,9 @@ export function MemberChargesSection({ memberId, memberFullName, memberPhone }: 
       />
     </>
   );
+}
+
+function roundMoneySum(values: number[]): number {
+  const s = values.reduce((a, b) => a + b, 0);
+  return Math.round(s * 100) / 100;
 }

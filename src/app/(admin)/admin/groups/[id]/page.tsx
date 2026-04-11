@@ -238,7 +238,7 @@ export default function AdminGroupDetailPage() {
                   <tr key={row.linkId}>
                     <td className="px-3 py-2">
                       <Link
-                        href={`/admin/members/${row.member.id}`}
+                        href={`/admin/socios/${row.member.id}`}
                         className="font-medium text-slate-900 underline-offset-2 hover:underline"
                       >
                         {row.member.full_name}
