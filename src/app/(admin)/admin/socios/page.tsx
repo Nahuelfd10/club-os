@@ -166,7 +166,7 @@ export default function SociosPage() {
           isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`
         }
         actions={
-          <Link href="/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
+          <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
             Añadir socio
           </Link>
         }
@@ -197,7 +197,7 @@ export default function SociosPage() {
             title="Todavía no hay socios registrados."
             description="Podés dar de alta un socio desde el registro público."
             actions={
-              <Link href="/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
+              <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
                 Añadir socio
               </Link>
             }

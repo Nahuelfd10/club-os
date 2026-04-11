@@ -1,95 +1,52 @@
 import Link from "next/link";
-import { ArrowUpRight, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
-import { ClubLogo } from "@/components/club-logo";
+import { ClubOsLogo } from "@/components/clubos-logo";
 import { buttonClassNames } from "@/components/ui";
-import { getActiveClubConfig } from "@/config/active-club";
-
-const navItems = [
-  { href: "/#beneficios", label: "Beneficios" },
-  { href: "/#como-funciona", label: "Como funciona" },
-  { href: "/#equipos", label: "Equipos" },
-];
 
 export default async function PublicLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const config = await getActiveClubConfig();
-
   return (
-    <div className="club-page-shell min-h-screen">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18)_0%,transparent_28%),radial-gradient(circle_at_90%_0%,rgba(249,115,22,0.12)_0%,transparent_24%),linear-gradient(180deg,#020617_0%,#0f172a_45%,#111827_100%)] text-white">
       <div className="sticky top-0 z-30 px-4 pt-4 sm:px-6">
-        <header className="club-surface mx-auto flex w-full max-w-7xl items-center justify-between gap-4 rounded-[1.75rem] px-4 py-3 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <ClubLogo
-              src={config.logo}
-              alt={`Logo de ${config.name}`}
-              className="h-11 w-auto max-h-11 max-w-[168px] shrink-0 rounded-2xl bg-white/80 p-1.5"
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary/65">Club OS</p>
-              <p className="truncate text-base font-semibold text-slate-950 sm:text-lg">{config.name}</p>
+        <header className="mx-auto flex w-full max-w-[100rem] items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-white/6 px-4 py-3 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.9)] backdrop-blur-xl sm:px-6">
+          <Link href="/" className="flex min-w-0 items-center gap-3 text-white">
+            <div className="rounded-[1.35rem] border border-white/10 bg-black/20 px-3 py-2 shadow-[0_22px_40px_-28px_rgba(0,0,0,0.9)]">
+              <ClubOsLogo className="h-8 w-auto text-white" />
             </div>
           </Link>
 
           <nav className="hidden items-center gap-2 md:flex">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-full px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/80 hover:text-slate-950"
-              >
-                {item.label}
-              </Link>
-            ))}
+            <Link href="/#beneficios" className="rounded-full px-4 py-2 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+              Beneficios
+            </Link>
+            <Link href="/#producto" className="rounded-full px-4 py-2 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+              Producto
+            </Link>
+            <Link href="/#demo" className="rounded-full px-4 py-2 text-sm font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+              Demo club
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2">
-            <Link href="/admin" className={buttonClassNames({ variant: "ghost", size: "md", className: "hidden sm:inline-flex" })}>
-              Panel
+            <Link
+              href="/club"
+              className={buttonClassNames({ variant: "ghost", size: "md", className: "hidden border-white/10 text-white hover:bg-white/10 hover:text-white sm:inline-flex" })}
+            >
+              Ver club
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/registro" className={buttonClassNames({ variant: "primary", size: "md" })}>
-              Hacete socio
+            <Link href="/admin" className={buttonClassNames({ variant: "primary", size: "md" })}>
+              Entrar al panel
             </Link>
           </div>
         </header>
       </div>
 
       <div className="relative z-10 flex-1">{children}</div>
-
-      <footer className="px-4 pb-6 pt-16 sm:px-6">
-        <div className="club-surface mx-auto flex w-full max-w-7xl flex-col gap-8 rounded-[2rem] px-6 py-7 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary/65">Comunidad deportiva</p>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-              Un club mas ordenado, cercano y listo para crecer.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-              {config.name} centraliza altas, seguimiento y comunicacion para que cada socio tenga una experiencia mas clara desde el primer contacto.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="club-metric-card rounded-[1.5rem] p-4">
-              <div className="mb-3 inline-flex rounded-full bg-primary/10 p-2 text-primary">
-                <ShieldCheck className="h-4 w-4" aria-hidden />
-              </div>
-              <p className="text-sm font-semibold text-slate-900">Gestion confiable</p>
-              <p className="mt-1 text-sm text-slate-600">Procesos mas claros para socios, familias y comision directiva.</p>
-            </div>
-            <div className="club-metric-card rounded-[1.5rem] p-4">
-              <div className="mb-3 inline-flex rounded-full bg-accent/10 p-2 text-accent">
-                <Sparkles className="h-4 w-4" aria-hidden />
-              </div>
-              <p className="text-sm font-semibold text-slate-900">Experiencia moderna</p>
-              <p className="mt-1 text-sm text-slate-600">Landing, registro y panel trabajando con una sola identidad visual.</p>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

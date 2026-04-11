@@ -72,7 +72,7 @@ export function AdminShell({ children }: AdminShellProps) {
         }}
       />
 
-      <div className="relative mx-auto flex w-full max-w-[1400px] gap-4 p-3 md:p-5">
+      <div className="relative mx-auto flex w-full max-w-[100rem] gap-4 p-3 md:p-5">
         <aside className="club-surface hidden w-72 shrink-0 flex-col rounded-[2rem] p-4 md:flex">
           <div className="rounded-[1.5rem] border border-white/70 bg-white/72 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/65">Club OS</p>
@@ -147,7 +147,7 @@ export function AdminShell({ children }: AdminShellProps) {
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              <Link href="/" className={buttonClassNames({ variant: "outline", size: "md", fullWidth: true })}>
+              <Link href="/club" className={buttonClassNames({ variant: "outline", size: "md", fullWidth: true })}>
                 <House className="h-4 w-4" strokeWidth={1.8} aria-hidden />
                 Ver sitio
               </Link>
@@ -185,7 +185,7 @@ export function AdminShell({ children }: AdminShellProps) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Link href="/" className={buttonClassNames({ variant: "outline", size: "sm" })}>
+                <Link href="/club" className={buttonClassNames({ variant: "outline", size: "sm" })}>
                   Ver sitio
                 </Link>
                 <Button type="button" variant="neutral" size="md" onClick={handleLogout}>

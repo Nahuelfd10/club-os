@@ -15,17 +15,17 @@ const geistMono = Geist_Mono({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const config = await getActiveClubConfig();
-  const description = `${config.name} centraliza registro de socios, cobros y gestion administrativa con una experiencia moderna y mas clara para la comunidad del club.`;
+  const description =
+    "Club OS es una plataforma para clubes deportivos que conecta landing institucional, registro de socios y gestion administrativa en una sola experiencia.";
 
   return {
     title: {
-      default: `${config.name} | Club OS`,
-      template: `%s | ${config.name}`,
+      default: "Club OS",
+      template: `%s | Club OS`,
     },
     description,
     openGraph: {
-      title: `${config.name} | Club OS`,
+      title: "Club OS",
       description,
       locale: "es_AR",
       type: "website",
