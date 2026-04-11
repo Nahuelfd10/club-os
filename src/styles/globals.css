@@ -172,3 +172,108 @@ select:focus,
     linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
   box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.42);
 }
+
+.reveal-in {
+  opacity: 0;
+  transform: translateY(30px) scale(0.985);
+  transition:
+    opacity 700ms ease,
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-in.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.clubos-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(14px);
+  opacity: 0.8;
+  animation: clubos-float 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.clubos-orb-delay {
+  animation-delay: -3s;
+}
+
+.clubos-orb-slow {
+  animation-duration: 12s;
+}
+
+.clubos-float-card {
+  animation: clubos-float-card 7s ease-in-out infinite;
+}
+
+.clubos-float-card-delay {
+  animation-delay: -2.2s;
+}
+
+.clubos-float-card-slow {
+  animation-duration: 9s;
+}
+
+.clubos-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.clubos-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.16) 45%, transparent 70%);
+  transform: translateX(-65%) rotate(10deg);
+  animation: clubos-sheen 7.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes clubos-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.04);
+  }
+}
+
+@keyframes clubos-float-card {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes clubos-sheen {
+  0%, 100% {
+    transform: translateX(-75%) rotate(10deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0;
+  }
+  50% {
+    transform: translateX(68%) rotate(10deg);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-in,
+  .clubos-orb,
+  .clubos-float-card,
+  .clubos-sheen::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
