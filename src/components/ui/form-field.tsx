@@ -1,5 +1,3 @@
-"use client";
-
 import { ReactNode } from "react";
 
 type FormFieldProps = {
@@ -11,8 +9,8 @@ type FormFieldProps = {
 
 export function FormField({ htmlFor, label, children, className = "" }: FormFieldProps) {
   return (
-    <div className={`space-y-1 ${className}`.trim()}>
-      <label htmlFor={htmlFor} className="text-sm font-medium text-slate-700">
+    <div className={`space-y-2 ${className}`.trim()}>
+      <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-700">
         {label}
       </label>
       {children}

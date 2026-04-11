@@ -16,10 +16,20 @@ const geistMono = Geist_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getActiveClubConfig();
+  const description = `${config.name} centraliza registro de socios, cobros y gestion administrativa con una experiencia moderna y mas clara para la comunidad del club.`;
 
   return {
-    title: `Club OS - ${config.name}`,
-    description: "Base modular para gestion de clubes deportivos",
+    title: {
+      default: `${config.name} | Club OS`,
+      template: `%s | ${config.name}`,
+    },
+    description,
+    openGraph: {
+      title: `${config.name} | Club OS`,
+      description,
+      locale: "es_AR",
+      type: "website",
+    },
   };
 }
 

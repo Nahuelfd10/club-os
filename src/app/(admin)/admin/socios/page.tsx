@@ -17,6 +17,7 @@ import {
   TableRow,
   Td,
   Th,
+  buttonClassNames,
 } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
@@ -159,22 +160,30 @@ export default function SociosPage() {
   return (
     <section className="space-y-4">
       <PageHeader
+        eyebrow="Padron y solicitudes"
         title="Socios"
         description={
-          isConfigLoading ? "Cargando configuración..." : `Gestión de socios de ${config.name}`
+          isConfigLoading ? "Cargando configuracion..." : `Gestion de socios de ${config.name}`
         }
         actions={
-          <Link
-            href="/registro"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
+          <Link href="/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
             Añadir socio
           </Link>
         }
       />
 
       <Card className="w-full p-6">
-        {isLoading ? <p className="mt-4 text-slate-600">Cargando socios...</p> : null}
+        {isLoading ? (
+          <div className="mt-2 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-12 animate-pulse rounded-[1rem] bg-slate-100/90" />
+              ))}
+            </div>
+            <div className="h-12 animate-pulse rounded-[1rem] bg-slate-100/90" />
+            <div className="h-64 animate-pulse rounded-[1.5rem] bg-slate-100/90" />
+          </div>
+        ) : null}
 
         {!isLoading && errorMessage ? (
           <Alert className="mt-4" variant="danger">
@@ -188,10 +197,7 @@ export default function SociosPage() {
             title="Todavía no hay socios registrados."
             description="Podés dar de alta un socio desde el registro público."
             actions={
-              <Link
-                href="/registro"
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              >
+              <Link href="/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
                 Añadir socio
               </Link>
             }
@@ -201,13 +207,13 @@ export default function SociosPage() {
         {!isLoading && !errorMessage && members.length > 0 ? (
           <div className="mt-5 space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
                 <span className="font-semibold">Total:</span> {totalMembers}
               </div>
-              <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
                 <span className="font-semibold">Solicitudes:</span> {pendingCount}
               </div>
-              <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
                 <span className="font-semibold">Activos:</span> {activeCount}
               </div>
             </div>
@@ -217,7 +223,7 @@ export default function SociosPage() {
               role="tablist"
               aria-label="Vista de socios"
             >
-              <div className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1">
+              <div className="inline-flex flex-wrap gap-1 rounded-[1rem] bg-slate-100/90 p-1.5">
                 <button type="button" role="tab" aria-selected={activeTab === "directorio"} className={tabClass("directorio")} onClick={() => setActiveTab("directorio")}>
                   Directorio
                   {activeCount > 0 ? (

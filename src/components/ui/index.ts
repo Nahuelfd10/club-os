@@ -1,7 +1,7 @@
-export { Button } from "./button";
+export { Button, buttonClassNames } from "./button";
 export { Badge } from "./badge";
 export { Alert } from "./alert";
-export { Card } from "./card";
+export { Card, cardClassNames } from "./card";
 export { EmptyState } from "./empty-state";
 export { FormField } from "./form-field";
 export { Input } from "./input";

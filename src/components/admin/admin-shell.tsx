@@ -2,6 +2,8 @@
 
 import {
   ArrowDownCircle,
+  BadgeCheck,
+  CreditCard,
   House,
   LayoutDashboard,
   LogOut,
@@ -16,7 +18,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { ClubLogo } from "@/components/club-logo";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
-import { Button } from "@/components/ui";
+import { formatMoney } from "@/lib/formatters";
+import { Button, buttonClassNames } from "@/components/ui";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -34,7 +37,7 @@ const navItems: NavItem[] = [
   { href: "/admin/groups", label: "Grupos", icon: UsersRound },
   { href: "/admin/charges", label: "Cargos", icon: Receipt },
   { href: "/admin/expenses", label: "Egresos", icon: ArrowDownCircle },
-  { href: "/admin/settings", label: "Configuracion", icon: Settings },
+  { href: "/admin/settings", label: "Ajustes", icon: Settings },
 ];
 
 const isNavItemActive = (pathname: string, href: string) => {
@@ -49,6 +52,8 @@ export function AdminShell({ children }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { config, isConfigLoading } = useActiveClubConfig();
+  const monthlyFeeLabel = formatMoney(config.monthly_fee);
+  const paymentAliasLabel = config.payment_alias || "Alias pendiente";
 
   const handleLogout = () => {
     localStorage.removeItem("isAdminLogged");
@@ -57,36 +62,36 @@ export function AdminShell({ children }: AdminShellProps) {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-100">
+    <div className="club-page-shell relative min-h-screen overflow-hidden bg-transparent">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            "radial-gradient(52rem 30rem at -10% -10%, rgba(100, 116, 139, 0.12) 0%, transparent 60%), radial-gradient(48rem 30rem at 110% -10%, rgba(148, 163, 184, 0.14) 0%, transparent 64%), linear-gradient(to bottom, #f8fafc, #eef2ff)",
+            "radial-gradient(50rem 28rem at -10% -10%, color-mix(in srgb, var(--club-primary) 16%, transparent) 0%, transparent 62%), radial-gradient(46rem 26rem at 110% -10%, color-mix(in srgb, var(--club-accent) 18%, transparent) 0%, transparent 60%), linear-gradient(to bottom, rgba(248,250,252,0.92), rgba(238,242,255,0.72))",
         }}
       />
 
       <div className="relative mx-auto flex w-full max-w-[1400px] gap-4 p-3 md:p-5">
-        <aside className="hidden w-64 shrink-0 flex-col rounded-3xl border border-white/70 bg-white/80 p-4 shadow-lg shadow-slate-900/5 backdrop-blur md:flex">
-          <div className="border-b border-slate-200/70 pb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Club OS</p>
+        <aside className="club-surface hidden w-72 shrink-0 flex-col rounded-[2rem] p-4 md:flex">
+          <div className="rounded-[1.5rem] border border-white/70 bg-white/72 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/65">Club OS</p>
             <div className="mt-3 flex items-start gap-3">
               <ClubLogo
                 src={config.logo}
                 alt={isConfigLoading ? "Logo del club" : `Logo de ${config.name}`}
-                className="h-11 w-11 shrink-0 rounded-lg bg-slate-50 p-1"
+                className="h-12 w-12 shrink-0 rounded-[1rem] bg-white/90 p-1.5 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.42)]"
               />
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold leading-tight text-slate-900">
+                <h2 className="text-lg font-semibold leading-tight text-slate-950">
                   {isConfigLoading ? "Cargando..." : config.name}
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">Panel administrativo</p>
+                <p className="mt-1 text-xs text-slate-500">Panel administrativo con identidad de marca</p>
               </div>
             </div>
           </div>
 
-          <nav className="mt-4 flex flex-1 flex-col gap-1">
+          <nav className="mt-4 flex flex-1 flex-col gap-1.5">
             {navItems.map((item) => {
               const isActive = isNavItemActive(pathname, item.href);
               const Icon = item.icon;
@@ -95,11 +100,19 @@ export function AdminShell({ children }: AdminShellProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                  className={`inline-flex items-center gap-2 rounded-[1rem] px-3.5 py-3 text-sm font-medium transition-all ${
                     isActive
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                      ? "text-white shadow-[0_22px_44px_-24px_rgba(15,23,42,0.55)]"
+                      : "text-slate-700 hover:bg-white/80 hover:text-slate-950"
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          background:
+                            "linear-gradient(135deg, var(--club-primary) 0%, color-mix(in srgb, var(--club-primary) 78%, var(--club-accent)) 100%)",
+                        }
+                      : undefined
+                  }
                 >
                   <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
                   {item.label}
@@ -108,47 +121,71 @@ export function AdminShell({ children }: AdminShellProps) {
             })}
           </nav>
 
-          <div className="mt-4 border-t border-slate-200/80 pt-3">
-            <Link
-              href="/"
-              className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              <House className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-              Ver sitio
-            </Link>
+          <div className="club-surface-muted mt-4 rounded-[1.5rem] p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-primary/10 p-2 text-primary">
+                <BadgeCheck className="h-4 w-4" aria-hidden />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Resumen del club</p>
+                <p className="text-xs text-slate-500">Datos visibles tambien en la experiencia publica.</p>
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 hover:text-danger"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-              Salir
-            </button>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-[1.15rem] bg-white/90 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary/65">Cuota mensual</p>
+                <p className="mt-2 text-lg font-semibold text-slate-950">{monthlyFeeLabel}</p>
+              </div>
+              <div className="rounded-[1.15rem] bg-white/90 p-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-accent" aria-hidden />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Alias de cobro</p>
+                </div>
+                <p className="mt-2 truncate text-sm font-semibold text-slate-900">{paymentAliasLabel}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <Link href="/" className={buttonClassNames({ variant: "outline", size: "md", fullWidth: true })}>
+                <House className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                Ver sitio
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className={buttonClassNames({
+                  variant: "ghost",
+                  size: "md",
+                  fullWidth: true,
+                  className: "text-danger hover:bg-danger/10 hover:text-danger",
+                })}
+              >
+                <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                Salir
+              </button>
+            </div>
           </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="mb-4 rounded-2xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur md:hidden">
+          <header className="club-surface mb-4 rounded-[1.75rem] p-3 md:hidden">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <ClubLogo
                   src={config.logo}
                   alt={isConfigLoading ? "Logo del club" : `Logo de ${config.name}`}
-                  className="h-9 w-9 shrink-0 rounded-md bg-slate-50 p-0.5"
+                  className="h-10 w-10 shrink-0 rounded-[0.9rem] bg-white/90 p-1"
                 />
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Admin</p>
-                  <p className="truncate text-sm font-semibold text-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/65">Admin</p>
+                  <p className="truncate text-sm font-semibold text-slate-950">
                     {isConfigLoading ? "Cargando..." : config.name}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Link
-                  href="/"
-                  className="rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700"
-                >
+                <Link href="/" className={buttonClassNames({ variant: "outline", size: "sm" })}>
                   Ver sitio
                 </Link>
                 <Button type="button" variant="neutral" size="md" onClick={handleLogout}>
@@ -166,11 +203,19 @@ export function AdminShell({ children }: AdminShellProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all ${
                       isActive
-                        ? "bg-slate-900 text-white shadow-sm"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+                        ? "text-white shadow-[0_16px_32px_-20px_rgba(15,23,42,0.55)]"
+                        : "bg-white/85 text-slate-700 hover:bg-white hover:text-slate-950"
                     }`}
+                    style={
+                      isActive
+                        ? {
+                            background:
+                              "linear-gradient(135deg, var(--club-primary) 0%, color-mix(in srgb, var(--club-primary) 78%, var(--club-accent)) 100%)",
+                          }
+                        : undefined
+                    }
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
                     {item.label}
@@ -180,7 +225,7 @@ export function AdminShell({ children }: AdminShellProps) {
             </nav>
           </header>
 
-          <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-lg shadow-slate-900/5 backdrop-blur md:p-6">
+          <div className="club-surface rounded-[2rem] p-4 md:p-6">
             {children}
           </div>
         </div>
