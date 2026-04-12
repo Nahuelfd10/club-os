@@ -285,6 +285,8 @@ select:focus,
 .clubos-flow-node {
   position: relative;
   box-shadow: 0 18px 40px -30px rgba(15, 23, 42, 0.55);
+  animation: clubos-flow-node-seq 5.4s ease-in-out infinite;
+  animation-delay: var(--flow-node-delay, 0s);
 }
 
 .clubos-flow-node::before {
@@ -294,6 +296,10 @@ select:focus,
   border-radius: inherit;
   border: 1px solid rgba(125, 211, 252, 0.12);
   opacity: 0.7;
+}
+
+.clubos-flow-node-final {
+  animation-duration: 5.4s;
 }
 
 .clubos-flow-connector {
@@ -311,10 +317,12 @@ select:focus,
   left: 0;
   right: 0;
   height: 2px;
-  transform: translateY(-50%);
-  background: linear-gradient(90deg, rgba(56, 189, 248, 0.22), rgba(249, 115, 22, 0.9), rgba(56, 189, 248, 0.22));
-  background-size: 220% 100%;
-  animation: clubos-flow-line 2.8s linear infinite;
+  transform: translateY(-50%) scaleX(0.12);
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.18), rgba(249, 115, 22, 0.96), rgba(56, 189, 248, 0.18));
+  opacity: 0.22;
+  animation: clubos-flow-line-seq 5.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: var(--flow-connector-delay, 0s);
 }
 
 .clubos-flow-dot {
@@ -329,11 +337,14 @@ select:focus,
     0 0 0 4px rgba(56, 189, 248, 0.12),
     0 0 14px rgba(249, 115, 22, 0.55);
   transform: translateY(-50%);
-  animation: clubos-flow-dot 2.8s linear infinite;
+  opacity: 0;
+  animation: clubos-flow-dot-seq 5.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: var(--flow-connector-delay, 0s);
 }
 
 .clubos-flow-check {
-  animation: clubos-check-pulse 2.4s ease-in-out infinite;
+  animation: clubos-check-pulse-seq 5.4s ease-in-out infinite;
+  animation-delay: 4.6s;
 }
 
 .clubos-dashboard-bar {
@@ -360,45 +371,73 @@ select:focus,
   animation-delay: 0.32s;
 }
 
-@keyframes clubos-flow-line {
+@keyframes clubos-flow-node-seq {
   0% {
-    background-position: 160% 50%;
-    opacity: 0.7;
+    transform: translateY(0);
+    box-shadow: 0 18px 40px -30px rgba(15, 23, 42, 0.55);
   }
-  50% {
-    opacity: 1;
+  8%,
+  18% {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(56, 189, 248, 0.14),
+      0 22px 46px -28px rgba(14, 165, 233, 0.42);
   }
+  28%,
   100% {
-    background-position: -40% 50%;
-    opacity: 0.7;
+    transform: translateY(0);
+    box-shadow: 0 18px 40px -30px rgba(15, 23, 42, 0.55);
   }
 }
 
-@keyframes clubos-flow-dot {
-  0% {
+@keyframes clubos-flow-line-seq {
+  0%,
+  10% {
+    opacity: 0.18;
+    transform: translateY(-50%) scaleX(0.12);
+  }
+  18%,
+  34% {
+    opacity: 1;
+    transform: translateY(-50%) scaleX(1);
+  }
+  44%,
+  100% {
+    opacity: 0.18;
+    transform: translateY(-50%) scaleX(0.12);
+  }
+}
+
+@keyframes clubos-flow-dot-seq {
+  0%,
+  8% {
     left: 0%;
     opacity: 0;
   }
-  10% {
+  14% {
     opacity: 1;
   }
-  85% {
+  34% {
+    left: calc(100% - 0.45rem);
     opacity: 1;
   }
+  44%,
   100% {
     left: calc(100% - 0.45rem);
     opacity: 0;
   }
 }
 
-@keyframes clubos-check-pulse {
-  0%, 100% {
+@keyframes clubos-check-pulse-seq {
+  0%,
+  82%,
+  100% {
     transform: scale(1);
-    opacity: 1;
+    opacity: 0.72;
   }
-  50% {
-    transform: scale(1.14);
-    opacity: 0.9;
+  90% {
+    transform: scale(1.16);
+    opacity: 1;
   }
 }
 

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { ArrowRight, BadgeCheck, CalendarDays, CreditCard, UserRound } from "lucide-react";
 
 const flowItems = [
@@ -46,10 +47,19 @@ export function ClubOsSystemFlow() {
         {flowItems.map((item, index) => {
           const Icon = item.icon;
           const isLast = index === flowItems.length - 1;
+          const nodeStyle = {
+            "--flow-node-delay": `${index * 1.35}s`,
+          } as CSSProperties;
+          const connectorStyle = {
+            "--flow-connector-delay": `${0.68 + index * 1.35}s`,
+          } as CSSProperties;
 
           return (
             <div key={item.title} className="clubos-flow-step relative">
-              <article className="clubos-flow-node rounded-[1.4rem] border border-white/10 bg-white/6 p-4">
+              <article
+                className={`clubos-flow-node rounded-[1.4rem] border border-white/10 bg-white/6 p-4 ${isLast ? "clubos-flow-node-final" : ""}`}
+                style={nodeStyle}
+              >
                 <div className="inline-flex rounded-full bg-white/8 p-2.5 text-sky-300">
                   <Icon className="h-4 w-4" aria-hidden />
                 </div>
@@ -58,7 +68,7 @@ export function ClubOsSystemFlow() {
               </article>
 
               {!isLast ? (
-                <div className="clubos-flow-connector hidden lg:block" aria-hidden>
+                <div className="clubos-flow-connector hidden lg:block" aria-hidden style={connectorStyle}>
                   <span className="clubos-flow-line" />
                   <span className="clubos-flow-dot" />
                 </div>
