@@ -173,6 +173,129 @@ select:focus,
   box-shadow: 0 18px 40px -34px rgba(15, 23, 42, 0.42);
 }
 
+.club-crest-stage {
+  perspective: 1400px;
+}
+
+.club-crest-glow {
+  position: absolute;
+  inset: auto;
+  border-radius: 9999px;
+  filter: blur(38px);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.club-crest-glow-primary {
+  width: 14rem;
+  height: 14rem;
+  left: 6%;
+  top: 12%;
+  background: color-mix(in srgb, var(--club-primary) 38%, transparent);
+}
+
+.club-crest-glow-accent {
+  width: 10rem;
+  height: 10rem;
+  right: 8%;
+  bottom: 10%;
+  background: color-mix(in srgb, var(--club-accent) 44%, transparent);
+}
+
+.club-crest-shadow {
+  position: absolute;
+  inset: auto 12% 2% 12%;
+  height: 2.4rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.18);
+  filter: blur(16px);
+}
+
+.club-crest-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 2.6rem;
+  padding: 1.15rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(226, 232, 240, 0.4)),
+    linear-gradient(160deg, color-mix(in srgb, var(--club-primary) 18%, white), rgba(255, 255, 255, 0.76));
+  box-shadow:
+    0 32px 56px -36px rgba(15, 23, 42, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  transform: rotateY(-11deg) rotateX(5deg);
+}
+
+.club-crest-shell-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 2.1rem;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--club-primary) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 84% 84%, color-mix(in srgb, var(--club-accent) 16%, transparent) 0%, transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.club-crest-badge {
+  position: absolute;
+  left: 1.2rem;
+  right: 1.2rem;
+  top: 1.2rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 1.3rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.78));
+  box-shadow: 0 20px 36px -28px rgba(15, 23, 42, 0.48);
+}
+
+.club-crest-mark {
+  position: absolute;
+  inset: 4.8rem 1.5rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.8rem;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.12) 40%, transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08));
+}
+
+.club-sponsors-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 1rem;
+  animation: club-sponsors-marquee 24s linear infinite;
+}
+
+.club-sponsor-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 1.3rem;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(248, 250, 252, 0.96);
+  box-shadow: 0 18px 34px -30px rgba(15, 23, 42, 0.24);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.club-sponsor-pill:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--club-primary) 14%, white);
+  box-shadow: 0 26px 38px -32px rgba(15, 23, 42, 0.32);
+}
+
 .reveal-in {
   opacity: 0;
   transform: translateY(30px) scale(0.985);
@@ -266,11 +389,21 @@ select:focus,
   }
 }
 
+@keyframes club-sponsors-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-50% - 0.5rem));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal-in,
   .clubos-orb,
   .clubos-float-card,
-  .clubos-sheen::after {
+  .clubos-sheen::after,
+  .club-sponsors-track {
     animation: none !important;
     transition: none !important;
     transform: none !important;

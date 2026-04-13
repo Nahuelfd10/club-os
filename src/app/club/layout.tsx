@@ -7,14 +7,15 @@ import { buttonClassNames } from "@/components/ui";
 import { getActiveClubConfig } from "@/config/active-club";
 
 const navItems = [
-  { href: "/club#beneficios", label: "Beneficios" },
-  { href: "/club#como-funciona", label: "Como funciona" },
-  { href: "/club#equipos", label: "Equipos" },
+  { href: "/club#ofrece", label: "Beneficios" },
+  { href: "/club#agenda", label: "Agenda" },
+  { href: "/club#sponsors", label: "Sponsors" },
+  { href: "/club#proyectos", label: "Proyectos" },
 ];
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = await getActiveClubConfig();
-  const description = `${config.name} presenta su propuesta institucional, registro de socios y experiencia digital en una landing clara y moderna.`;
+  const description = `${config.name} presenta su propuesta institucional, sponsors, proyectos y registro de socios en una landing clara y moderna.`;
 
   return {
     title: config.name,
@@ -82,10 +83,10 @@ export default async function ClubPublicLayout({
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary/65">Comunidad deportiva</p>
             <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-              Un club mas ordenado, cercano y listo para crecer.
+              Un club para vivir actividad, comunidad y proyectos compartidos.
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-              {config.name} centraliza altas, seguimiento y comunicacion para que cada socio tenga una experiencia mas clara desde el primer contacto.
+              {config.name} se presenta aca como una experiencia publica del club: beneficios, agenda, sponsors, proyectos y una forma clara de acercarse o sumarse.
             </p>
           </div>
 
@@ -94,15 +95,15 @@ export default async function ClubPublicLayout({
               <div className="mb-3 inline-flex rounded-full bg-primary/10 p-2 text-primary">
                 <ShieldCheck className="h-4 w-4" aria-hidden />
               </div>
-              <p className="text-sm font-semibold text-slate-900">Gestion confiable</p>
-              <p className="mt-1 text-sm text-slate-600">Procesos mas claros para socios, familias y comision directiva.</p>
+              <p className="text-sm font-semibold text-slate-900">Vida de club</p>
+              <p className="mt-1 text-sm text-slate-600">Actividad, comunidad y pertenencia mostradas con una imagen mucho mas fuerte.</p>
             </div>
             <div className="club-metric-card rounded-[1.5rem] p-4">
               <div className="mb-3 inline-flex rounded-full bg-accent/10 p-2 text-accent">
                 <Sparkles className="h-4 w-4" aria-hidden />
               </div>
-              <p className="text-sm font-semibold text-slate-900">Experiencia moderna</p>
-              <p className="mt-1 text-sm text-slate-600">Landing, registro y panel trabajando con una sola identidad visual.</p>
+              <p className="text-sm font-semibold text-slate-900">Conversion mas clara</p>
+              <p className="mt-1 text-sm text-slate-600">CTA, beneficios y proyectos trabajando para acercar nuevos socios y apoyos.</p>
             </div>
           </div>
         </div>

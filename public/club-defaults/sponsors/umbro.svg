@@ -1,0 +1,6 @@
+<svg width="240" height="96" viewBox="0 0 240 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="96" rx="20" fill="#111827"/>
+  <path d="M120 18L170 48L120 78L70 48L120 18Z" stroke="#F8FAFC" stroke-width="6"/>
+  <path d="M120 30L150 48L120 66L90 48L120 30Z" fill="#F8FAFC"/>
+  <text x="78" y="88" fill="#94A3B8" font-family="Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="0.25em">UMBRO</text>
+</svg>
