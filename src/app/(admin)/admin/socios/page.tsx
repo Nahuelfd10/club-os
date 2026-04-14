@@ -154,7 +154,7 @@ export default function SociosPage() {
 
   const tabClass = (tab: SociosTab) =>
     `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-      activeTab === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+      activeTab === tab ? "bg-white/10 text-white shadow-sm" : "text-slate-300 hover:text-white"
     }`;
 
   return (
@@ -172,16 +172,16 @@ export default function SociosPage() {
         }
       />
 
-      <Card className="w-full p-6">
+      <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
         {isLoading ? (
           <div className="mt-2 space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-12 animate-pulse rounded-[1rem] bg-slate-100/90" />
+                <div key={index} className="h-12 animate-pulse rounded-[1rem] bg-white/[0.06]" />
               ))}
             </div>
-            <div className="h-12 animate-pulse rounded-[1rem] bg-slate-100/90" />
-            <div className="h-64 animate-pulse rounded-[1.5rem] bg-slate-100/90" />
+            <div className="h-12 animate-pulse rounded-[1rem] bg-white/[0.06]" />
+            <div className="h-64 animate-pulse rounded-[1.5rem] bg-white/[0.06]" />
           </div>
         ) : null}
 
@@ -207,13 +207,13 @@ export default function SociosPage() {
         {!isLoading && !errorMessage && members.length > 0 ? (
           <div className="mt-5 space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
+              <div className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-slate-300">
                 <span className="font-semibold">Total:</span> {totalMembers}
               </div>
-              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
+              <div className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-slate-300">
                 <span className="font-semibold">Solicitudes:</span> {pendingCount}
               </div>
-              <div className="club-surface-muted rounded-[1rem] px-3 py-3 text-sm text-slate-700">
+              <div className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-slate-300">
                 <span className="font-semibold">Activos:</span> {activeCount}
               </div>
             </div>
@@ -223,11 +223,11 @@ export default function SociosPage() {
               role="tablist"
               aria-label="Vista de socios"
             >
-              <div className="inline-flex flex-wrap gap-1 rounded-[1rem] bg-slate-100/90 p-1.5">
+              <div className="inline-flex flex-wrap gap-1 rounded-[1rem] border border-white/10 bg-white/[0.04] p-1.5">
                 <button type="button" role="tab" aria-selected={activeTab === "directorio"} className={tabClass("directorio")} onClick={() => setActiveTab("directorio")}>
                   Directorio
                   {activeCount > 0 ? (
-                    <span className="ml-1.5 text-xs text-slate-500">({activeCount})</span>
+                    <span className="ml-1.5 text-xs text-slate-400">({activeCount})</span>
                   ) : null}
                 </button>
                 <button
@@ -241,11 +241,11 @@ export default function SociosPage() {
                   {pendingCount > 0 ? (
                     <span className="ml-1.5 font-semibold text-amber-700">({pendingCount})</span>
                   ) : (
-                    <span className="ml-1.5 text-xs text-slate-500">(0)</span>
+                    <span className="ml-1.5 text-xs text-slate-400">(0)</span>
                   )}
                 </button>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 {activeTab === "directorio"
                   ? "Socios activos: cuota mensual y otros cargos por separado."
                   : "Personas que enviaron el formulario de alta y esperan aprobación."}
@@ -254,15 +254,15 @@ export default function SociosPage() {
 
             {activeTab === "directorio" ? (
               <>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-white/45">
                     Filtros
                   </p>
                   <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-8 lg:gap-y-3">
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <span className="shrink-0 text-sm font-medium text-slate-600">Cuota club</span>
+                      <span className="shrink-0 text-sm font-medium text-slate-300">Cuota club</span>
                       <div
-                        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+                        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-white/10 bg-black/18 p-1"
                         role="group"
                         aria-label="Filtrar por estado de la cuota mensual"
                       >
@@ -279,8 +279,8 @@ export default function SociosPage() {
                             onClick={() => setMembershipFilter(value)}
                             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                               membershipFilter === value
-                                ? "bg-white text-slate-900 shadow-sm"
-                                : "text-slate-600 hover:text-slate-900"
+                                ? "bg-white/10 text-white shadow-sm"
+                                : "text-slate-300 hover:text-white"
                             }`}
                           >
                             {label}
@@ -289,12 +289,12 @@ export default function SociosPage() {
                       </div>
                     </div>
 
-                    <div className="hidden h-8 w-px shrink-0 bg-slate-200 lg:block" aria-hidden />
+                    <div className="hidden h-8 w-px shrink-0 bg-white/10 lg:block" aria-hidden />
 
                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <span className="shrink-0 text-sm font-medium text-slate-600">Otros cargos</span>
+                      <span className="shrink-0 text-sm font-medium text-slate-300">Otros cargos</span>
                       <div
-                        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+                        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-white/10 bg-black/18 p-1"
                         role="group"
                         aria-label="Filtrar por saldo de cargos que no son cuota"
                       >
@@ -311,8 +311,8 @@ export default function SociosPage() {
                             onClick={() => setOtherDebtFilter(value)}
                             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                               otherDebtFilter === value
-                                ? "bg-white text-slate-900 shadow-sm"
-                                : "text-slate-600 hover:text-slate-900"
+                                ? "bg-white/10 text-white shadow-sm"
+                                : "text-slate-300 hover:text-white"
                             }`}
                           >
                             {label}
@@ -329,7 +329,7 @@ export default function SociosPage() {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Buscar por nombre o DNI"
-                    className="text-sm"
+                    className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
                   />
                 </div>
 
@@ -365,16 +365,16 @@ export default function SociosPage() {
                             <tr
                               key={member.id}
                               onClick={() => router.push(`/admin/socios/${member.id}`)}
-                              className="cursor-pointer transition-colors hover:bg-slate-50"
+                              className="cursor-pointer transition-colors hover:bg-white/[0.04]"
                             >
-                              <Td className="text-slate-900">{member.full_name}</Td>
-                              <Td className="text-slate-700">{member.dni}</Td>
-                              <Td className="text-slate-700">
+                              <Td className="text-white">{member.full_name}</Td>
+                              <Td className="text-slate-300">{member.dni}</Td>
+                              <Td className="text-slate-300">
                                 {memDebt ? (
                                   <span className="inline-flex flex-col gap-0.5">
                                     <Badge variant="danger">{formatMoney(memRem)}</Badge>
                                     {memLines > 0 ? (
-                                      <span className="text-xs text-slate-500">
+                                      <span className="text-xs text-slate-400">
                                         {memLines} cuota{memLines === 1 ? "" : "s"} pend.
                                       </span>
                                     ) : null}
@@ -383,12 +383,12 @@ export default function SociosPage() {
                                   <Badge variant="success">Al día</Badge>
                                 )}
                               </Td>
-                              <Td className="text-slate-700">
+                              <Td className="text-slate-300">
                                 {othDebt ? (
                                   <span className="inline-flex flex-col gap-0.5">
                                     <Badge variant="danger">{formatMoney(othRem)}</Badge>
                                     {othLines > 0 ? (
-                                      <span className="text-xs text-slate-500">
+                                      <span className="text-xs text-slate-400">
                                         {othLines} cargo{othLines === 1 ? "" : "s"} pend.
                                       </span>
                                     ) : null}
@@ -397,7 +397,7 @@ export default function SociosPage() {
                                   <Badge variant="success">Al día</Badge>
                                 )}
                               </Td>
-                              <Td className="text-slate-700">
+                              <Td className="text-slate-300">
                                 {new Date(member.created_at).toLocaleString("es-AR")}
                               </Td>
                               <Td>
@@ -425,7 +425,7 @@ export default function SociosPage() {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Buscar por nombre o DNI"
-                    className="text-sm"
+                    className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
                   />
                 </div>
 
@@ -450,11 +450,11 @@ export default function SociosPage() {
                           <tr
                             key={member.id}
                             onClick={() => router.push(`/admin/socios/${member.id}`)}
-                            className="cursor-pointer transition-colors hover:bg-slate-50"
+                            className="cursor-pointer transition-colors hover:bg-white/[0.04]"
                           >
-                            <Td className="text-slate-900">{member.full_name}</Td>
-                            <Td className="text-slate-700">{member.dni}</Td>
-                            <Td className="text-slate-700">
+                            <Td className="text-white">{member.full_name}</Td>
+                            <Td className="text-slate-300">{member.dni}</Td>
+                            <Td className="text-slate-300">
                               {new Date(member.created_at).toLocaleString("es-AR")}
                             </Td>
                             <Td>

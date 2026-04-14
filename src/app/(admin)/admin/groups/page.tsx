@@ -18,6 +18,7 @@ import {
   TableRow,
   Td,
   Th,
+  buttonClassNames,
 } from "@/components/ui";
 import {
   createGroup,
@@ -123,15 +124,15 @@ export default function AdminGroupsPage() {
               setCreateName("");
               setCreateDescription("");
             }}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className={buttonClassNames({ variant: "primary", size: "lg" })}
           >
             Crear grupo
           </button>
         }
       />
 
-      <Card className="w-full border border-slate-200/80 p-6">
-        {isLoading ? <p className="text-slate-600">Cargando grupos...</p> : null}
+      <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
+        {isLoading ? <p className="text-slate-300">Cargando grupos...</p> : null}
 
         {!isLoading && errorMessage ? (
           <Alert variant="danger">{errorMessage}</Alert>
@@ -175,19 +176,19 @@ export default function AdminGroupsPage() {
               </TableHead>
               <TableBody>
                 {groups.map((group) => (
-                  <TableRow key={group.id} className="transition-colors hover:bg-slate-50">
-                    <Td className="font-medium text-slate-900">{group.name}</Td>
-                    <Td className="max-w-md text-slate-700">
+                  <TableRow key={group.id} className="transition-colors hover:bg-white/[0.04]">
+                    <Td className="font-medium text-white">{group.name}</Td>
+                    <Td className="max-w-md text-slate-300">
                       {group.description?.trim() ? group.description : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-slate-500">—</span>
                       )}
                     </Td>
-                    <Td className="text-slate-700 tabular-nums">{group.memberCount}</Td>
+                    <Td className="text-slate-300 tabular-nums">{group.memberCount}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/admin/groups/${group.id}`}
-                          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                          className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
                         >
                           Ver detalle
                         </Link>
@@ -210,12 +211,12 @@ export default function AdminGroupsPage() {
       </Card>
 
       <AdminModal open={createOpen} onClose={() => !isCreating && setCreateOpen(false)}>
-        <h2 className="text-lg font-semibold text-slate-900">Nuevo grupo</h2>
-        <p className="mt-1 text-sm text-slate-600">Completá el nombre y, si querés, una descripción.</p>
+        <h2 className="text-lg font-semibold text-white">Nuevo grupo</h2>
+        <p className="mt-1 text-sm text-slate-300">Completá el nombre y, si querés, una descripción.</p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="group-name" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="group-name" className="mb-1 block text-sm font-medium text-slate-300">
               Nombre <span className="text-danger">*</span>
             </label>
             <Input
@@ -223,12 +224,12 @@ export default function AdminGroupsPage() {
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               placeholder="Ej. Sub 15"
-              className="text-sm"
+              className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               autoComplete="off"
             />
           </div>
           <div>
-            <label htmlFor="group-desc" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="group-desc" className="mb-1 block text-sm font-medium text-slate-300">
               Descripción
             </label>
             <textarea
@@ -237,7 +238,7 @@ export default function AdminGroupsPage() {
               onChange={(e) => setCreateDescription(e.target.value)}
               rows={3}
               placeholder="Opcional"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
             />
           </div>
         </div>

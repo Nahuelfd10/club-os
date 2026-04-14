@@ -16,6 +16,7 @@ import {
   TableRow,
   Td,
   Th,
+  buttonClassNames,
 } from "@/components/ui";
 import { listChargesForSelect, type ChargeOption } from "@/lib/charges";
 import { createExpense, deleteExpense, listExpenses, updateExpense, type ExpenseWithCharge } from "@/lib/expenses";
@@ -196,19 +197,19 @@ export default function AdminExpensesPage() {
           <button
             type="button"
             onClick={openCreate}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className={buttonClassNames({ variant: "primary", size: "lg" })}
           >
             Nuevo egreso
           </button>
         }
       />
 
-      <Card className="w-full border border-slate-200/80 p-6">
+      <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtro</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Filtro</p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <label htmlFor="expenses-month" className="text-sm font-medium text-slate-700">
+              <label htmlFor="expenses-month" className="text-sm font-medium text-slate-300">
                 Mes
               </label>
               <Input
@@ -216,18 +217,18 @@ export default function AdminExpensesPage() {
                 type="month"
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value)}
-                className="text-sm sm:w-48"
+                className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08] sm:w-48"
               />
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total del mes</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatMoney(totalFiltered)}</p>
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Total del mes</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">{formatMoney(totalFiltered)}</p>
           </div>
         </div>
 
-        {isLoading ? <p className="mt-4 text-slate-600">Cargando egresos...</p> : null}
+        {isLoading ? <p className="mt-4 text-slate-300">Cargando egresos...</p> : null}
 
         {!isLoading && errorMessage ? <Alert className="mt-4" variant="danger">{errorMessage}</Alert> : null}
         {!isLoading && actionMessage ? <Alert className="mt-4">{actionMessage}</Alert> : null}
@@ -260,24 +261,24 @@ export default function AdminExpensesPage() {
               </TableHead>
               <TableBody>
                 {filteredExpenses.map((expense) => (
-                  <TableRow key={expense.id} className="transition-colors hover:bg-slate-50">
-                    <Td className="font-medium text-slate-900">{expense.description}</Td>
-                    <Td className="text-slate-700">
+                  <TableRow key={expense.id} className="transition-colors hover:bg-white/[0.04]">
+                    <Td className="font-medium text-white">{expense.description}</Td>
+                    <Td className="text-slate-300">
                       {expense.charge?.name?.trim() ? (
                         expense.charge.name
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}
                     </Td>
-                    <Td className="text-slate-700">{expense.category?.trim() ? expense.category : <span className="text-slate-400">—</span>}</Td>
-                    <Td className="tabular-nums text-slate-900">{formatMoney(expense.amount)}</Td>
-                    <Td className="text-slate-700">{formatExpenseDate(expense.date)}</Td>
+                    <Td className="text-slate-300">{expense.category?.trim() ? expense.category : <span className="text-slate-500">—</span>}</Td>
+                    <Td className="tabular-nums text-white">{formatMoney(expense.amount)}</Td>
+                    <Td className="text-slate-300">{formatExpenseDate(expense.date)}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => openEdit(expense)}
-                          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                          className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
                         >
                           Editar
                         </button>
@@ -300,21 +301,21 @@ export default function AdminExpensesPage() {
       </Card>
 
       <AdminModal open={modalOpen} onClose={closeModal}>
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h2 className="text-lg font-semibold text-white">
           {editing ? "Editar egreso" : "Nuevo egreso"}
         </h2>
-        <p className="mt-1 text-sm text-slate-600">Completá los datos del gasto.</p>
+        <p className="mt-1 text-sm text-slate-300">Completá los datos del gasto.</p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="expense-charge" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="expense-charge" className="mb-1 block text-sm font-medium text-slate-300">
               Charge (opcional)
             </label>
             <select
               id="expense-charge"
               value={formChargeId}
               onChange={(e) => setFormChargeId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
             >
               <option value="">Sin relación</option>
               {chargeOptions.map((c) => (
@@ -326,7 +327,7 @@ export default function AdminExpensesPage() {
           </div>
 
           <div>
-            <label htmlFor="expense-desc" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="expense-desc" className="mb-1 block text-sm font-medium text-slate-300">
               Descripción <span className="text-danger">*</span>
             </label>
             <Input
@@ -334,13 +335,13 @@ export default function AdminExpensesPage() {
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               placeholder="Ej. Pago árbitros"
-              className="text-sm"
+              className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               autoComplete="off"
             />
           </div>
 
           <div>
-            <label htmlFor="expense-category" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="expense-category" className="mb-1 block text-sm font-medium text-slate-300">
               Categoría
             </label>
             <Input
@@ -348,13 +349,13 @@ export default function AdminExpensesPage() {
               value={formCategory}
               onChange={(e) => setFormCategory(e.target.value)}
               placeholder="Ej. Torneo / Indumentaria"
-              className="text-sm"
+              className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               autoComplete="off"
             />
           </div>
 
           <div>
-            <label htmlFor="expense-amount" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="expense-amount" className="mb-1 block text-sm font-medium text-slate-300">
               Monto <span className="text-danger">*</span>
             </label>
             <Input
@@ -364,12 +365,12 @@ export default function AdminExpensesPage() {
               value={formAmount}
               onChange={(e) => setFormAmount(e.target.value)}
               placeholder="0"
-              className="text-sm"
+              className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
             />
           </div>
 
           <div>
-            <label htmlFor="expense-date" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="expense-date" className="mb-1 block text-sm font-medium text-slate-300">
               Fecha
             </label>
             <Input
@@ -377,7 +378,7 @@ export default function AdminExpensesPage() {
               type="date"
               value={formDate}
               onChange={(e) => setFormDate(e.target.value)}
-              className="text-sm"
+              className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
             />
           </div>
         </div>

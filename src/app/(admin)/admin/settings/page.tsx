@@ -5,7 +5,7 @@ import { Mail } from "lucide-react";
 
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
 import { getActiveClubConfig } from "@/config/active-club";
-import { Button, Card, FormField, Input } from "@/components/ui";
+import { Button, Card, FormField, Input, PageHeader } from "@/components/ui";
 import {
   getClubSettings,
   updateClubSettingsById,
@@ -193,8 +193,8 @@ export default function AdminSettingsPage() {
   if (isLoading) {
     return (
       <section>
-        <Card className="mx-auto w-full max-w-3xl p-6">
-          <p className="text-slate-600">Cargando configuracion...</p>
+        <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
+          <p className="text-slate-300">Cargando configuracion...</p>
         </Card>
       </section>
     );
@@ -206,23 +206,21 @@ export default function AdminSettingsPage() {
 
   return (
     <section className="space-y-5">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Configuracion del club</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Personaliza identidad visual, valores y notificaciones del panel.
-        </p>
-      </header>
+      <PageHeader
+        title="Configuracion del club"
+        description="Personaliza identidad visual, valores y notificaciones del panel."
+      />
 
-      <Card className="mx-auto w-full max-w-3xl p-6">
+      <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
         <div
-          className="mb-5 rounded-xl border border-slate-200 p-4"
+          className="mb-5 rounded-xl border border-white/10 p-4"
           style={{
             backgroundImage:
-              "linear-gradient(120deg, var(--club-muted), var(--club-border))",
+              "linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
           }}
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">Preview del tema</p>
-          <p className="mt-1 text-sm font-medium text-slate-800">{clubSettings.name}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Preview del tema</p>
+          <p className="mt-1 text-sm font-medium text-white">{clubSettings.name}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -242,6 +240,7 @@ export default function AdminSettingsPage() {
                 setClubSettings((prev) => (prev ? { ...prev, name: event.target.value } : prev))
               }
               required
+              className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
             />
           </FormField>
 
@@ -262,6 +261,7 @@ export default function AdminSettingsPage() {
                 )
               }
               required
+              className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
             />
           </FormField>
 
@@ -284,8 +284,9 @@ export default function AdminSettingsPage() {
                   )
                 }
                 required
+                className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Se usar&aacute; para calcular el vencimiento de las cuotas mensuales generadas autom&aacute;ticamente.
               </p>
             </div>
@@ -307,7 +308,7 @@ export default function AdminSettingsPage() {
                       prev ? { ...prev, payment_alias: v === "" ? null : v } : prev
                     );
                   }}
-                  className="sm:min-w-0 sm:flex-1"
+                  className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08] sm:min-w-0 sm:flex-1"
                 />
                 <Button
                   type="button"
@@ -320,7 +321,7 @@ export default function AdminSettingsPage() {
                   {aliasCopyFeedback ? "Copiado" : "Copiar alias"}
                 </Button>
               </div>
-              <p className="text-xs text-slate-500">Este alias se enviará en los recordatorios de pago</p>
+              <p className="text-xs text-slate-400">Este alias se enviará en los recordatorios de pago</p>
             </div>
           </FormField>
 
@@ -340,7 +341,7 @@ export default function AdminSettingsPage() {
                       : prev
                   )
                 }
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1"
+                className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1"
               />
             </FormField>
 
@@ -359,17 +360,17 @@ export default function AdminSettingsPage() {
                       : prev
                   )
                 }
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1"
+                className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1"
               />
             </FormField>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 inline-flex items-center gap-2">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent">
                 <Mail className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               </span>
-              <h3 className="text-base font-semibold text-slate-900">Notificaciones</h3>
+              <h3 className="text-base font-semibold text-white">Notificaciones</h3>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -391,8 +392,8 @@ export default function AdminSettingsPage() {
                 </button>
 
                 <div>
-                <p className="text-sm font-semibold text-slate-900">Enviar email automatico al registrar pagos</p>
-                <p className="text-sm text-slate-500">El socio recibira un email de confirmacion</p>
+                <p className="text-sm font-semibold text-white">Enviar email automatico al registrar pagos</p>
+                <p className="text-sm text-slate-300">El socio recibira un email de confirmacion</p>
                 </div>
               </div>
 
@@ -422,7 +423,7 @@ export default function AdminSettingsPage() {
         </form>
 
         {message ? (
-          <p className="mt-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{message}</p>
+          <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">{message}</p>
         ) : null}
       </Card>
     </section>

@@ -50,8 +50,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (shouldBlockContent) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-        <p className="text-sm text-slate-600">Verificando acceso...</p>
+      <main className="club-page-shell flex min-h-screen items-center justify-center p-6">
+        <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/72 px-5 py-4 text-sm text-slate-300 shadow-[0_24px_64px_-36px_rgba(2,8,23,0.92)] backdrop-blur-xl">
+          Verificando acceso...
+        </div>
       </main>
     );
   }

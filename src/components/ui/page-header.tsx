@@ -18,9 +18,9 @@ export function PageHeader({
   return (
     <header className={`flex flex-wrap items-end justify-between gap-4 ${className}`.trim()}>
       <div className="max-w-3xl">
-        {eyebrow ? <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-primary/70">{eyebrow}</p> : null}
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-[2.15rem]">{title}</h1>
-        {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{description}</p> : null}
+        {eyebrow ? <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-white/45">{eyebrow}</p> : null}
+        <h1 className="text-3xl font-bold tracking-tight text-white md:text-[2.15rem]">{title}</h1>
+        {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </header>

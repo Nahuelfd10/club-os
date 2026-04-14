@@ -10,7 +10,7 @@ type FormFieldProps = {
 export function FormField({ htmlFor, label, children, className = "" }: FormFieldProps) {
   return (
     <div className={`space-y-2 ${className}`.trim()}>
-      <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-700">
+      <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-300">
         {label}
       </label>
       {children}
