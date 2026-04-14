@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bebas_Neue, Geist, Geist_Mono } from "next/font/google";
 
 import { getActiveClubConfig } from "@/config/active-club";
 import "@/styles/globals.css";
@@ -11,6 +11,12 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const clubDisplay = Bebas_Neue({
+  variable: "--font-club-display",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -43,7 +49,7 @@ export default async function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${clubDisplay.variable} h-full antialiased`}
       style={
         {
           "--club-primary": config.primary_color,
