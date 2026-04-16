@@ -54,14 +54,14 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
 
   return (
     <>
-      <section className="rounded-2xl border border-indigo-200/80 bg-gradient-to-b from-indigo-50/80 to-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-indigo-950">Cuota mensual del club</h2>
-        <p className="mt-1 text-sm text-indigo-900/80">
+      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-white">Cuota mensual del club</h2>
+        <p className="mt-1 text-sm text-slate-300">
           Cuotas mensuales del club (cargos marcados como <span className="font-semibold">Cuota mensual</span>).
         </p>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/80 px-3 py-2 ring-1 ring-indigo-100">
-          <p className="text-sm text-slate-800">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2">
+          <p className="text-sm text-slate-300">
             <span className="font-semibold">Deuda total:</span>{" "}
             {totalDebt > 0.001 ? (
               <Badge variant="danger">{formatMoney(totalDebt)}</Badge>
@@ -72,31 +72,31 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
         </div>
 
         {sorted.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas.</p>
+          <p className="mt-4 text-sm text-slate-300">No hay cuotas mensuales registradas.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-indigo-100 text-left text-sm">
-              <thead className="bg-indigo-50/90">
+            <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+              <thead className="bg-white/[0.045]">
                 <tr>
-                  <th className="px-3 py-2 font-semibold text-indigo-950">Período</th>
-                  <th className="px-3 py-2 font-semibold text-indigo-950">Estado</th>
-                  <th className="px-3 py-2 font-semibold text-indigo-950">Monto</th>
-                  <th className="px-3 py-2 font-semibold text-indigo-950">Acción</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Período</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Monto</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-indigo-50 bg-white">
+              <tbody className="divide-y divide-white/8 bg-transparent">
                 {sorted.map((row) => {
                   const rem = remainingAmount(row);
                   const canPay = memberStatus === "active" && rem > 0.001;
                   const due = row.charge.due_date?.trim();
                   return (
                     <tr key={row.id}>
-                      <td className="px-3 py-2 font-medium text-slate-900">
+                      <td className="px-3 py-2 font-medium text-white">
                         <div className="capitalize">
                           {row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}
                         </div>
                         {due ? (
-                          <div className="mt-0.5 text-xs font-normal text-slate-500">
+                          <div className="mt-0.5 text-xs font-normal text-slate-400">
                             Vence el {formatDueDate(due)}
                           </div>
                         ) : null}
@@ -106,10 +106,10 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                           {memberChargeStatusLabel(row.status)}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2 tabular-nums text-slate-900">{formatMoney(row.amount)}</td>
+                      <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
                       <td className="px-3 py-2">
                         {memberStatus === "pending" ? (
-                          <span className="text-xs font-semibold text-slate-500">No aplica</span>
+                          <span className="text-xs font-semibold text-slate-400">No aplica</span>
                         ) : canPay ? (
                           <Button
                             type="button"

@@ -125,22 +125,22 @@ export function MemberGroupsSection({ memberId }: Props) {
 
   if (isLoading) {
     return (
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">Grupos</h2>
-        <p className="text-sm text-slate-600">Cargando...</p>
+      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-white">Grupos</h2>
+        <p className="text-sm text-slate-300">Cargando...</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">Grupos</h2>
+        <h2 className="text-lg font-semibold text-white">Grupos</h2>
         {canAddToMoreGroups ? (
           <button
             type="button"
             onClick={() => (addPanelOpen ? closeAddPanel() : openAddPanel())}
-            className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="shrink-0 rounded-lg border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.12]"
           >
             {addPanelOpen ? "Cerrar" : "Agregar a un grupo"}
           </button>
@@ -148,15 +148,15 @@ export function MemberGroupsSection({ memberId }: Props) {
       </div>
 
       {message ? (
-        <p className="mb-4 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{message}</p>
+        <p className="mb-4 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">{message}</p>
       ) : null}
 
       {addPanelOpen && canAddToMoreGroups ? (
-        <Card className="mb-6 border border-slate-200/80 bg-slate-50/50 p-4">
-          <p className="text-sm font-medium text-slate-800">Elegí un grupo</p>
+        <Card className="mb-6 border-white/10 !bg-white/[0.04] p-4">
+          <p className="text-sm font-medium text-white">Elegí un grupo</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-1 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <label htmlFor="member-group-search" className="mb-1 block text-xs font-medium text-slate-600">
+              <label htmlFor="member-group-search" className="mb-1 block text-xs font-medium text-slate-400">
                 Buscar grupo
               </label>
               <Input
@@ -164,18 +164,18 @@ export function MemberGroupsSection({ memberId }: Props) {
                 value={addSearch}
                 onChange={(e) => setAddSearch(e.target.value)}
                 placeholder="Nombre del grupo"
-                className="text-sm"
+                className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               />
             </div>
             <div className="min-w-0 md:min-w-[200px]">
-              <label htmlFor="member-group-select" className="mb-1 block text-xs font-medium text-slate-600">
+              <label htmlFor="member-group-select" className="mb-1 block text-xs font-medium text-slate-400">
                 Grupo
               </label>
               <select
                 id="member-group-select"
                 value={selectedGroupId}
                 onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
               >
                 <option value="">Seleccionar...</option>
                 {groupAddOptions.map((g) => (
@@ -185,7 +185,7 @@ export function MemberGroupsSection({ memberId }: Props) {
                 ))}
               </select>
               {groupAddOptions.length === 0 && addSearch.trim() ? (
-                <p className="mt-1 text-xs text-slate-500">No hay grupos que coincidan con la búsqueda.</p>
+                <p className="mt-1 text-xs text-slate-400">No hay grupos que coincidan con la búsqueda.</p>
               ) : null}
             </div>
           </div>
@@ -207,30 +207,30 @@ export function MemberGroupsSection({ memberId }: Props) {
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="text-sm text-slate-600">Este socio no está en ningún grupo todavía.</p>
+        <p className="text-sm text-slate-300">Este socio no está en ningún grupo todavía.</p>
       ) : (
         <ul className="space-y-2">
           {rows.map((row) => (
             <li
               key={row.linkId}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2"
             >
               <div className="min-w-0">
                 <Link
                   href={`/admin/groups/${row.group.id}`}
-                  className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                  className="font-semibold text-white underline-offset-2 hover:underline"
                 >
                   {row.group.name}
                 </Link>
                 {row.group.description?.trim() ? (
-                  <p className="text-xs text-slate-600">{row.group.description}</p>
+                  <p className="text-xs text-slate-300">{row.group.description}</p>
                 ) : null}
               </div>
               <button
                 type="button"
                 onClick={() => void handleRemove(row.group.id)}
                 disabled={removingGroupId === row.group.id}
-                className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                className="shrink-0 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {removingGroupId === row.group.id ? "Quitando..." : "Quitar"}
               </button>
@@ -240,7 +240,7 @@ export function MemberGroupsSection({ memberId }: Props) {
       )}
 
       {!canAddToMoreGroups ? (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-slate-400">
           {allGroups.length === 0
             ? "No hay grupos creados en el club."
             : "Este socio ya pertenece a todos los grupos disponibles."}

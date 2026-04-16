@@ -90,18 +90,18 @@ export function ChargePaymentModal({
 
   return (
     <AdminModal open={open} onClose={close}>
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-      {subtitle ? <p className="mt-1 text-sm font-medium text-slate-800">{subtitle}</p> : null}
-      <p className="mt-2 text-sm text-slate-600">
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      {subtitle ? <p className="mt-1 text-sm font-medium text-slate-200">{subtitle}</p> : null}
+      <p className="mt-2 text-sm text-slate-300">
         Pendiente:{" "}
         <span className="rounded-md bg-warning/10 px-2 py-0.5 text-base font-bold text-warning ring-1 ring-warning/20">
           {pendingText}
         </span>
       </p>
 
-      <div className="mt-4 rounded-lg border border-border bg-muted/60 p-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo de pago</p>
-        <div className="mt-2 inline-flex flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1" role="group">
+      <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/42">Tipo de pago</p>
+        <div className="mt-2 inline-flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-1" role="group">
           <button
             type="button"
             onClick={() => {
@@ -109,7 +109,7 @@ export function ChargePaymentModal({
               setAmount(formatAmountInput(pendingAmount));
             }}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              isFull ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              isFull ? "bg-white/10 text-white shadow-sm" : "text-slate-300 hover:text-white"
             }`}
           >
             Pago total
@@ -121,16 +121,16 @@ export function ChargePaymentModal({
               setAmount("");
             }}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              !isFull ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              !isFull ? "bg-white/10 text-white shadow-sm" : "text-slate-300 hover:text-white"
             }`}
           >
             Pago parcial
           </button>
         </div>
         {!isFull ? (
-          <p className="mt-2 text-xs text-slate-600">Ingresá un monto menor o igual al pendiente.</p>
+          <p className="mt-2 text-xs text-slate-300">Ingresá un monto menor o igual al pendiente.</p>
         ) : (
-          <p className="mt-2 text-xs text-slate-600">
+          <p className="mt-2 text-xs text-slate-300">
             El monto se completa automáticamente con el saldo pendiente.
           </p>
         )}
@@ -138,7 +138,7 @@ export function ChargePaymentModal({
 
       <div className="mt-4 space-y-3">
         <div>
-          <label htmlFor={amountId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={amountId} className="mb-1 block text-sm font-medium text-slate-300">
             Monto <span className="text-danger">*</span>
           </label>
           <Input
@@ -148,15 +148,17 @@ export function ChargePaymentModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0"
-            className={isFull ? "text-sm opacity-80" : "text-sm"}
+            className={isFull
+              ? "border-white/10 bg-white/[0.05] text-sm text-white opacity-80 placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+              : "border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"}
             disabled={isFull}
           />
           {isFull ? (
-            <p className="mt-1 text-xs text-slate-500">Desactivá “Pago total” para editar el monto.</p>
+            <p className="mt-1 text-xs text-slate-400">Desactivá “Pago total” para editar el monto.</p>
           ) : null}
         </div>
         <div>
-          <label htmlFor={paidAtId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={paidAtId} className="mb-1 block text-sm font-medium text-slate-300">
             Fecha y hora del pago
           </label>
           <Input
@@ -164,7 +166,7 @@ export function ChargePaymentModal({
             type="datetime-local"
             value={paidAt}
             onChange={(e) => setPaidAt(e.target.value)}
-            className="text-sm"
+            className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
           />
         </div>
       </div>

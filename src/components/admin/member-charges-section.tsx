@@ -181,17 +181,17 @@ export function MemberChargesSection({
 
   if (isLoading) {
     return (
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos y pagos</h2>
-        <p className="text-sm text-slate-600">Cargando...</p>
+      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-white">Cargos y pagos</h2>
+        <p className="text-sm text-slate-300">Cargando...</p>
       </section>
     );
   }
 
   if (errorMessage) {
     return (
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">Cargos y pagos</h2>
+      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-white">Cargos y pagos</h2>
         <p className="text-sm text-danger">{errorMessage}</p>
       </section>
     );
@@ -201,17 +201,17 @@ export function MemberChargesSection({
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Otros cargos</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-lg font-semibold text-white">Otros cargos</h2>
+            <p className="text-sm text-slate-300">
               Actividades, inscripciones y cargos por grupo (no cuota mensual del club).
             </p>
           </div>
           {totalRemaining > 0.001 ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-700">
+              <span className="text-sm text-slate-300">
                 <span className="font-semibold">Saldo total:</span>{" "}
                 <Badge variant="danger">{formatMoney(totalRemaining)}</Badge>
               </span>
@@ -233,8 +233,8 @@ export function MemberChargesSection({
                   }}
                   className={
                     totalWaUrl
-                      ? "inline-flex items-center gap-1.5 rounded-md border border-success bg-white px-3 py-1.5 text-xs font-semibold text-success shadow-sm transition-colors hover:bg-success/10"
-                      : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500 opacity-90 shadow-sm"
+                      ? "inline-flex items-center gap-1.5 rounded-md border border-success/30 bg-success/10 px-3 py-1.5 text-xs font-semibold text-success shadow-sm transition-colors hover:bg-success/15"
+                      : "inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-400 opacity-90 shadow-sm"
                   }
                 >
                   Recordatorio WhatsApp
@@ -248,7 +248,7 @@ export function MemberChargesSection({
 
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4">
           <div
-            className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
+            className="inline-flex flex-wrap gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-1"
             role="group"
             aria-label="Filtrar por estado del cargo"
           >
@@ -266,8 +266,8 @@ export function MemberChargesSection({
                 onClick={() => setStatusFilter(value)}
                 className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   statusFilter === value
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-white/10 text-white shadow-sm"
+                    : "text-slate-300 hover:text-white"
                 }`}
               >
                 {label} ({n})
@@ -275,28 +275,28 @@ export function MemberChargesSection({
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label className="flex items-center gap-2 text-slate-600">
+            <label className="flex items-center gap-2 text-slate-300">
               Venc. desde
               <input
                 type="date"
                 value={dueFrom}
                 onChange={(e) => setDueFrom(e.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-1 text-slate-900"
+                className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1 text-white"
               />
             </label>
-            <label className="flex items-center gap-2 text-slate-600">
+            <label className="flex items-center gap-2 text-slate-300">
               hasta
               <input
                 type="date"
                 value={dueTo}
                 onChange={(e) => setDueTo(e.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-1 text-slate-900"
+                className="rounded-md border border-white/10 bg-white/[0.05] px-2 py-1 text-white"
               />
             </label>
             {(dueFrom || dueTo) && (
               <button
                 type="button"
-                className="text-xs font-semibold text-slate-600 underline"
+                className="text-xs font-semibold text-slate-300 underline"
                 onClick={() => {
                   setDueFrom("");
                   setDueTo("");
@@ -309,28 +309,28 @@ export function MemberChargesSection({
         </div>
 
         {rows.length === 0 ? (
-          <p className="text-sm text-slate-600">No tenés cargos asignados.</p>
+          <p className="text-sm text-slate-300">No tenés cargos asignados.</p>
         ) : filteredRows.length === 0 ? (
-          <p className="text-sm text-slate-600">Ningún cargo coincide con los filtros.</p>
+          <p className="text-sm text-slate-300">Ningún cargo coincide con los filtros.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+              <thead className="bg-white/[0.045]">
                 <tr>
-                  <th className="px-3 py-2 font-semibold text-slate-700" aria-hidden />
-                  <th className="px-3 py-2 font-semibold text-slate-700">Concepto</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Grupo</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Vencimiento</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Total</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Pagado</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700" title="Saldo pendiente">
+                  <th className="px-3 py-2 font-semibold text-white/45" aria-hidden />
+                  <th className="px-3 py-2 font-semibold text-white/45">Concepto</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Grupo</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Vencimiento</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Total</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Pagado</th>
+                  <th className="px-3 py-2 font-semibold text-white/45" title="Saldo pendiente">
                     Restante
                   </th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
+                  <th className="px-3 py-2 font-semibold text-white/45">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-white/8 bg-transparent">
                 {filteredRows.map((row) => {
                   const rem = remainingAmount(row);
                   const canPay = rem > 0.001;
@@ -349,12 +349,12 @@ export function MemberChargesSection({
 
                   return (
                     <Fragment key={row.id}>
-                      <tr className={expanded ? "bg-slate-50/60" : undefined}>
+                      <tr className={expanded ? "bg-white/[0.04]" : undefined}>
                         <td className="px-3 py-2 align-top">
                           <button
                             type="button"
                             onClick={() => toggleExpand(row)}
-                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-semibold text-white hover:bg-white/[0.12]"
                             aria-expanded={expanded}
                           >
                             {expanded ? "Ocultar" : "Pagos"}
@@ -364,26 +364,26 @@ export function MemberChargesSection({
                           <button
                             type="button"
                             onClick={() => toggleExpand(row)}
-                            className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+                            className="text-left font-medium text-white underline-offset-2 hover:underline"
                           >
                             {row.conceptName}
                           </button>
                         </td>
-                        <td className="px-3 py-2 text-slate-700">
+                        <td className="px-3 py-2 text-slate-300">
                           {row.charge.group ? (
                             <Link
                               href={`/admin/groups/${row.charge.group.id}`}
-                              className="underline-offset-2 hover:text-slate-900 hover:underline"
+                              className="underline-offset-2 hover:text-white hover:underline"
                             >
                               {row.charge.group.name}
                             </Link>
                           ) : (
-                            <span className="text-slate-500">Sin grupo</span>
+                            <span className="text-slate-400">Sin grupo</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-slate-700">{formatDueDate(row.charge.due_date)}</td>
-                        <td className="px-3 py-2 tabular-nums text-slate-900">{formatMoney(row.amount)}</td>
-                        <td className="px-3 py-2 tabular-nums text-slate-800">{formatMoney(row.paid_amount)}</td>
+                        <td className="px-3 py-2 text-slate-300">{formatDueDate(row.charge.due_date)}</td>
+                        <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
+                        <td className="px-3 py-2 tabular-nums text-slate-200">{formatMoney(row.paid_amount)}</td>
                         <td className="px-3 py-2">
                           <span
                             className={`inline-block min-w-[5.5rem] rounded-lg px-2.5 py-1 text-right text-base font-bold tabular-nums ${
@@ -421,7 +421,7 @@ export function MemberChargesSection({
                               </a>
                             ) : canPay ? (
                               <span
-                                className="text-[11px] leading-tight text-slate-500"
+                                className="text-[11px] leading-tight text-slate-400"
                                 title="Configurá un teléfono en el perfil"
                               >
                                 Sin teléfono
@@ -431,26 +431,26 @@ export function MemberChargesSection({
                         </td>
                       </tr>
                       {expanded ? (
-                        <tr className="bg-slate-50/90">
-                          <td colSpan={colCount} className="px-3 py-3 text-sm text-slate-700">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <tr className="bg-white/[0.035]">
+                          <td colSpan={colCount} className="px-3 py-3 text-sm text-slate-300">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/42">
                               Historial de pagos
                             </p>
                             {historyLoadingId === row.id ? (
-                              <p className="text-slate-600">Cargando...</p>
+                              <p className="text-slate-300">Cargando...</p>
                             ) : history && history.length > 0 ? (
-                              <ul className="space-y-1.5 border-l-2 border-slate-200 pl-3">
+                              <ul className="space-y-1.5 border-l-2 border-white/10 pl-3">
                                 {history.map((p) => (
                                   <li key={p.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                    <span className="font-semibold tabular-nums text-slate-900">
+                                    <span className="font-semibold tabular-nums text-white">
                                       {formatMoney(p.amount)}
                                     </span>
-                                    <span className="text-slate-600">{formatPaidAt(p.paid_at)}</span>
+                                    <span className="text-slate-300">{formatPaidAt(p.paid_at)}</span>
                                   </li>
                                 ))}
                               </ul>
                             ) : (
-                              <p className="text-slate-600">Todavía no hay pagos registrados para este cargo.</p>
+                              <p className="text-slate-300">Todavía no hay pagos registrados para este cargo.</p>
                             )}
                           </td>
                         </tr>
