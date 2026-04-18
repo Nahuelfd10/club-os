@@ -2,6 +2,11 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { AdminModal } from "@/components/admin/admin-modal";
 import { Button, Input } from "@/components/ui";
 import { datetimeLocalToIso, toDatetimeLocalValue } from "@/lib/datetime";
@@ -13,7 +18,11 @@ type Props = {
   title: string;
   subtitle?: string | null;
   pendingAmount: number;
-  onConfirm: (payload: { amount: number; paid_at: string }) => Promise<void> | void;
+  onConfirm: (payload: {
+    amount: number;
+    paid_at: string;
+    payment_method: ClubPaymentMethod;
+  }) => Promise<void> | void;
 };
 
 function formatAmountInput(value: number): string {
@@ -33,10 +42,12 @@ export function ChargePaymentModal({
 }: Props) {
   const amountId = useId();
   const paidAtId = useId();
+  const paymentMethodId = useId();
 
   const [isFull, setIsFull] = useState(true);
   const [amount, setAmount] = useState("");
   const [paidAt, setPaidAt] = useState(() => toDatetimeLocalValue(new Date()));
+  const [paymentMethod, setPaymentMethod] = useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +59,7 @@ export function ChargePaymentModal({
     }
     setIsFull(true);
     setPaidAt(toDatetimeLocalValue(new Date()));
+    setPaymentMethod(DEFAULT_PAYMENT_METHOD);
     setError(null);
     setAmount(formatAmountInput(pendingAmount));
   }, [open, pendingAmount]);
@@ -79,7 +91,11 @@ export function ChargePaymentModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onConfirm({ amount: numeric, paid_at: datetimeLocalToIso(paidAt) });
+      await onConfirm({
+        amount: numeric,
+        paid_at: datetimeLocalToIso(paidAt),
+        payment_method: paymentMethod,
+      });
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar el pago.");
@@ -168,6 +184,23 @@ export function ChargePaymentModal({
             onChange={(e) => setPaidAt(e.target.value)}
             className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
           />
+        </div>
+        <div>
+          <label htmlFor={paymentMethodId} className="mb-1 block text-sm font-medium text-slate-300">
+            Método de pago
+          </label>
+          <select
+            id={paymentMethodId}
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as ClubPaymentMethod)}
+            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20 focus:bg-white/[0.08]"
+          >
+            {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

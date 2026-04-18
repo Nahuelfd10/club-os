@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { Badge, Button, Input } from "@/components/ui";
 import {
   formatBillingPeriod,
@@ -32,6 +37,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
   const [bulkMode, setBulkMode] = useState<"rest" | "select" | null>(null);
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [bulkPaidAt, setBulkPaidAt] = useState(() => toDatetimeLocalValue(new Date()));
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
@@ -175,6 +181,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
   const openBulkModal = (mode: "rest" | "select") => {
     setBulkMode(mode);
     setBulkPaidAt(toDatetimeLocalValue(new Date()));
+    setBulkPaymentMethod(DEFAULT_PAYMENT_METHOD);
     setBulkError(null);
     setSelectedBulkIds(
       mode === "rest" ? payableRestRows.map((row) => row.id) : payableRowsForYear.map((row) => row.id)
@@ -228,6 +235,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
           member_charge_id: row.id,
           amount: rem,
           paid_at: paidAtIso,
+          payment_method: bulkPaymentMethod,
         });
       }
       setBulkMode(null);
@@ -445,7 +453,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
         title="Registrar pago — cuota mensual"
         subtitle={payRow?.conceptName ?? null}
         pendingAmount={payRow ? remainingAmount(payRow) : 0}
-        onConfirm={async ({ amount, paid_at }) => {
+        onConfirm={async ({ amount, paid_at, payment_method }) => {
           if (!payRow) {
             return;
           }
@@ -455,6 +463,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
               member_charge_id: payRow.id,
               amount,
               paid_at,
+              payment_method,
             });
             setPayRow(null);
             await onPaid();
@@ -499,6 +508,21 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
             onChange={(event) => setBulkPaidAt(event.target.value)}
             className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
           />
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-sm font-medium text-slate-300">Método de pago</label>
+          <select
+            value={bulkPaymentMethod}
+            onChange={(event) => setBulkPaymentMethod(event.target.value as ClubPaymentMethod)}
+            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20 focus:bg-white/[0.08]"
+          >
+            {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3">

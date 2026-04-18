@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import { paymentMethodLabel } from "@/config/payment-method";
 import { Badge, Button, Card, Input } from "@/components/ui";
 import {
   assignChargeToMissingMembers,
@@ -192,7 +193,11 @@ export default function AdminChargeDetailPage() {
     setPayModalRow(null);
   };
 
-  const submitPayment = async (payload: { amount: number; paid_at: string }) => {
+  const submitPayment = async (payload: {
+    amount: number;
+    paid_at: string;
+    payment_method: "transfer" | "cash" | "mercadopago";
+  }) => {
     if (!payModalRow) {
       return;
     }
@@ -201,6 +206,7 @@ export default function AdminChargeDetailPage() {
       member_charge_id: memberChargeId,
       amount: payload.amount,
       paid_at: payload.paid_at,
+      payment_method: payload.payment_method,
     });
     setActionMessage("Pago registrado.");
     await loadAll();
@@ -839,6 +845,9 @@ export default function AdminChargeDetailPage() {
                                       </span>
                                       <span className="text-slate-600">
                                         {formatPaidAt(p.paid_at)}
+                                      </span>
+                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
+                                        {paymentMethodLabel(p.payment_method)}
                                       </span>
                                     </li>
                                   ))}

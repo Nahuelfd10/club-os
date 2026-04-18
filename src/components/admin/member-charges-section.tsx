@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import { paymentMethodLabel } from "@/config/payment-method";
 import { Badge } from "@/components/ui";
 import {
   getChargePaymentsByMemberChargeId,
@@ -446,6 +447,9 @@ export function MemberChargesSection({
                                       {formatMoney(p.amount)}
                                     </span>
                                     <span className="text-slate-300">{formatPaidAt(p.paid_at)}</span>
+                                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-slate-200">
+                                      {paymentMethodLabel(p.payment_method)}
+                                    </span>
                                   </li>
                                 ))}
                               </ul>
@@ -470,12 +474,12 @@ export function MemberChargesSection({
         title="Registrar pago"
         subtitle={payModalRow?.conceptName ?? null}
         pendingAmount={payModalRow ? remainingAmount(payModalRow) : 0}
-        onConfirm={async ({ amount, paid_at }) => {
+        onConfirm={async ({ amount, paid_at, payment_method }) => {
           if (!payModalRow) {
             return;
           }
           const memberChargeId = payModalRow.id;
-          await registerChargePayment({ member_charge_id: memberChargeId, amount, paid_at });
+          await registerChargePayment({ member_charge_id: memberChargeId, amount, paid_at, payment_method });
           await reload();
           if (expandedId === memberChargeId) {
             await loadHistory(memberChargeId);

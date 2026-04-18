@@ -1,3 +1,8 @@
+import {
+  DEFAULT_PAYMENT_METHOD,
+  normalizePaymentMethod,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export type ChargeRow = {
@@ -110,6 +115,7 @@ export type ChargePaymentRow = {
   member_charge_id: string;
   amount: number;
   paid_at: string;
+  payment_method: ClubPaymentMethod;
   created_at: string;
 };
 
@@ -136,7 +142,7 @@ export async function getChargePaymentsByMemberChargeId(
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("charge_payments")
-    .select("id, member_charge_id, amount, paid_at, created_at")
+    .select("id, member_charge_id, amount, paid_at, payment_method, created_at")
     .eq("member_charge_id", memberChargeId)
     .order("paid_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -148,6 +154,7 @@ export async function getChargePaymentsByMemberChargeId(
   return (data ?? []).map((row) => ({
     ...row,
     amount: normalizeAmount((row as { amount: unknown }).amount),
+    payment_method: normalizePaymentMethod((row as { payment_method?: string | null }).payment_method),
   })) as ChargePaymentRow[];
 }
 
@@ -156,6 +163,7 @@ export async function registerChargePayment(payload: {
   member_charge_id: string;
   amount: number;
   paid_at: string;
+  payment_method: ClubPaymentMethod;
 }) {
   const supabase = getSupabaseClient();
   const paid = roundMoney(payload.amount);
@@ -167,6 +175,7 @@ export async function registerChargePayment(payload: {
     p_member_charge_id: payload.member_charge_id,
     p_amount: paid,
     p_paid_at: payload.paid_at,
+    p_payment_method: payload.payment_method,
   });
 
   if (error) {
@@ -182,12 +191,14 @@ export async function registerChargePayment(payload: {
 export async function createChargePayment(
   memberChargeId: string,
   amount: number,
-  paidAt: string = new Date().toISOString()
+  paidAt: string = new Date().toISOString(),
+  paymentMethod: ClubPaymentMethod = DEFAULT_PAYMENT_METHOD
 ) {
   return registerChargePayment({
     member_charge_id: memberChargeId,
     amount,
     paid_at: paidAt,
+    payment_method: paymentMethod,
   });
 }
 

@@ -228,6 +228,7 @@ export type Database = {
           member_charge_id: string;
           amount: number;
           paid_at: string;
+          payment_method: string;
           created_at: string;
         };
         Insert: {
@@ -235,11 +236,13 @@ export type Database = {
           member_charge_id: string;
           amount: number;
           paid_at: string;
+          payment_method?: string;
           created_at?: string;
         };
         Update: {
           amount?: number;
           paid_at?: string;
+          payment_method?: string;
         };
         Relationships: [];
       };
@@ -295,6 +298,7 @@ export type Database = {
           p_member_charge_id: string;
           p_amount: number;
           p_paid_at: string;
+          p_payment_method: string;
         };
         Returns: void;
       };
