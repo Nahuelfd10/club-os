@@ -112,10 +112,13 @@ export default function AdminChargeDetailPage() {
         return;
       }
 
+      const membershipCharge = ch.category === "membership";
       const [hp, memberCharges, missing, fin] = await Promise.all([
         chargeHasPayments(chargeId),
         getMemberChargesForCharge(chargeId),
-        getMissingMembersForCharge({ chargeId, groupId: ch.group?.id ?? null }),
+        membershipCharge
+          ? Promise.resolve([])
+          : getMissingMembersForCharge({ chargeId, groupId: ch.group?.id ?? null }),
         getChargeFinancials(chargeId),
       ]);
       setHasPayments(hp);
@@ -347,7 +350,7 @@ export default function AdminChargeDetailPage() {
   };
 
   const assignMissing = async () => {
-    if (!charge || missingMembers.length === 0) {
+    if (!charge || charge.category === "membership" || missingMembers.length === 0) {
       return;
     }
     setAssigningMissing(true);
@@ -367,7 +370,7 @@ export default function AdminChargeDetailPage() {
   };
 
   const assignOne = async (memberId: string) => {
-    if (!charge) {
+    if (!charge || charge.category === "membership") {
       return;
     }
     setAssigningMemberId(memberId);
@@ -490,11 +493,6 @@ export default function AdminChargeDetailPage() {
                       {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "—"}
                     </span>
                   </span>
-                  {charge.due_date ? (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                      Vence: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
-                    </span>
-                  ) : null}
                 </>
               ) : (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -861,61 +859,77 @@ export default function AdminChargeDetailPage() {
         </Card>
 
         <Card className="border border-slate-200/80 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          {charge.category === "membership" ? (
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Miembros sin este cargo</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Asignación del período</h2>
               <p className="mt-1 text-sm text-slate-600">
-                {missingMembers.length === 0
-                  ? "No hay miembros faltantes."
-                  : charge.group
-                    ? `${missingMembers.length} miembro(s) del grupo no tienen este cargo.`
-                    : `${missingMembers.length} socio(s) activo(s) aún no tienen este cargo asignado.`}
+                La cuota mensual se genera como una foto del período. Solo incluye a los socios activos al momento de
+                la generación automática.
+              </p>
+              <p className="mt-3 text-sm text-slate-600">
+                Si un socio se activa después, empieza a deber desde el próximo mes y no se agrega retroactivamente a
+                esta cuota.
               </p>
             </div>
-            <Button
-              type="button"
-              size="md"
-              onClick={() => void assignMissing()}
-              disabled={assigningMissing || missingMembers.length === 0}
-              style={{ backgroundColor: "#0f172a" }}
-            >
-              {assigningMissing ? "Asignando..." : "Asignar a todos"}
-            </Button>
-          </div>
-
-          {missingMembers.length > 0 ? (
-            <ul className="mt-4 space-y-2">
-              {missingMembers.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2"
+          ) : (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Miembros sin este cargo</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {missingMembers.length === 0
+                      ? "No hay miembros faltantes."
+                      : charge.group
+                        ? `${missingMembers.length} miembro(s) activos del grupo no tienen este cargo.`
+                        : `${missingMembers.length} socio(s) activo(s) aún no tienen este cargo asignado.`}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={() => void assignMissing()}
+                  disabled={assigningMissing || missingMembers.length === 0}
+                  style={{ backgroundColor: "#0f172a" }}
                 >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900">{m.full_name}</p>
-                    <p className="text-xs text-slate-500">
-                      DNI {m.dni} · {m.status === "active" ? "Activo" : "Pendiente"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void assignOne(m.id)}
-                      disabled={assigningMemberId === m.id || assigningMissing}
-                      className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  {assigningMissing ? "Asignando..." : "Asignar a todos"}
+                </Button>
+              </div>
+
+              {missingMembers.length > 0 ? (
+                <ul className="mt-4 space-y-2">
+                  {missingMembers.map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2"
                     >
-                      {assigningMemberId === m.id ? "Asignando..." : "Asignar"}
-                    </button>
-                    <Link
-                      href={`/admin/socios/${m.id}`}
-                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
-                    >
-                      Ver socio
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">{m.full_name}</p>
+                        <p className="text-xs text-slate-500">
+                          DNI {m.dni} · {m.status === "active" ? "Activo" : "Pendiente"}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void assignOne(m.id)}
+                          disabled={assigningMemberId === m.id || assigningMissing}
+                          className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {assigningMemberId === m.id ? "Asignando..." : "Asignar"}
+                        </button>
+                        <Link
+                          href={`/admin/socios/${m.id}`}
+                          className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
+                        >
+                          Ver socio
+                        </Link>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          )}
         </Card>
       </section>
 

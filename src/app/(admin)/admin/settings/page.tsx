@@ -287,7 +287,8 @@ export default function AdminSettingsPage() {
                 className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               />
               <p className="text-xs text-slate-400">
-                Se usar&aacute; para calcular el vencimiento de las cuotas mensuales generadas autom&aacute;ticamente.
+                Se usar&aacute; para calcular el vencimiento de las cuotas generadas autom&aacute;ticamente por
+                adelantado para los meses futuros.
               </p>
             </div>
           </FormField>

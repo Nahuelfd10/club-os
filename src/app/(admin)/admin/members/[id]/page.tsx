@@ -34,6 +34,8 @@ type EditForm = {
   phone: string;
 };
 
+type FinanceTab = "membership" | "other";
+
 type InfoIconName = "email" | "phone" | "location" | "calendar" | "id";
 
 const infoIconByName: Record<InfoIconName, LucideIcon> = {
@@ -63,6 +65,7 @@ export default function MemberDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [financeTab, setFinanceTab] = useState<FinanceTab>("membership");
   const [form, setForm] = useState<EditForm>({
     full_name: "",
     email: "",
@@ -118,12 +121,31 @@ export default function MemberDetailPage() {
     [memberCharges]
   );
 
-  const membershipDebt = useMemo(
+  const currentMonthStart = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }, []);
+
+  const membershipOverdueCharges = useMemo(
     () =>
-      roundMoney(
-        membershipCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
-      ),
-    [membershipCharges]
+      membershipCharges.filter((charge) => {
+        if (!charge.billing_period) {
+          return false;
+        }
+        return new Date(`${charge.billing_period}T12:00:00`) < currentMonthStart;
+      }),
+    [currentMonthStart, membershipCharges]
+  );
+
+  const membershipCurrentCharges = useMemo(
+    () =>
+      membershipCharges.filter((charge) => {
+        if (!charge.billing_period) {
+          return false;
+        }
+        return new Date(`${charge.billing_period}T12:00:00`).getTime() === currentMonthStart.getTime();
+      }),
+    [currentMonthStart, membershipCharges]
   );
 
   const otherDebt = useMemo(
@@ -134,7 +156,31 @@ export default function MemberDetailPage() {
     [otherCharges]
   );
 
-  const totalDebt = useMemo(() => roundMoney(membershipDebt + otherDebt), [membershipDebt, otherDebt]);
+  const membershipOverdueDebt = useMemo(
+    () =>
+      roundMoney(
+        membershipOverdueCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
+      ),
+    [membershipOverdueCharges]
+  );
+
+  const membershipCurrentDebt = useMemo(
+    () =>
+      roundMoney(
+        membershipCurrentCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
+      ),
+    [membershipCurrentCharges]
+  );
+
+  const membershipDueDebt = useMemo(
+    () => roundMoney(membershipOverdueDebt + membershipCurrentDebt),
+    [membershipCurrentDebt, membershipOverdueDebt]
+  );
+
+  const actionableDebt = useMemo(
+    () => roundMoney(membershipOverdueDebt + membershipCurrentDebt + otherDebt),
+    [membershipCurrentDebt, membershipOverdueDebt, otherDebt]
+  );
   const hasCharges = (memberCharges?.length ?? 0) > 0;
 
   const handleSave = async () => {
@@ -244,34 +290,29 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-3">
         <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Deuda total</p>
-          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(totalDebt)}</p>
+          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(actionableDebt)}</p>
           <p className="mt-1 text-xs text-slate-400">
-            {hasCharges ? "Suma de cuota mensual y otros cargos." : "Todavía no tiene cargos asignados."}
+            {hasCharges ? "Incluye atraso, cuota actual y otros cargos." : "Todavía no tiene cargos asignados."}
           </p>
         </article>
         <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Cuota mensual</p>
-          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(membershipDebt)}</p>
-          <p className="mt-1 text-xs text-slate-400">{membershipCharges.length} registro(s)</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Cuota del club</p>
+          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(membershipDueDebt)}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {membershipOverdueCharges.length > 0
+              ? `${membershipOverdueCharges.length} mes(es) vencido(s) + cuota actual.`
+              : membershipCurrentCharges.length > 0
+                ? "Solo incluye la cuota exigible del período actual."
+                : "No tiene cuota exigible en este momento."}
+          </p>
         </article>
         <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Otros cargos</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Deuda de cargos</p>
           <p className="mt-1 text-2xl font-bold text-white">{formatMoney(otherDebt)}</p>
           <p className="mt-1 text-xs text-slate-400">{otherCharges.length} registro(s)</p>
-        </article>
-        <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Contacto</p>
-          <p className="mt-1 text-sm font-semibold text-white">
-            {member.phone?.trim() ? member.phone : "Sin teléfono"}
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            {member.phone?.trim()
-              ? "Disponible para recordatorios y coordinación."
-              : "Conviene cargar un teléfono para recordatorios por WhatsApp."}
-          </p>
         </article>
       </section>
 
@@ -393,21 +434,50 @@ export default function MemberDetailPage() {
         </div>
       ) : (
         <>
-          <MembershipMonthlySection
-            rows={membershipCharges}
-            memberStatus={member.status}
-            onPaid={loadCharges}
-          />
+          <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFinanceTab("membership")}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  financeTab === "membership"
+                    ? "bg-white text-slate-950"
+                    : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                Cuotas del club
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinanceTab("other")}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  financeTab === "other"
+                    ? "bg-white text-slate-950"
+                    : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                Otros cargos
+              </button>
+            </div>
+          </section>
 
-          <MemberChargesSection
-            memberId={member.id}
-            memberFullName={member.full_name}
-            memberPhone={member.phone}
-            clubName={config.name}
-            paymentAlias={config.payment_alias}
-            charges={otherCharges}
-            onChargesRefresh={loadCharges}
-          />
+          {financeTab === "membership" ? (
+            <MembershipMonthlySection
+              rows={membershipCharges}
+              memberStatus={member.status}
+              onPaid={loadCharges}
+            />
+          ) : (
+            <MemberChargesSection
+              memberId={member.id}
+              memberFullName={member.full_name}
+              memberPhone={member.phone}
+              clubName={config.name}
+              paymentAlias={config.payment_alias}
+              charges={otherCharges}
+              onChargesRefresh={loadCharges}
+            />
+          )}
         </>
       )}
     </section>
