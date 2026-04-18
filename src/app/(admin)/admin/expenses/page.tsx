@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
@@ -18,12 +19,39 @@ import {
   Th,
   buttonClassNames,
 } from "@/components/ui";
-import { listChargesForSelect, type ChargeOption } from "@/lib/charges";
-import { createExpense, deleteExpense, listExpenses, updateExpense, type ExpenseWithCharge } from "@/lib/expenses";
+import { paymentMethodLabel } from "@/config/payment-method";
+import {
+  formatBillingPeriod,
+  listChargePaymentsWithContext,
+  listChargesForSelect,
+  type ChargeOption,
+  type ChargePaymentWithContext,
+} from "@/lib/charges";
+import {
+  createExpense,
+  deleteExpense,
+  listExpenses,
+  updateExpense,
+  type ExpenseWithCharge,
+} from "@/lib/expenses";
 import { formatMoney } from "@/lib/formatters";
 
 const todayISODate = () => new Date().toISOString().slice(0, 10);
 const currentMonthKey = () => new Date().toISOString().slice(0, 7);
+
+type MovementFilter = "all" | "income" | "expense";
+
+type MovementRow = {
+  id: string;
+  type: MovementFilter;
+  amount: number;
+  happened_at: string;
+  created_at: string;
+  concept: string;
+  detail: string;
+  charge: { id: string; name: string } | null;
+  sourceExpense: ExpenseWithCharge | null;
+};
 
 function formatExpenseDate(value: string) {
   if (!value) {
@@ -33,10 +61,46 @@ function formatExpenseDate(value: string) {
   return date.toLocaleDateString("es-AR");
 }
 
+function formatMovementDateTime(value: string) {
+  if (!value) {
+    return "—";
+  }
+  const date = new Date(value);
+  return date.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function paymentConcept(payment: ChargePaymentWithContext): string {
+  const charge = payment.member_charge?.charge;
+  if (!charge) {
+    return "Pago registrado";
+  }
+  if (charge.category === "membership" && charge.billing_period) {
+    return `Cuota mensual · ${formatBillingPeriod(charge.billing_period)}`;
+  }
+  return charge.name?.trim() || "Pago registrado";
+}
+
+function paymentDetail(payment: ChargePaymentWithContext): string {
+  const memberName = payment.member_charge?.member?.full_name?.trim() || "Socio";
+  const chargeName = payment.member_charge?.charge?.name?.trim();
+  if (chargeName) {
+    return `${memberName} · ${paymentMethodLabel(payment.payment_method)}`;
+  }
+  return `${memberName} · ${paymentMethodLabel(payment.payment_method)}`;
+}
+
 export default function AdminExpensesPage() {
   const [expenses, setExpenses] = useState<ExpenseWithCharge[]>([]);
+  const [payments, setPayments] = useState<ChargePaymentWithContext[]>([]);
   const [chargeOptions, setChargeOptions] = useState<ChargeOption[]>([]);
   const [monthFilter, setMonthFilter] = useState(currentMonthKey());
+  const [typeFilter, setTypeFilter] = useState<MovementFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -56,11 +120,16 @@ export default function AdminExpensesPage() {
     setActionMessage(null);
     setIsLoading(true);
     try {
-      const [rows, charges] = await Promise.all([listExpenses(), listChargesForSelect()]);
-      setExpenses(rows);
+      const [expenseRows, paymentRows, charges] = await Promise.all([
+        listExpenses(),
+        listChargePaymentsWithContext(),
+        listChargesForSelect(),
+      ]);
+      setExpenses(expenseRows);
+      setPayments(paymentRows);
       setChargeOptions(charges);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los egresos.");
+      setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los movimientos.");
     } finally {
       setIsLoading(false);
     }
@@ -70,22 +139,74 @@ export default function AdminExpensesPage() {
     void load();
   }, [load]);
 
-  const filteredExpenses = useMemo(() => {
-    const key = monthFilter.trim();
-    const list = key ? expenses.filter((e) => e.date?.startsWith(key)) : expenses;
-    return [...list].sort((a, b) => {
-      const dateDiff = new Date(`${b.date}T12:00:00`).getTime() - new Date(`${a.date}T12:00:00`).getTime();
+  const movements = useMemo<MovementRow[]>(() => {
+    const incomeRows: MovementRow[] = payments.map((payment) => ({
+      id: `income-${payment.id}`,
+      type: "income",
+      amount: payment.amount,
+      happened_at: payment.paid_at,
+      created_at: payment.created_at,
+      concept: paymentConcept(payment),
+      detail: paymentDetail(payment),
+      charge: payment.member_charge?.charge
+        ? {
+            id: payment.member_charge.charge.id,
+            name: payment.member_charge.charge.name,
+          }
+        : null,
+      sourceExpense: null,
+    }));
+
+    const expenseRows: MovementRow[] = expenses.map((expense) => ({
+      id: `expense-${expense.id}`,
+      type: "expense",
+      amount: expense.amount,
+      happened_at: `${expense.date}T12:00:00`,
+      created_at: expense.created_at,
+      concept: expense.description,
+      detail: expense.category?.trim() || "Egreso manual",
+      charge: expense.charge,
+      sourceExpense: expense,
+    }));
+
+    return [...incomeRows, ...expenseRows].sort((a, b) => {
+      const dateDiff = new Date(b.happened_at).getTime() - new Date(a.happened_at).getTime();
       if (dateDiff !== 0) {
         return dateDiff;
       }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, monthFilter]);
+  }, [expenses, payments]);
 
-  const totalFiltered = useMemo(
-    () => filteredExpenses.reduce((sum, row) => sum + (Number.isFinite(row.amount) ? row.amount : 0), 0),
-    [filteredExpenses]
-  );
+  const filteredMovements = useMemo(() => {
+    const monthKey = monthFilter.trim();
+    return movements.filter((movement) => {
+      if (typeFilter !== "all" && movement.type !== typeFilter) {
+        return false;
+      }
+      if (!monthKey) {
+        return true;
+      }
+      return movement.happened_at.slice(0, 7) === monthKey;
+    });
+  }, [monthFilter, movements, typeFilter]);
+
+  const summary = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    for (const movement of filteredMovements) {
+      if (movement.type === "income") {
+        income += movement.amount;
+      } else {
+        expense += movement.amount;
+      }
+    }
+    return {
+      income,
+      expense,
+      balance: income - expense,
+    };
+  }, [filteredMovements]);
 
   const openCreate = () => {
     setEditing(null);
@@ -110,10 +231,9 @@ export default function AdminExpensesPage() {
   };
 
   const closeModal = () => {
-    if (isSaving) {
-      return;
+    if (!isSaving) {
+      setModalOpen(false);
     }
-    setModalOpen(false);
   };
 
   const handleSave = async () => {
@@ -158,7 +278,6 @@ export default function AdminExpensesPage() {
         });
         setActionMessage("Egreso creado.");
       }
-
       setModalOpen(false);
       await load();
     } catch (error) {
@@ -191,8 +310,8 @@ export default function AdminExpensesPage() {
   return (
     <section className="space-y-4">
       <PageHeader
-        title="Egresos"
-        description="Gastos reales del club."
+        title="Movimientos"
+        description="Ingresos y egresos reales del club, leídos desde los registros existentes sin duplicarlos."
         actions={
           <button
             type="button"
@@ -205,39 +324,77 @@ export default function AdminExpensesPage() {
       />
 
       <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Filtro</p>
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <label htmlFor="expenses-month" className="text-sm font-medium text-slate-300">
-                Mes
-              </label>
-              <Input
-                id="expenses-month"
-                type="month"
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08] sm:w-48"
-              />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Filtros</p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <label htmlFor="movements-month" className="text-sm font-medium text-slate-300">
+                  Mes
+                </label>
+                <Input
+                  id="movements-month"
+                  type="month"
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08] sm:w-48"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ["all", "Todos"],
+                    ["income", "Ingresos"],
+                    ["expense", "Egresos"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTypeFilter(value)}
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                        typeFilter === value
+                          ? "bg-white text-slate-950"
+                          : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Total del mes</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-white">{formatMoney(totalFiltered)}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Ingresos</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-success">{formatMoney(summary.income)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Egresos</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{formatMoney(summary.expense)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Balance</p>
+                <p
+                  className={`mt-1 text-2xl font-bold tabular-nums ${
+                    summary.balance >= 0 ? "text-success" : "text-danger"
+                  }`}
+                >
+                  {formatMoney(summary.balance)}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {isLoading ? <p className="mt-4 text-slate-300">Cargando egresos...</p> : null}
+        {isLoading ? <p className="mt-4 text-slate-300">Cargando movimientos...</p> : null}
 
         {!isLoading && errorMessage ? <Alert className="mt-4" variant="danger">{errorMessage}</Alert> : null}
         {!isLoading && actionMessage ? <Alert className="mt-4">{actionMessage}</Alert> : null}
 
-        {!isLoading && !errorMessage && filteredExpenses.length === 0 ? (
+        {!isLoading && !errorMessage && filteredMovements.length === 0 ? (
           <EmptyState
             className="mt-4"
-            title="No hay egresos registrados"
-            description="Registrá el primero para empezar a ver los gastos reales del club."
+            title="No hay movimientos para este filtro"
+            description="Los ingresos se leen desde pagos registrados y los egresos desde la sección administrativa del club."
             actions={
               <Button type="button" size="md" onClick={openCreate}>
                 Nuevo egreso
@@ -246,54 +403,98 @@ export default function AdminExpensesPage() {
           />
         ) : null}
 
-        {!isLoading && !errorMessage && filteredExpenses.length > 0 ? (
+        {!isLoading && !errorMessage && filteredMovements.length > 0 ? (
           <div className="mt-4 overflow-x-auto">
             <Table>
               <TableHead>
                 <TableRow>
-                  <Th>Descripción</Th>
+                  <Th>Tipo</Th>
+                  <Th>Concepto</Th>
+                  <Th>Detalle</Th>
                   <Th>Cargo</Th>
-                  <Th>Categoría</Th>
                   <Th>Monto</Th>
                   <Th>Fecha</Th>
                   <Th>Acciones</Th>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredExpenses.map((expense) => (
-                  <TableRow key={expense.id} className="transition-colors hover:bg-white/[0.04]">
-                    <Td className="font-medium text-white">{expense.description}</Td>
-                    <Td className="text-slate-300">
-                      {expense.charge?.name?.trim() ? (
-                        expense.charge.name
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </Td>
-                    <Td className="text-slate-300">{expense.category?.trim() ? expense.category : <span className="text-slate-500">—</span>}</Td>
-                    <Td className="tabular-nums text-white">{formatMoney(expense.amount)}</Td>
-                    <Td className="text-slate-300">{formatExpenseDate(expense.date)}</Td>
-                    <Td>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(expense)}
-                          className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                {filteredMovements.map((movement) => {
+                  const expense = movement.sourceExpense;
+                  const canEditExpense = movement.type === "expense" && expense;
+                  return (
+                    <TableRow key={movement.id} className="transition-colors hover:bg-white/[0.04]">
+                      <Td>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            movement.type === "income"
+                              ? "bg-success/10 text-success"
+                              : "bg-warning/10 text-warning"
+                          }`}
                         >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(expense)}
-                          disabled={deletingId === expense.id}
-                          className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          {deletingId === expense.id ? "Eliminando..." : "Eliminar"}
-                        </button>
-                      </div>
-                    </Td>
-                  </TableRow>
-                ))}
+                          {movement.type === "income" ? "Ingreso" : "Egreso"}
+                        </span>
+                      </Td>
+                      <Td className="font-medium text-white">{movement.concept}</Td>
+                      <Td className="text-slate-300">{movement.detail}</Td>
+                      <Td className="text-slate-300">
+                        {movement.charge ? (
+                          <Link
+                            href={`/admin/charges/${movement.charge.id}`}
+                            className="underline-offset-2 hover:text-white hover:underline"
+                          >
+                            {movement.charge.name}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </Td>
+                      <Td
+                        className={`tabular-nums font-semibold ${
+                          movement.type === "income" ? "text-success" : "text-warning"
+                        }`}
+                      >
+                        {movement.type === "income" ? "+" : "-"}
+                        {formatMoney(movement.amount)}
+                      </Td>
+                      <Td className="text-slate-300">
+                        {movement.type === "income"
+                          ? formatMovementDateTime(movement.happened_at)
+                          : formatExpenseDate(movement.happened_at.slice(0, 10))}
+                      </Td>
+                      <Td>
+                        <div className="flex flex-wrap gap-2">
+                          {movement.charge ? (
+                            <Link
+                              href={`/admin/charges/${movement.charge.id}`}
+                              className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                            >
+                              Ver cargo
+                            </Link>
+                          ) : null}
+                          {canEditExpense ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEdit(expense)}
+                                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDelete(expense)}
+                                disabled={deletingId === expense.id}
+                                className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {deletingId === expense.id ? "Eliminando..." : "Eliminar"}
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </Td>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -301,15 +502,13 @@ export default function AdminExpensesPage() {
       </Card>
 
       <AdminModal open={modalOpen} onClose={closeModal}>
-        <h2 className="text-lg font-semibold text-white">
-          {editing ? "Editar egreso" : "Nuevo egreso"}
-        </h2>
-        <p className="mt-1 text-sm text-slate-300">Completá los datos del gasto.</p>
+        <h2 className="text-lg font-semibold text-white">{editing ? "Editar egreso" : "Nuevo egreso"}</h2>
+        <p className="mt-1 text-sm text-slate-300">Completá los datos del movimiento de egreso.</p>
 
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="expense-charge" className="mb-1 block text-sm font-medium text-slate-300">
-              Charge (opcional)
+              Cargo vinculado (opcional)
             </label>
             <select
               id="expense-charge"

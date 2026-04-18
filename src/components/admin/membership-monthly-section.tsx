@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import {
   CLUB_PAYMENT_METHOD_OPTIONS,
   DEFAULT_PAYMENT_METHOD,
+  paymentMethodLabel,
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { Badge, Button, Input } from "@/components/ui";
 import {
   formatBillingPeriod,
+  getChargePaymentsByMemberChargeId,
   registerChargePayment,
+  type ChargePaymentRow,
   type MemberChargeWithDetails,
 } from "@/lib/charges";
 import {
@@ -20,7 +23,7 @@ import {
   memberChargeStatusLabel,
   remainingAmount,
 } from "@/lib/charges-ui";
-import { datetimeLocalToIso, toDatetimeLocalValue } from "@/lib/datetime";
+import { datetimeLocalToIso, formatPaidAt, toDatetimeLocalValue } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 
 type Props = {
@@ -40,6 +43,9 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
   const [bulkPaymentMethod, setBulkPaymentMethod] = useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -247,6 +253,30 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
     }
   };
 
+  const loadHistory = async (memberChargeId: string) => {
+    setHistoryLoadingId(memberChargeId);
+    try {
+      const list = await getChargePaymentsByMemberChargeId(memberChargeId);
+      setHistoryByMc((prev) => ({ ...prev, [memberChargeId]: list }));
+    } catch (error) {
+      console.error(error);
+      setHistoryByMc((prev) => ({ ...prev, [memberChargeId]: [] }));
+    } finally {
+      setHistoryLoadingId(null);
+    }
+  };
+
+  const toggleExpand = (memberChargeId: string) => {
+    if (expandedId === memberChargeId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(memberChargeId);
+    if (!historyByMc[memberChargeId]) {
+      void loadHistory(memberChargeId);
+    }
+  };
+
   return (
     <>
       <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
@@ -333,6 +363,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
             <table className="min-w-full divide-y divide-white/10 text-left text-sm">
               <thead className="bg-white/[0.045]">
                 <tr>
+                  <th className="px-3 py-2 font-semibold text-white/45" aria-hidden />
                   <th className="px-3 py-2 font-semibold text-white/45">Período</th>
                   <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
                   <th className="px-3 py-2 font-semibold text-white/45">Monto</th>
@@ -343,35 +374,77 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                 {visibleRows.map((row) => {
                   const rem = remainingAmount(row);
                   const canPay = memberStatus === "active" && rem > 0.001;
+                  const expanded = expandedId === row.id;
+                  const history = historyByMc[row.id];
                   return (
-                    <tr key={row.id}>
-                      <td className="px-3 py-2 font-medium text-white">
-                        <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant={memberChargeStatusBadgeVariant(row.status)}>
-                          {memberChargeStatusLabel(row.status)}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
-                      <td className="px-3 py-2">
-                        {memberStatus === "pending" ? (
-                          <span className="text-xs font-semibold text-slate-400">No aplica</span>
-                        ) : canPay ? (
-                          <Button
+                    <Fragment key={row.id}>
+                      <tr className={expanded ? "bg-white/[0.04]" : undefined}>
+                        <td className="px-3 py-2 align-top">
+                          <button
                             type="button"
-                            size="md"
-                            className="bg-success text-white"
-                            disabled={payingId === row.id}
-                            onClick={() => setPayRow(row)}
+                            onClick={() => toggleExpand(row.id)}
+                            className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-semibold text-white hover:bg-white/[0.12]"
+                            aria-expanded={expanded}
                           >
-                            {payingId === row.id ? "..." : "Pagar"}
-                          </Button>
-                        ) : (
-                          <span className="text-xs font-semibold text-success">Al día</span>
-                        )}
-                      </td>
-                    </tr>
+                            {expanded ? "Ocultar" : "Pagos"}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 font-medium text-white">
+                          <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge variant={memberChargeStatusBadgeVariant(row.status)}>
+                            {memberChargeStatusLabel(row.status)}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
+                        <td className="px-3 py-2">
+                          {memberStatus === "pending" ? (
+                            <span className="text-xs font-semibold text-slate-400">No aplica</span>
+                          ) : canPay ? (
+                            <Button
+                              type="button"
+                              size="md"
+                              className="bg-success text-white"
+                              disabled={payingId === row.id}
+                              onClick={() => setPayRow(row)}
+                            >
+                              {payingId === row.id ? "..." : "Pagar"}
+                            </Button>
+                          ) : (
+                            <span className="text-xs font-semibold text-success">Al día</span>
+                          )}
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr className="bg-white/[0.035]">
+                          <td colSpan={5} className="px-3 py-3 text-sm text-slate-300">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/42">
+                              Historial de pagos
+                            </p>
+                            {historyLoadingId === row.id ? (
+                              <p className="text-slate-300">Cargando...</p>
+                            ) : history && history.length > 0 ? (
+                              <ul className="space-y-1.5 border-l-2 border-white/10 pl-3">
+                                {history.map((payment) => (
+                                  <li key={payment.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                    <span className="font-semibold tabular-nums text-white">
+                                      {formatMoney(payment.amount)}
+                                    </span>
+                                    <span className="text-slate-300">{formatPaidAt(payment.paid_at)}</span>
+                                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-slate-200">
+                                      {paymentMethodLabel(payment.payment_method)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-slate-300">Todavía no hay pagos registrados para esta cuota.</p>
+                            )}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -398,6 +471,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                 <table className="min-w-full divide-y divide-white/10 text-left text-sm">
                   <thead className="bg-white/[0.045]">
                     <tr>
+                      <th className="px-3 py-2 font-semibold text-white/45" aria-hidden />
                       <th className="px-3 py-2 font-semibold text-white/45">Período</th>
                       <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
                       <th className="px-3 py-2 font-semibold text-white/45">Monto</th>
@@ -408,35 +482,77 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                     {futureRows.map((row) => {
                       const rem = remainingAmount(row);
                       const canPay = memberStatus === "active" && rem > 0.001;
+                      const expanded = expandedId === row.id;
+                      const history = historyByMc[row.id];
                       return (
-                        <tr key={row.id}>
-                          <td className="px-3 py-2 font-medium text-white">
-                            <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge variant={memberChargeStatusBadgeVariant(row.status)}>
-                              {memberChargeStatusLabel(row.status)}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
-                          <td className="px-3 py-2">
-                            {memberStatus === "pending" ? (
-                              <span className="text-xs font-semibold text-slate-400">No aplica</span>
-                            ) : canPay ? (
-                              <Button
+                        <Fragment key={row.id}>
+                          <tr className={expanded ? "bg-white/[0.04]" : undefined}>
+                            <td className="px-3 py-2 align-top">
+                              <button
                                 type="button"
-                                size="md"
-                                className="bg-success text-white"
-                                disabled={payingId === row.id}
-                                onClick={() => setPayRow(row)}
+                                onClick={() => toggleExpand(row.id)}
+                                className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-semibold text-white hover:bg-white/[0.12]"
+                                aria-expanded={expanded}
                               >
-                                {payingId === row.id ? "..." : "Pagar"}
-                              </Button>
-                            ) : (
-                              <span className="text-xs font-semibold text-success">Al día</span>
-                            )}
-                          </td>
-                        </tr>
+                                {expanded ? "Ocultar" : "Pagos"}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2 font-medium text-white">
+                              <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Badge variant={memberChargeStatusBadgeVariant(row.status)}>
+                                {memberChargeStatusLabel(row.status)}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
+                            <td className="px-3 py-2">
+                              {memberStatus === "pending" ? (
+                                <span className="text-xs font-semibold text-slate-400">No aplica</span>
+                              ) : canPay ? (
+                                <Button
+                                  type="button"
+                                  size="md"
+                                  className="bg-success text-white"
+                                  disabled={payingId === row.id}
+                                  onClick={() => setPayRow(row)}
+                                >
+                                  {payingId === row.id ? "..." : "Pagar"}
+                                </Button>
+                              ) : (
+                                <span className="text-xs font-semibold text-success">Al día</span>
+                              )}
+                            </td>
+                          </tr>
+                          {expanded ? (
+                            <tr className="bg-white/[0.035]">
+                              <td colSpan={5} className="px-3 py-3 text-sm text-slate-300">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/42">
+                                  Historial de pagos
+                                </p>
+                                {historyLoadingId === row.id ? (
+                                  <p className="text-slate-300">Cargando...</p>
+                                ) : history && history.length > 0 ? (
+                                  <ul className="space-y-1.5 border-l-2 border-white/10 pl-3">
+                                    {history.map((payment) => (
+                                      <li key={payment.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                        <span className="font-semibold tabular-nums text-white">
+                                          {formatMoney(payment.amount)}
+                                        </span>
+                                        <span className="text-slate-300">{formatPaidAt(payment.paid_at)}</span>
+                                        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-slate-200">
+                                          {paymentMethodLabel(payment.payment_method)}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-slate-300">Todavía no hay pagos registrados para esta cuota.</p>
+                                )}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -457,16 +573,20 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
           if (!payRow) {
             return;
           }
-          setPayingId(payRow.id);
+          const memberChargeId = payRow.id;
+          setPayingId(memberChargeId);
           try {
             await registerChargePayment({
-              member_charge_id: payRow.id,
+              member_charge_id: memberChargeId,
               amount,
               paid_at,
               payment_method,
             });
             setPayRow(null);
             await onPaid();
+            if (expandedId === memberChargeId) {
+              await loadHistory(memberChargeId);
+            }
           } finally {
             setPayingId(null);
           }

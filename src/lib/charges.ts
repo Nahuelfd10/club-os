@@ -119,6 +119,19 @@ export type ChargePaymentRow = {
   created_at: string;
 };
 
+export type ChargePaymentWithContext = ChargePaymentRow & {
+  member_charge: {
+    id: string;
+    member: { id: string; full_name: string } | null;
+    charge: {
+      id: string;
+      name: string;
+      billing_period: string | null;
+      category: string | null;
+    } | null;
+  } | null;
+};
+
 export type MemberChargeForChargeRow = {
   id: string;
   member_id: string;
@@ -135,6 +148,106 @@ export type MemberChargeForChargeRow = {
     status: "pending" | "active";
   };
 };
+
+const CHARGE_PAYMENTS_WITH_CONTEXT_SELECT = `
+  id,
+  member_charge_id,
+  amount,
+  paid_at,
+  payment_method,
+  created_at,
+  member_charges (
+    id,
+    members (
+      id,
+      full_name
+    ),
+    charges (
+      id,
+      name,
+      billing_period,
+      charge_definitions (
+        category
+      )
+    )
+  )
+`;
+
+const CHARGE_PAYMENTS_WITH_CONTEXT_SELECT_LEGACY = `
+  id,
+  member_charge_id,
+  amount,
+  paid_at,
+  payment_method,
+  created_at,
+  member_charges (
+    id,
+    members (
+      id,
+      full_name
+    ),
+    charges (
+      id,
+      name,
+      billing_period
+    )
+  )
+`;
+
+type RawChargePaymentWithContext = {
+  id: string;
+  member_charge_id: string;
+  amount: unknown;
+  paid_at: string;
+  payment_method?: string | null;
+  created_at: string;
+  member_charges: {
+    id: string;
+    members: { id: string; full_name: string } | null;
+    charges: {
+      id: string;
+      name: string;
+      billing_period?: string | null;
+      charge_definitions?: { category?: string | null } | null;
+    } | null;
+  } | null;
+};
+
+function mapRawChargePaymentWithContext(row: RawChargePaymentWithContext): ChargePaymentWithContext {
+  const memberCharge = row.member_charges;
+  const charge = memberCharge?.charges;
+  const rawCategory = charge?.charge_definitions?.category;
+  const category =
+    rawCategory === undefined || rawCategory === null || String(rawCategory).trim() === ""
+      ? null
+      : String(rawCategory).trim();
+  const billingRaw = charge?.billing_period;
+  const billing_period =
+    billingRaw !== undefined && billingRaw !== null ? String(billingRaw).trim() || null : null;
+
+  return {
+    id: row.id,
+    member_charge_id: row.member_charge_id,
+    amount: normalizeAmount(row.amount),
+    paid_at: row.paid_at,
+    payment_method: normalizePaymentMethod(row.payment_method),
+    created_at: row.created_at,
+    member_charge: memberCharge
+      ? {
+          id: memberCharge.id,
+          member: memberCharge.members ?? null,
+          charge: charge
+            ? {
+                id: charge.id,
+                name: charge.name,
+                billing_period,
+                category,
+              }
+            : null,
+        }
+      : null,
+  };
+}
 
 export async function getChargePaymentsByMemberChargeId(
   memberChargeId: string
@@ -156,6 +269,41 @@ export async function getChargePaymentsByMemberChargeId(
     amount: normalizeAmount((row as { amount: unknown }).amount),
     payment_method: normalizePaymentMethod((row as { payment_method?: string | null }).payment_method),
   })) as ChargePaymentRow[];
+}
+
+export async function listChargePaymentsWithContext(): Promise<ChargePaymentWithContext[]> {
+  const supabase = getSupabaseClient();
+  const first = await supabase
+    .from("charge_payments")
+    .select(CHARGE_PAYMENTS_WITH_CONTEXT_SELECT)
+    .order("paid_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    const retry =
+      (first.error as { code?: string }).code === "PGRST200" ||
+      msg.includes("charge_definitions") ||
+      msg.includes("schema cache");
+    if (retry) {
+      const second = await supabase
+        .from("charge_payments")
+        .select(CHARGE_PAYMENTS_WITH_CONTEXT_SELECT_LEGACY)
+        .order("paid_at", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (!second.error) {
+        return ((second.data ?? []) as unknown as RawChargePaymentWithContext[]).map(
+          mapRawChargePaymentWithContext
+        );
+      }
+      throw second.error;
+    }
+    throw first.error;
+  }
+
+  return ((first.data ?? []) as unknown as RawChargePaymentWithContext[]).map(
+    mapRawChargePaymentWithContext
+  );
 }
 
 /** Registra un pago vía RPC en Supabase (transacción atómica en BD). */
