@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "supabase-club-os": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=hbhirmhesnztxqgppaqp&read_only=true"
+    }
+  }
+}
