@@ -19,6 +19,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ClubLogo } from "@/components/club-logo";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
+import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { Button, buttonClassNames } from "@/components/ui";
 
 type AdminShellProps = {
@@ -55,10 +56,19 @@ export function AdminShell({ children }: AdminShellProps) {
   const monthlyFeeLabel = formatMoney(config.monthly_fee);
   const paymentAliasLabel = config.payment_alias || "Alias pendiente";
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAdminLogged");
-    window.dispatchEvent(new Event("admin-auth-change"));
-    router.replace("/admin/login");
+  const handleLogout = async () => {
+    try {
+      const supabase = getBrowserSupabase();
+      await supabase.auth.signOut();
+    } catch (error) {
+      // No bloqueamos al usuario si el sign-out remoto falla:
+      // limpiamos sesión local y forzamos refresh para que el middleware
+      // detecte el estado sin cookies y redirija.
+      console.error("Error cerrando sesión", error);
+    } finally {
+      router.replace("/admin/login");
+      router.refresh();
+    }
   };
 
   return (
@@ -170,7 +180,7 @@ export function AdminShell({ children }: AdminShellProps) {
               </Link>
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => void handleLogout()}
                 className={buttonClassNames({
                   variant: "ghost",
                   size: "md",
@@ -212,7 +222,7 @@ export function AdminShell({ children }: AdminShellProps) {
                 >
                   Ver sitio
                 </Link>
-                <Button type="button" variant="ghost" size="md" onClick={handleLogout} className="border border-white/10 text-white hover:bg-white/10 hover:text-white">
+                <Button type="button" variant="ghost" size="md" onClick={() => void handleLogout()} className="border border-white/10 text-white hover:bg-white/10 hover:text-white">
                   Salir
                 </Button>
               </div>

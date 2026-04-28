@@ -1,5 +1,35 @@
 import { clubConfig } from "@/config/club";
 import { getSupabaseClient } from "@/lib/supabase";
+import { getServerSupabase } from "@/lib/supabase/server";
+
+/**
+ * Estadísticas mínimas pensadas para la página pública del club.
+ * Usa una RPC `public_member_stats` (SECURITY DEFINER) para evitar
+ * exponer la tabla `members` al rol anónimo.
+ */
+export type PublicClubStats = {
+  activeMembers: number;
+};
+
+export async function getPublicClubStats(): Promise<PublicClubStats> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.rpc("public_member_stats");
+    if (error) {
+      console.warn("public_member_stats RPC falló:", error);
+      return { activeMembers: 0 };
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    const active =
+      typeof row?.active_members === "number"
+        ? row.active_members
+        : Number(row?.active_members ?? 0);
+    return { activeMembers: Number.isFinite(active) ? active : 0 };
+  } catch (e) {
+    console.warn("getPublicClubStats fallback:", e);
+    return { activeMembers: 0 };
+  }
+}
 
 export type DashboardStats = {
   totalMembers: number;
@@ -77,7 +107,10 @@ function sumChargePaymentsForMonth(
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const supabase = getSupabaseClient();
+  // Server-only: llamamos esto desde /admin/page.tsx (server component) y
+  // necesitamos que la sesión del admin viaje en cookies para que la RLS
+  // estricta lo reconozca como `authenticated`.
+  const supabase = await getServerSupabase();
   const now = new Date();
   const recentMonths = getRecentMonths(now, 6);
 

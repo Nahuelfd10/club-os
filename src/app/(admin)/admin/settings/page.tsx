@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Mail } from "lucide-react";
 
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
+import { DEFAULT_PAYMENT_METHOD } from "@/config/payment-method";
 import { getActiveClubConfig } from "@/config/active-club";
 import { Button, Card, FormField, Input, PageHeader } from "@/components/ui";
 import {
@@ -82,6 +83,7 @@ export default function AdminSettingsPage() {
           send_payment_confirmation_email: false,
           logo_url: null,
           payment_alias: null,
+          payment_method: DEFAULT_PAYMENT_METHOD,
         };
         setClubSettings(fallbackSettings);
         setInitialSettings(buildSettingsSnapshot(fallbackSettings));

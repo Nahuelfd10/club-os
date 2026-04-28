@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { ClubLogo } from "@/components/club-logo";
 import { Button, Card, FormField, Input } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
+import { getBrowserSupabase } from "@/lib/supabase/browser";
 
 export default function AdminLoginPage() {
   const { config, isConfigLoading } = useActiveClubConfig();
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -21,15 +22,27 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const isValid = username === "admin" && password === "1234";
-      if (!isValid) {
-        setErrorMessage("Credenciales incorrectas.");
+      const supabase = getBrowserSupabase();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        // Mensajes específicos para no exponer detalles internos pero ayudar al usuario.
+        const friendly =
+          error.status === 400 || error.message.toLowerCase().includes("invalid login")
+            ? "Email o contraseña incorrectos."
+            : error.message;
+        setErrorMessage(friendly);
         return;
       }
 
-      localStorage.setItem("isAdminLogged", "true");
-      window.dispatchEvent(new Event("admin-auth-change"));
+      // El middleware ya tendrá la cookie en la próxima request.
       router.replace("/admin");
+      router.refresh();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
     } finally {
       setIsLoading(false);
     }
@@ -51,11 +64,13 @@ export default function AdminLoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <FormField htmlFor="username" label="Usuario">
+          <FormField htmlFor="email" label="Email">
             <Input
-              id="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               required
               disabled={isLoading}
             />
@@ -65,6 +80,7 @@ export default function AdminLoginPage() {
             <Input
               id="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required

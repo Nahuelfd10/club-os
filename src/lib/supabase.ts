@@ -1,5 +1,7 @@
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import type { ClubPaymentMethod } from "@/config/payment-method";
 import type { Member } from "@/types";
 
 export type Database = {
@@ -93,6 +95,7 @@ export type Database = {
           logo_url: string | null;
           payment_alias: string | null;
           monthly_due_day: number | null;
+          payment_method: ClubPaymentMethod;
         };
         Insert: {
           id?: string;
@@ -104,6 +107,7 @@ export type Database = {
           logo_url?: string | null;
           payment_alias?: string | null;
           monthly_due_day?: number | null;
+          payment_method?: ClubPaymentMethod;
         };
         Update: {
           name?: string;
@@ -114,6 +118,7 @@ export type Database = {
           logo_url?: string | null;
           payment_alias?: string | null;
           monthly_due_day?: number | null;
+          payment_method?: ClubPaymentMethod;
         };
         Relationships: [];
       };
@@ -275,21 +280,9 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: {
-      member_payment_summary: {
-        Row: {
-          created_at: string | null;
-          payments_count: number | null;
-        };
-        Relationships: [];
-      };
-    };
+    Views: Record<string, never>;
     Functions: {
       generate_monthly_charges: {
-        Args: Record<string, never>;
-        Returns: void;
-      };
-      assign_charges_to_members: {
         Args: Record<string, never>;
         Returns: void;
       };
@@ -324,6 +317,32 @@ export type Database = {
           total_expenses: number;
         }[];
       };
+      ensure_membership_charge_definition: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      generate_monthly_membership_charges: {
+        Args: { p_period: string };
+        Returns: void;
+      };
+      generate_membership_charges_range: {
+        Args: { p_from: string; p_to: string };
+        Returns: void;
+      };
+      update_future_unpaid_membership_charges: {
+        Args: { p_amount: number };
+        Returns: void;
+      };
+      sync_membership_definition_from_club_settings: {
+        Args: Record<string, never>;
+        Returns: void;
+      };
+      public_member_stats: {
+        Args: Record<string, never>;
+        Returns: {
+          active_members: number;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -354,20 +373,39 @@ export type ClubSettingsUpdate = Database["public"]["Tables"]["club_settings"]["
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-let supabaseClient: SupabaseClient<Database> | null = null;
+let cachedClient: SupabaseClient<Database> | null = null;
 
-export function getSupabaseClient() {
+/**
+ * Cliente Supabase universal con dispatch contextual:
+ *   - En el browser devuelve un `createBrowserClient` (lee/escribe la
+ *     sesión en cookies). Si el usuario está logueado, las queries
+ *     viajan con el JWT y RLS lo ve como `authenticated`.
+ *   - En server (SSR público, build) devuelve un `createClient` plano
+ *     que actúa siempre como `anon`. Para server components que
+ *     necesiten la sesión del admin, usá `getServerSupabase()` en
+ *     `@/lib/supabase/server`.
+ *
+ * Esto permite que el código existente (lib/charges.ts, lib/expenses.ts,
+ * etc.) siga llamando a `getSupabaseClient()` y automáticamente respete
+ * RLS estricta sin un refactor masivo.
+ */
+export function getSupabaseClient(): SupabaseClient<Database> {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       "Faltan variables de entorno de Supabase: NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY"
     );
   }
 
-  if (!supabaseClient) {
-    supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey);
+  if (cachedClient) {
+    return cachedClient;
   }
 
-  return supabaseClient;
+  cachedClient =
+    typeof window !== "undefined"
+      ? createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
+      : createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+  return cachedClient;
 }
 
 export async function insertMember(member: NewMemberInput) {

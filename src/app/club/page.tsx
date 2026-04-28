@@ -9,7 +9,7 @@ import { AnimatedCount } from "@/components/marketing/animated-count";
 import { Reveal } from "@/components/marketing/reveal";
 import { buttonClassNames } from "@/components/ui";
 import { getActiveClubConfig } from "@/config/active-club";
-import { getDashboardStats } from "@/lib/dashboard";
+import { getPublicClubStats } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/formatters";
 
 const icons = { trophy: Trophy, heart: HeartHandshake, calendar: CalendarDays, handCoins: HandCoins } as const;
@@ -34,7 +34,7 @@ const clubValues = [
 ] as const;
 
 export default async function ClubHomePage() {
-  const [config, stats] = await Promise.all([getActiveClubConfig(), getDashboardStats()]);
+  const [config, stats] = await Promise.all([getActiveClubConfig(), getPublicClubStats()]);
   const [featuredProject, ...otherProjects] = clubProjects;
 
   return (
