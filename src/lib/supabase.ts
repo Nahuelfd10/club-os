@@ -279,6 +279,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      club_sponsors: {
+        Row: {
+          id: string;
+          name: string;
+          logo_url: string;
+          logo_path: string;
+          url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          logo_url: string;
+          logo_path: string;
+          url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          logo_url?: string;
+          logo_path?: string;
+          url?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -341,6 +368,15 @@ export type Database = {
         Args: Record<string, never>;
         Returns: {
           active_members: number;
+        }[];
+      };
+      public_active_sponsors: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          name: string;
+          logo_url: string;
+          url: string | null;
         }[];
       };
     };

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, HandCoins, HeartHandshake, Megaphone, Trophy, Users } from "lucide-react";
 
-import { clubEvents, clubOffers, clubProjects, clubSponsors, clubTeams } from "@/app/club/content";
+import { clubEvents, clubOffers, clubProjects, clubTeams } from "@/app/club/content";
 import { ClubLogo } from "@/components/club-logo";
 import { ClubCrestShowcase } from "@/components/club/club-crest-showcase";
 import { ClubSponsorsMarquee } from "@/components/club/club-sponsors-marquee";
@@ -11,6 +11,7 @@ import { buttonClassNames } from "@/components/ui";
 import { getActiveClubConfig } from "@/config/active-club";
 import { getPublicClubStats } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/formatters";
+import { listPublicSponsors } from "@/lib/sponsors";
 
 const icons = { trophy: Trophy, heart: HeartHandshake, calendar: CalendarDays, handCoins: HandCoins } as const;
 
@@ -34,7 +35,11 @@ const clubValues = [
 ] as const;
 
 export default async function ClubHomePage() {
-  const [config, stats] = await Promise.all([getActiveClubConfig(), getPublicClubStats()]);
+  const [config, stats, sponsors] = await Promise.all([
+    getActiveClubConfig(),
+    getPublicClubStats(),
+    listPublicSponsors(),
+  ]);
   const [featuredProject, ...otherProjects] = clubProjects;
 
   return (
@@ -346,32 +351,34 @@ export default async function ClubHomePage() {
           </section>
         </Reveal>
 
-        <Reveal delayMs={145}>
-          <section
-            id="sponsors"
-            className="rounded-[2.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95)_0%,rgba(10,20,44,0.92)_100%)] p-7 shadow-[0_34px_90px_-46px_rgba(2,8,23,0.94)] sm:p-10"
-          >
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/42">Sponsors</p>
-                <h2 className="club-display mt-4 text-5xl leading-none text-white sm:text-6xl">
-                  marcas que acompanan el camino del club
-                </h2>
-                <p className="mt-5 text-base leading-7 text-slate-300">
-                  Esta es una de las dos secciones extra respecto al v0. La integro con el mismo lenguaje visual para
-                  que se vea parte de la landing y no un agregado aparte.
-                </p>
+        {sponsors.length > 0 ? (
+          <Reveal delayMs={145}>
+            <section
+              id="sponsors"
+              className="rounded-[2.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95)_0%,rgba(10,20,44,0.92)_100%)] p-7 shadow-[0_34px_90px_-46px_rgba(2,8,23,0.94)] sm:p-10"
+            >
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/42">Sponsors</p>
+                  <h2 className="club-display mt-4 text-5xl leading-none text-white sm:text-6xl">
+                    marcas que acompanan el camino del club
+                  </h2>
+                  <p className="mt-5 text-base leading-7 text-slate-300">
+                    Quienes apoyan al club hoy: empresas y comercios que acompañan los proyectos
+                    deportivos y comunitarios.
+                  </p>
+                </div>
+                <div className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-semibold text-white/82">
+                  {sponsors.length} {sponsors.length === 1 ? "sponsor activo" : "sponsors activos"}
+                </div>
               </div>
-              <div className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-semibold text-white/82">
-                Espacio preparado para sponsors reales
-              </div>
-            </div>
 
-            <div className="mt-8">
-              <ClubSponsorsMarquee sponsors={clubSponsors} />
-            </div>
-          </section>
-        </Reveal>
+              <div className="mt-8">
+                <ClubSponsorsMarquee sponsors={sponsors} />
+              </div>
+            </section>
+          </Reveal>
+        ) : null}
 
         <Reveal delayMs={155}>
           <section

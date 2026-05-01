@@ -44,12 +44,6 @@ export type ClubGalleryItem = {
   description: string;
 };
 
-export type ClubSponsor = {
-  name: string;
-  logoSrc: string;
-  url: string;
-};
-
 export const clubOffers: ClubOffer[] = [
   {
     title: "Instalaciones y actividad",
@@ -125,14 +119,6 @@ export const clubGallery: ClubGalleryItem[] = [
     title: "Eventos y torneos",
     description: "Momentos que activan la vida del club y lo vuelven memorable.",
   },
-];
-
-export const clubSponsors: ClubSponsor[] = [
-  { name: "Nike", logoSrc: "/club-defaults/sponsors/nike.svg", url: "https://www.nike.com" },
-  { name: "Adidas", logoSrc: "/club-defaults/sponsors/adidas.svg", url: "https://www.adidas.com" },
-  { name: "Puma", logoSrc: "/club-defaults/sponsors/puma.svg", url: "https://www.puma.com" },
-  { name: "Umbro", logoSrc: "/club-defaults/sponsors/umbro.svg", url: "https://www.umbro.com" },
-  { name: "Joma", logoSrc: "/club-defaults/sponsors/joma.svg", url: "https://www.joma-sport.com" },
 ];
 
 export const clubProjects: ClubProject[] = [

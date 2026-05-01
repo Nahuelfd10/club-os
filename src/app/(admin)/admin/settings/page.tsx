@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Mail } from "lucide-react";
 
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
+import { SponsorsSection } from "@/components/admin/sponsors-section";
 import {
   CLUB_PAYMENT_METHOD_OPTIONS,
   DEFAULT_PAYMENT_METHOD,
@@ -483,6 +484,10 @@ export default function AdminSettingsPage() {
         {message ? (
           <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">{message}</p>
         ) : null}
+      </Card>
+
+      <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
+        <SponsorsSection />
       </Card>
     </section>
   );
