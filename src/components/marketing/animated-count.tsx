@@ -30,12 +30,12 @@ export function AnimatedCount({
       return;
     }
 
-    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
-      const frame = window.requestAnimationFrame(() => {
+    if (typeof IntersectionObserver === "undefined" || typeof requestAnimationFrame !== "function") {
+      const frame = requestAnimationFrame(() => {
         setHasStarted(true);
       });
 
-      return () => window.cancelAnimationFrame(frame);
+      return () => cancelAnimationFrame(frame);
     }
 
     const observer = new IntersectionObserver(
@@ -70,13 +70,13 @@ export function AnimatedCount({
       setDisplayValue(Math.round(value * eased));
 
       if (progress < 1) {
-        frame = window.requestAnimationFrame(tick);
+        frame = requestAnimationFrame(tick);
       }
     };
 
-    frame = window.requestAnimationFrame(tick);
+    frame = requestAnimationFrame(tick);
 
-    return () => window.cancelAnimationFrame(frame);
+    return () => cancelAnimationFrame(frame);
   }, [hasStarted, value]);
 
   return (

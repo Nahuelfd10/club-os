@@ -18,12 +18,12 @@ export function Reveal({ children, className = "", delayMs = 0, style, ...rest }
       return;
     }
 
-    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
-      const frame = window.requestAnimationFrame(() => {
+    if (typeof IntersectionObserver === "undefined" || typeof requestAnimationFrame !== "function") {
+      const frame = requestAnimationFrame(() => {
         setIsVisible(true);
       });
 
-      return () => window.cancelAnimationFrame(frame);
+      return () => cancelAnimationFrame(frame);
     }
 
     const observer = new IntersectionObserver(
