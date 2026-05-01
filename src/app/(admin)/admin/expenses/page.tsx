@@ -11,6 +11,7 @@ import {
   EmptyState,
   Input,
   PageHeader,
+  Select,
   Table,
   TableBody,
   TableHead,
@@ -510,11 +511,11 @@ export default function AdminExpensesPage() {
             <label htmlFor="expense-charge" className="mb-1 block text-sm font-medium text-slate-300">
               Cargo vinculado (opcional)
             </label>
-            <select
+            <Select
               id="expense-charge"
               value={formChargeId}
               onChange={(e) => setFormChargeId(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
             >
               <option value="">Sin relación</option>
               {chargeOptions.map((c) => (
@@ -522,7 +523,7 @@ export default function AdminExpensesPage() {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>

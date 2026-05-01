@@ -408,11 +408,29 @@ export function getSupabaseClient(): SupabaseClient<Database> {
   return cachedClient;
 }
 
+/**
+ * Error de dominio que el front puede catchar para mostrar mensajes específicos
+ * (ej. DNI duplicado en el formulario público de alta).
+ */
+export class DuplicateMemberDniError extends Error {
+  readonly code = "MEMBER_DNI_DUPLICATE" as const;
+  constructor(public readonly dni: string) {
+    super(`Ya existe un socio con DNI ${dni}.`);
+    this.name = "DuplicateMemberDniError";
+  }
+}
+
 export async function insertMember(member: NewMemberInput) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("members").insert(member);
 
   if (error) {
+    // Postgres unique violation (23505) o mensaje que mencione el constraint del DNI.
+    const code = (error as { code?: string }).code;
+    const lowered = error.message?.toLowerCase() ?? "";
+    if (code === "23505" || lowered.includes("members_dni_key") || lowered.includes("dni")) {
+      throw new DuplicateMemberDniError(member.dni);
+    }
     throw error;
   }
 }

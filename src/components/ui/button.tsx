@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
-type ButtonVariant = "primary" | "accent" | "neutral" | "outline" | "ghost";
+type ButtonVariant = "primary" | "accent" | "neutral" | "outline" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg" | "xl";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -15,6 +15,8 @@ const variantClassMap: Record<ButtonVariant, string> = {
     "border border-primary bg-primary text-white shadow-[0_18px_38px_-22px_color-mix(in_srgb,var(--club-primary)_75%,black)] hover:-translate-y-0.5 hover:shadow-[0_24px_42px_-22px_color-mix(in_srgb,var(--club-primary)_80%,black)]",
   accent:
     "border border-accent bg-accent text-white shadow-[0_18px_38px_-22px_color-mix(in_srgb,var(--club-accent)_75%,black)] hover:-translate-y-0.5 hover:shadow-[0_24px_42px_-22px_color-mix(in_srgb,var(--club-accent)_80%,black)]",
+  danger:
+    "border border-red-600 bg-red-600 text-white shadow-[0_18px_38px_-22px_rgba(220,38,38,0.55)] hover:-translate-y-0.5 hover:bg-red-700 hover:border-red-700 hover:shadow-[0_24px_42px_-22px_rgba(185,28,28,0.6)]",
   neutral:
     "border border-slate-200/80 bg-white/85 text-slate-700 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.35)] hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900",
   outline:

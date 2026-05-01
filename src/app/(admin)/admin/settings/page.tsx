@@ -4,9 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Mail } from "lucide-react";
 
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
-import { DEFAULT_PAYMENT_METHOD } from "@/config/payment-method";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import { getActiveClubConfig } from "@/config/active-club";
-import { Button, Card, FormField, Input, PageHeader } from "@/components/ui";
+import { Button, Card, FormField, Input, PageHeader, Select } from "@/components/ui";
 import {
   getClubSettings,
   updateClubSettingsById,
@@ -23,6 +27,7 @@ type SettingsSnapshot = Pick<
   | "accent_color"
   | "send_payment_confirmation_email"
   | "payment_alias"
+  | "payment_method"
 >;
 
 const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
@@ -33,6 +38,7 @@ const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
   accent_color: settings.accent_color,
   send_payment_confirmation_email: settings.send_payment_confirmation_email,
   payment_alias: settings.payment_alias,
+  payment_method: settings.payment_method,
 });
 
 export default function AdminSettingsPage() {
@@ -58,7 +64,8 @@ export default function AdminSettingsPage() {
       currentSnapshot.primary_color !== initialSettings.primary_color ||
       currentSnapshot.accent_color !== initialSettings.accent_color ||
       currentSnapshot.send_payment_confirmation_email !== initialSettings.send_payment_confirmation_email ||
-      currentSnapshot.payment_alias !== initialSettings.payment_alias
+      currentSnapshot.payment_alias !== initialSettings.payment_alias ||
+      currentSnapshot.payment_method !== initialSettings.payment_method
     );
   }, [clubSettings, initialSettings]);
 
@@ -105,6 +112,24 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    // Si cambió la cuota mensual, pedir confirmación explícita: el cambio
+    // afecta cargos futuros pendientes (vía trigger
+    // sync_membership_definition_after_club_settings) pero no los pagados/parciales.
+    if (
+      clubSettings &&
+      initialSettings &&
+      clubSettings.monthly_fee !== initialSettings.monthly_fee
+    ) {
+      const ok = window.confirm(
+        `Vas a cambiar la cuota mensual de $${initialSettings.monthly_fee} a $${clubSettings.monthly_fee}.\n\n` +
+          "Esto afecta sólo los cargos mensuales FUTUROS y los actuales que aún estén pendientes (sin pago). " +
+          "Los meses ya pagados o con pago parcial no se modifican.\n\n¿Confirmás el cambio?"
+      );
+      if (!ok) {
+        return;
+      }
+    }
+
     setIsSaving(true);
 
     try {
@@ -123,6 +148,7 @@ export default function AdminSettingsPage() {
         accent_color: clubSettings.accent_color,
         send_payment_confirmation_email: clubSettings.send_payment_confirmation_email,
         payment_alias: clubSettings.payment_alias?.trim() || null,
+        payment_method: clubSettings.payment_method,
       });
       setInitialSettings(buildSettingsSnapshot(clubSettings));
       setMessage(uiMessages.settings.saveSuccess);
@@ -325,6 +351,35 @@ export default function AdminSettingsPage() {
                 </Button>
               </div>
               <p className="text-xs text-slate-400">Este alias se enviará en los recordatorios de pago</p>
+            </div>
+          </FormField>
+
+          <FormField htmlFor="payment_method" label="Método de pago default">
+            <div className="space-y-1">
+              <Select
+                id="payment_method"
+                value={clubSettings.payment_method}
+                onChange={(event) =>
+                  setClubSettings((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          payment_method: event.target.value as ClubPaymentMethod,
+                        }
+                      : prev
+                  )
+                }
+                className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:bg-white/[0.08] focus:shadow-none"
+              >
+                {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-slate-400">
+                Método sugerido al registrar pagos manuales. El admin puede cambiarlo en cada cobro.
+              </p>
             </div>
           </FormField>
 

@@ -6,17 +6,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   EmptyState,
   Input,
   PageHeader,
+  Select,
   Table,
   TableBody,
   TableHead,
   TableRow,
   Td,
   Th,
+  Textarea,
   buttonClassNames,
 } from "@/components/ui";
 import {
@@ -337,30 +340,30 @@ export default function AdminChargesPage() {
                   </div>
                   <label className="space-y-1 text-sm text-slate-300">
                     <span className="block text-xs font-semibold uppercase tracking-wide text-white/45">Año</span>
-                    <select
+                    <Select
                       value={selectedMembershipYear}
                       onChange={(event) => {
                         setSelectedMembershipYear(Number(event.target.value));
                         setShowFutureMembership(false);
                       }}
-                      className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+                      className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
                     >
                       {membershipYears.map((year) => (
                         <option key={year} value={year}>
                           {year}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-slate-200">
+                  <Badge className="border border-white/10 bg-white/[0.06] text-slate-200">
                     Visibles: {membershipRelevantCharges.length}
-                  </span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-slate-200">
+                  </Badge>
+                  <Badge className="border border-white/10 bg-white/[0.06] text-slate-200">
                     Futuras: {membershipFutureCharges.length}
-                  </span>
+                  </Badge>
                 </div>
 
                 {membershipChargesForYear.length === 0 ? (
@@ -688,13 +691,13 @@ export default function AdminChargesPage() {
             <label htmlFor="charge-desc" className="mb-1 block text-sm font-medium text-slate-300">
               Descripción
             </label>
-            <textarea
+            <Textarea
               id="charge-desc"
               value={formDescription}
               onChange={(e) => setFormDescription(e.target.value)}
               rows={2}
               placeholder="Opcional"
-              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20"
+              className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none placeholder:text-slate-400 focus:border-white/20 focus:shadow-none"
             />
           </div>
 
@@ -726,26 +729,26 @@ export default function AdminChargesPage() {
             <label htmlFor="charge-type" className="mb-1 block text-sm font-medium text-slate-300">
               Tipo de cargo <span className="text-danger">*</span>
             </label>
-            <select
+            <Select
               id="charge-type"
               value={formType}
               onChange={(e) => setFormType(e.target.value as "per_member" | "total")}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
             >
               <option value="per_member">Por persona</option>
               <option value="total">Total a dividir</option>
-            </select>
+            </Select>
           </div>
 
           <div>
             <label htmlFor="charge-group" className="mb-1 block text-sm font-medium text-slate-300">
               Grupo deportivo
             </label>
-            <select
+            <Select
               id="charge-group"
               value={formGroupId}
               onChange={(e) => setFormGroupId(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
             >
               <option value="">Todo el club (socios activos)</option>
               {groupOptions.map((g) => (
@@ -753,7 +756,7 @@ export default function AdminChargesPage() {
                   {g.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="mt-1 text-xs text-slate-400">
               Deja “Todo el club” para cobros que aplican a todos los socios activos, sin filtrar por equipo.
             </p>

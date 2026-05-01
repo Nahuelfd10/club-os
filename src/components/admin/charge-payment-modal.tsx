@@ -8,7 +8,8 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { AdminModal } from "@/components/admin/admin-modal";
-import { Button, Input } from "@/components/ui";
+import { Button, Input, Select } from "@/components/ui";
+import { PaymentExceedsPendingError } from "@/lib/charges";
 import { datetimeLocalToIso, toDatetimeLocalValue } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 
@@ -98,7 +99,13 @@ export function ChargePaymentModal({
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo registrar el pago.");
+      if (e instanceof PaymentExceedsPendingError) {
+        setError(
+          "Otro admin acaba de registrar un pago que cubre el pendiente. Cerrá este modal y recargá la pantalla para ver el estado actualizado."
+        );
+      } else {
+        setError(e instanceof Error ? e.message : "No se pudo registrar el pago.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -189,18 +196,18 @@ export function ChargePaymentModal({
           <label htmlFor={paymentMethodId} className="mb-1 block text-sm font-medium text-slate-300">
             Método de pago
           </label>
-          <select
+          <Select
             id={paymentMethodId}
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value as ClubPaymentMethod)}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20 focus:bg-white/[0.08]"
+            className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none outline-none focus:border-white/20 focus:bg-white/[0.08] focus:shadow-none"
           >
             {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
               <option key={option.value} value={option.value} className="bg-slate-950 text-white">
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

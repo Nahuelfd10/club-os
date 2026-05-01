@@ -306,6 +306,19 @@ export async function listChargePaymentsWithContext(): Promise<ChargePaymentWith
   );
 }
 
+/**
+ * Error de dominio cuando otro pago concurrente cubrió el pendiente antes que
+ * el nuestro (race ya mitigada con FOR UPDATE en BD pero igual queremos un
+ * mensaje claro para el admin).
+ */
+export class PaymentExceedsPendingError extends Error {
+  readonly code = "PAYMENT_EXCEEDS_PENDING" as const;
+  constructor() {
+    super("Este pago supera el saldo pendiente.");
+    this.name = "PaymentExceedsPendingError";
+  }
+}
+
 /** Registra un pago vía RPC en Supabase (transacción atómica en BD). */
 export async function registerChargePayment(payload: {
   member_charge_id: string;
@@ -327,8 +340,40 @@ export async function registerChargePayment(payload: {
   });
 
   if (error) {
+    const lowered = error.message?.toLowerCase() ?? "";
+    // SQLSTATE custom P0001 + texto del raise; matchamos por contenido para
+    // ser robustos ante variantes de wrapping de PostgREST.
+    if (lowered.includes("excede el monto pendiente")) {
+      throw new PaymentExceedsPendingError();
+    }
     const msg = error.message?.trim() || "No se pudo registrar el pago.";
     throw new Error(msg);
+  }
+
+  // Disparamos la notificación por email server-side (respeta el flag
+  // club_settings.send_payment_confirmation_email). Es fire-and-forget:
+  // si el envío falla, no anulamos el pago — sólo logueamos.
+  try {
+    if (typeof window !== "undefined") {
+      void fetch("/api/payments/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_charge_id: payload.member_charge_id,
+          amount: paid,
+        }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.warn("payments/notify respondió con error", res.status);
+          }
+        })
+        .catch((err) => {
+          console.warn("payments/notify falló", err);
+        });
+    }
+  } catch (notifyErr) {
+    console.warn("No se pudo disparar la notificación de pago:", notifyErr);
   }
 }
 

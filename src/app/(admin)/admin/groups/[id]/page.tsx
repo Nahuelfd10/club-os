@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Badge, Button, Card, Input } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Select } from "@/components/ui";
 import { getChargesByGroupId, type ChargeWithGroup } from "@/lib/charges";
 import {
   addMemberToGroup,
@@ -210,9 +210,7 @@ export default function AdminGroupDetailPage() {
         </div>
       </header>
 
-      {actionMessage ? (
-        <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
-      ) : null}
+      {actionMessage ? <Alert variant="info">{actionMessage}</Alert> : null}
 
       <Card className="border border-slate-200/80 p-6">
         <h2 className="text-lg font-semibold text-slate-900">Miembros del grupo</h2>
@@ -253,14 +251,15 @@ export default function AdminGroupDetailPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
+                        variant="danger"
                         onClick={() => void handleRemove(row.member.id)}
                         disabled={removingKey === row.member.id}
-                        className="rounded-md bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {removingKey === row.member.id ? "Quitando..." : "Quitar del grupo"}
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -327,11 +326,11 @@ export default function AdminGroupDetailPage() {
             <label htmlFor="add-member-select" className="mb-1 block text-sm font-medium text-slate-700">
               Socio
             </label>
-            <select
+            <Select
               id="add-member-select"
               value={selectedMemberId}
               onChange={(e) => setSelectedMemberId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500"
+              className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
             >
               <option value="">Seleccionar...</option>
               {addOptions.map((m) => (
@@ -339,7 +338,7 @@ export default function AdminGroupDetailPage() {
                   {m.full_name} · {m.dni}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 

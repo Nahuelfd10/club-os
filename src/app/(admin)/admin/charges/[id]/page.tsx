@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { Badge, Button, Card, Input } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Textarea } from "@/components/ui";
 import {
   assignChargeToMissingMembers,
   assignChargeToMember,
@@ -508,18 +508,15 @@ export default function AdminChargeDetailPage() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <button
-              type="button"
-              onClick={openCreateExpense}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
+            <Button type="button" size="md" onClick={openCreateExpense}>
               Registrar egreso
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="md"
+              variant="neutral"
               onClick={openEdit}
               disabled={Boolean(hasPayments)}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               title={
                 hasPayments
                   ? "Este cargo ya tiene pagos y no puede ser editado"
@@ -527,7 +524,7 @@ export default function AdminChargeDetailPage() {
               }
             >
               Editar
-            </button>
+            </Button>
             {hasPayments ? (
               <p className="max-w-xs text-right text-xs font-medium text-warning">
                 Este cargo ya tiene pagos y no puede ser editado
@@ -536,11 +533,7 @@ export default function AdminChargeDetailPage() {
           </div>
         </header>
 
-        {actionMessage ? (
-          <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-            {actionMessage}
-          </p>
-        ) : null}
+        {actionMessage ? <Alert variant="info">{actionMessage}</Alert> : null}
 
         <Card className="border border-slate-200/80 p-6">
           {(() => {
@@ -655,21 +648,23 @@ export default function AdminChargeDetailPage() {
                       <td className="px-3 py-2 text-slate-700">{formatExpenseDate(e.date)}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
-                          <button
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="neutral"
                             onClick={() => openEditExpense(e)}
-                            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
                           >
                             Editar
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="danger"
                             onClick={() => void removeExpense(e)}
                             disabled={expenseDeletingId === e.id}
-                            className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             {expenseDeletingId === e.id ? "Eliminando..." : "Eliminar"}
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -755,14 +750,15 @@ export default function AdminChargeDetailPage() {
                       <Fragment key={row.id}>
                         <tr className={expanded ? "bg-slate-50/60" : undefined}>
                           <td className="px-3 py-2 align-top">
-                            <button
+                            <Button
                               type="button"
+                              size="sm"
+                              variant="neutral"
                               onClick={() => toggleExpand(row.id)}
-                              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                               aria-expanded={expanded}
                             >
                               {expanded ? "Ocultar" : "Ver pagos"}
-                            </button>
+                            </Button>
                           </td>
                           <td className="px-3 py-2">
                             <Link
@@ -896,9 +892,9 @@ export default function AdminChargeDetailPage() {
                 <Button
                   type="button"
                   size="md"
+                  variant="neutral"
                   onClick={() => void assignMissing()}
                   disabled={assigningMissing || missingMembers.length === 0}
-                  style={{ backgroundColor: "#0f172a" }}
                 >
                   {assigningMissing ? "Asignando..." : "Asignar a todos"}
                 </Button>
@@ -918,14 +914,15 @@ export default function AdminChargeDetailPage() {
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <button
+                        <Button
                           type="button"
+                          size="sm"
+                          variant="neutral"
                           onClick={() => void assignOne(m.id)}
                           disabled={assigningMemberId === m.id || assigningMissing}
-                          className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {assigningMemberId === m.id ? "Asignando..." : "Asignar"}
-                        </button>
+                        </Button>
                         <Link
                           href={`/admin/socios/${m.id}`}
                           className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
@@ -954,7 +951,7 @@ export default function AdminChargeDetailPage() {
       <AdminModal open={editOpen} onClose={() => !editSaving && setEditOpen(false)}>
         <h2 className="text-lg font-semibold text-slate-900">Editar cargo</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Solo podés editar si el cargo no tiene pagos registrados.
+          Editás el cargo base. Las líneas ya asignadas a socios no se modifican.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -973,12 +970,12 @@ export default function AdminChargeDetailPage() {
             <label htmlFor="edit-charge-desc" className="mb-1 block text-sm font-medium text-slate-700">
               Descripción
             </label>
-            <textarea
+            <Textarea
               id="edit-charge-desc"
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-500"
+              className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
             />
           </div>
           <div>
@@ -993,6 +990,24 @@ export default function AdminChargeDetailPage() {
               onChange={(e) => setEditAmount(e.target.value)}
               className="text-sm"
             />
+            {(() => {
+              if (!charge || rows.length === 0) {
+                return null;
+              }
+              const raw = editAmount.replace(",", ".").trim();
+              const parsed = Number(raw);
+              const changed =
+                raw !== "" && !Number.isNaN(parsed) && Math.abs(parsed - charge.amount) > 0.001;
+              if (!changed) {
+                return null;
+              }
+              return (
+                <p className="mt-1 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+                  Este cargo ya tiene {rows.length} socio(s) asignado(s). Cambiar el monto NO actualiza
+                  las líneas existentes (sólo afecta a futuras asignaciones de socios faltantes).
+                </p>
+              );
+            })()}
           </div>
           <div>
             <label htmlFor="edit-charge-due" className="mb-1 block text-sm font-medium text-slate-700">

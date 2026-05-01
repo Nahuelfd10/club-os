@@ -8,7 +8,7 @@ import { ClubLogo } from "@/components/club-logo";
 import { Button, Card, FormField, Input, buttonClassNames, cardClassNames } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
-import { insertMember } from "@/lib/supabase";
+import { DuplicateMemberDniError, insertMember } from "@/lib/supabase";
 
 type MemberForm = {
   full_name: string;
@@ -53,8 +53,15 @@ export default function ClubRegistroPage() {
       setSent(true);
       setForm(initialForm);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo guardar el registro.";
-      setErrorMessage(message);
+      if (error instanceof DuplicateMemberDniError) {
+        setErrorMessage(
+          `Ya hay un socio registrado con el DNI ${error.dni}. Si creés que es un error, contactá al club.`
+        );
+      } else {
+        const message =
+          error instanceof Error ? error.message : "No se pudo guardar el registro.";
+        setErrorMessage(message);
+      }
     } finally {
       setIsLoading(false);
     }
