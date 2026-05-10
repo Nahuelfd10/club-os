@@ -7,12 +7,16 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import { ImportChargeLines } from "@/components/admin/import-charge-lines";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { Alert, Badge, Button, Card, Input, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Select, Textarea } from "@/components/ui";
 import {
+  addChargeLine,
   assignChargeToMissingMembers,
   assignChargeToMember,
+  assignLineToMember,
   chargeHasPayments,
+  deleteChargeLine,
   formatBillingPeriod,
   getChargeById,
   getChargeFinancials,
@@ -21,10 +25,13 @@ import {
   getMissingMembersForCharge,
   registerChargePayment,
   updateCharge,
+  updateChargeLine,
+  chargeLineDisplayName,
   type ChargeDetail,
   type ChargePaymentRow,
   type MemberChargeForChargeRow,
 } from "@/lib/charges";
+import { listMembers } from "@/lib/supabase";
 import {
   memberChargeStatusBadgeVariant,
   memberChargeStatusLabel,
@@ -78,6 +85,24 @@ export default function AdminChargeDetailPage() {
   const [assigningMissing, setAssigningMissing] = useState(false);
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
 
+  // Líneas (member_charges) — agregar/editar/eliminar manualmente.
+  type MemberOption = { id: string; full_name: string; dni: string; status: "pending" | "active" };
+  const [allMembers, setAllMembers] = useState<MemberOption[]>([]);
+  const [lineModalOpen, setLineModalOpen] = useState(false);
+  const [lineEditingId, setLineEditingId] = useState<string | null>(null);
+  const [lineMode, setLineMode] = useState<"member" | "external">("member");
+  const [lineMemberId, setLineMemberId] = useState("");
+  const [lineExternalName, setLineExternalName] = useState("");
+  const [lineDescription, setLineDescription] = useState("");
+  const [lineQuantity, setLineQuantity] = useState("1");
+  const [lineAmount, setLineAmount] = useState("");
+  const [lineSaving, setLineSaving] = useState(false);
+  const [lineFormError, setLineFormError] = useState<string | null>(null);
+  const [deletingLineId, setDeletingLineId] = useState<string | null>(null);
+  // Pop-up para reasignar línea externa a socio (un select por fila externa).
+  const [assigningExternalLineId, setAssigningExternalLineId] = useState<string | null>(null);
+  const [externalAssignMemberId, setExternalAssignMemberId] = useState("");
+
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseRow | null>(null);
   const [expenseDesc, setExpenseDesc] = useState("");
@@ -114,15 +139,24 @@ export default function AdminChargeDetailPage() {
       }
 
       const membershipCharge = ch.category === "membership";
-      const [hp, memberCharges, missing, fin] = await Promise.all([
+      const [hp, memberCharges, missing, fin, membersList] = await Promise.all([
         chargeHasPayments(chargeId),
         getMemberChargesForCharge(chargeId),
         membershipCharge
           ? Promise.resolve([])
           : getMissingMembersForCharge({ chargeId, groupId: ch.group?.id ?? null }),
         getChargeFinancials(chargeId),
+        listMembers(),
       ]);
       setHasPayments(hp);
+      setAllMembers(
+        (membersList ?? []).map((m) => ({
+          id: m.id,
+          full_name: m.full_name,
+          dni: m.dni,
+          status: m.status,
+        }))
+      );
       setRows(memberCharges);
       setMissingMembers(missing);
       setFinancials(fin);
@@ -160,6 +194,66 @@ export default function AdminChargeDetailPage() {
     }
     return map;
   }, [rows]);
+
+  /**
+   * Detecta nombres externos que se repiten (ej. "Diame" en 7 líneas de
+   * Camperas) para sugerir bulk-assign. Sólo agrupa cuando hay 2+ líneas
+   * con el mismo external_name normalizado y todas siguen siendo externas.
+   */
+  const externalNameGroups = useMemo(() => {
+    const map = new Map<string, MemberChargeForChargeRow[]>();
+    for (const row of rows) {
+      if (row.member_id || !row.external_name) continue;
+      const key = row.external_name.trim().toLowerCase();
+      if (!key) continue;
+      const list = map.get(key) ?? [];
+      list.push(row);
+      map.set(key, list);
+    }
+    return Array.from(map.entries())
+      .filter(([, list]) => list.length >= 2)
+      .map(([, list]) => ({
+        displayName: list[0].external_name?.trim() ?? "",
+        rows: list,
+      }))
+      .sort((a, b) => b.rows.length - a.rows.length);
+  }, [rows]);
+
+  const [bulkAssignName, setBulkAssignName] = useState<string | null>(null);
+  const [bulkAssignMemberId, setBulkAssignMemberId] = useState("");
+  const [bulkAssignSaving, setBulkAssignSaving] = useState(false);
+
+  const openBulkAssign = (displayName: string) => {
+    setBulkAssignName(displayName);
+    setBulkAssignMemberId("");
+  };
+
+  const handleBulkAssign = async () => {
+    if (!bulkAssignName || !bulkAssignMemberId) return;
+    const group = externalNameGroups.find((g) => g.displayName === bulkAssignName);
+    if (!group) return;
+    setBulkAssignSaving(true);
+    setActionMessage(null);
+    let okCount = 0;
+    let errCount = 0;
+    for (const row of group.rows) {
+      try {
+        await assignLineToMember(row.id, bulkAssignMemberId);
+        okCount += 1;
+      } catch {
+        errCount += 1;
+      }
+    }
+    setBulkAssignSaving(false);
+    setBulkAssignName(null);
+    setBulkAssignMemberId("");
+    setActionMessage(
+      errCount === 0
+        ? `Reasigné ${okCount} línea(s) al socio.`
+        : `Reasigné ${okCount} línea(s); ${errCount} con error.`
+    );
+    await loadAll();
+  };
 
   const loadHistory = async (memberChargeId: string) => {
     setHistoryLoadingId(memberChargeId);
@@ -319,6 +413,137 @@ export default function AdminChargeDetailPage() {
     setEditAmount(String(charge.amount));
     setEditDueDate(charge.due_date ?? "");
     setEditOpen(true);
+  };
+
+  // ----- Líneas (member_charges) -----
+  const resetLineForm = () => {
+    setLineEditingId(null);
+    setLineMode("member");
+    setLineMemberId("");
+    setLineExternalName("");
+    setLineDescription("");
+    setLineQuantity("1");
+    setLineAmount("");
+    setLineFormError(null);
+  };
+
+  const openAddLine = () => {
+    resetLineForm();
+    setLineModalOpen(true);
+  };
+
+  const openEditLine = (row: MemberChargeForChargeRow) => {
+    setLineEditingId(row.id);
+    if (row.member_id) {
+      setLineMode("member");
+      setLineMemberId(row.member_id);
+      setLineExternalName("");
+    } else {
+      setLineMode("external");
+      setLineMemberId("");
+      setLineExternalName(row.external_name ?? "");
+    }
+    setLineDescription(row.description ?? "");
+    setLineQuantity(String(row.quantity ?? 1));
+    setLineAmount(String(row.amount));
+    setLineFormError(null);
+    setLineModalOpen(true);
+  };
+
+  const closeLineModal = () => {
+    if (!lineSaving) {
+      setLineModalOpen(false);
+      resetLineForm();
+    }
+  };
+
+  const handleSaveLine = async () => {
+    if (!charge) return;
+    const description = lineDescription.trim() || null;
+    const qtyNum = Number(lineQuantity.replace(",", ".").trim());
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      setLineFormError("La cantidad debe ser mayor a cero.");
+      return;
+    }
+    const rawAmount = lineAmount.replace(",", ".").trim();
+    const amountNum = Number(rawAmount);
+    if (rawAmount === "" || !Number.isFinite(amountNum) || amountNum <= 0) {
+      setLineFormError("Indicá un monto mayor a cero.");
+      return;
+    }
+
+    if (lineMode === "member" && !lineMemberId) {
+      setLineFormError("Elegí un socio o cambiá el modo a 'Externo'.");
+      return;
+    }
+    if (lineMode === "external" && !lineExternalName.trim()) {
+      setLineFormError("Indicá el nombre del comprador externo.");
+      return;
+    }
+
+    setLineSaving(true);
+    setLineFormError(null);
+    try {
+      const payload = {
+        member_id: lineMode === "member" ? lineMemberId : null,
+        external_name: lineMode === "external" ? lineExternalName.trim() : null,
+        description,
+        quantity: Math.floor(qtyNum),
+        amount: amountNum,
+      };
+      if (lineEditingId) {
+        await updateChargeLine(lineEditingId, payload);
+        setActionMessage("Línea actualizada.");
+      } else {
+        await addChargeLine(charge.id, payload);
+        setActionMessage("Línea agregada.");
+      }
+      setLineModalOpen(false);
+      resetLineForm();
+      await loadAll();
+    } catch (error) {
+      setLineFormError(error instanceof Error ? error.message : "No se pudo guardar la línea.");
+    } finally {
+      setLineSaving(false);
+    }
+  };
+
+  const handleDeleteLine = async (row: MemberChargeForChargeRow) => {
+    const label = chargeLineDisplayName(row);
+    const hasPaid = (row.paid_amount ?? 0) > 0;
+    const ok = window.confirm(
+      hasPaid
+        ? `La línea "${label}" tiene ${formatMoney(row.paid_amount)} cobrado. Si la borrás, también se eliminan los pagos asociados. ¿Continuar?`
+        : `¿Eliminar la línea "${label}"?`
+    );
+    if (!ok) return;
+    setDeletingLineId(row.id);
+    setActionMessage(null);
+    try {
+      await deleteChargeLine(row.id);
+      setActionMessage("Línea eliminada.");
+      await loadAll();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar la línea.");
+    } finally {
+      setDeletingLineId(null);
+    }
+  };
+
+  const handleAssignExternalLine = async (lineId: string) => {
+    if (!externalAssignMemberId) {
+      return;
+    }
+    setActionMessage(null);
+    try {
+      await assignLineToMember(lineId, externalAssignMemberId);
+      setActionMessage("Línea reasignada al socio.");
+      setAssigningExternalLineId(null);
+      setExternalAssignMemberId("");
+      await loadAll();
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "No se pudo reasignar la línea.");
+    }
   };
 
   const saveEdit = async () => {
@@ -678,11 +903,17 @@ export default function AdminChargeDetailPage() {
         <Card className="border border-slate-200/80 p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Miembros del cargo</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Líneas del cargo</h2>
               <p className="mt-1 text-sm text-slate-600">
-                {rows.length} miembro(s) · Pendientes {counts.pending} · Parciales {counts.partial} ·
-                Pagados {counts.paid}
+                {rows.length} línea(s) · Pendientes {counts.pending} · Parciales {counts.partial} ·
+                Pagadas {counts.paid}
               </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <ImportChargeLines chargeId={charge.id} onImported={() => void loadAll()} />
+              <Button type="button" size="sm" onClick={openAddLine}>
+                + Agregar línea
+              </Button>
             </div>
             <div
               className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
@@ -711,17 +942,96 @@ export default function AdminChargeDetailPage() {
             </div>
           </div>
 
-          {filteredRows.length === 0 ? (
-            <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-              No hay miembros para el filtro seleccionado.
-            </p>
+          {/* Sugerencia de bulk assign cuando hay nombres externos repetidos */}
+          {externalNameGroups.length > 0 ? (
+            <div className="mb-3 space-y-2">
+              {externalNameGroups.map((group) => (
+                <div
+                  key={group.displayName}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-info/20 bg-info/5 px-3 py-2 text-sm text-slate-800"
+                >
+                  <div className="min-w-0">
+                    <p>
+                      <span aria-hidden>💡</span> Hay{" "}
+                      <strong>{group.rows.length} líneas con nombre &ldquo;{group.displayName}&rdquo;</strong>,
+                      todas externas. ¿Asignarlas todas al mismo socio?
+                    </p>
+                    {bulkAssignName === group.displayName ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Select
+                          value={bulkAssignMemberId}
+                          onChange={(e) => setBulkAssignMemberId(e.target.value)}
+                          className="rounded-md border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 shadow-none focus:shadow-none"
+                        >
+                          <option value="">Elegí un socio…</option>
+                          {allMembers.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.full_name} · {m.dni}
+                            </option>
+                          ))}
+                        </Select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void handleBulkAssign()}
+                          disabled={!bulkAssignMemberId || bulkAssignSaving}
+                        >
+                          {bulkAssignSaving
+                            ? "Asignando..."
+                            : `Asignar las ${group.rows.length}`}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="neutral"
+                          onClick={() => setBulkAssignName(null)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {bulkAssignName !== group.displayName ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => openBulkAssign(group.displayName)}
+                    >
+                      Asignar todas
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {rows.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
+              <p className="text-base font-semibold text-slate-900">
+                Este cobro todavía no tiene líneas
+              </p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+                Cargá las líneas a mano (una por una) o importá una planilla con las columnas
+                Cantidad, Jugador, Talle, Pago, Debe.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <ImportChargeLines chargeId={charge.id} onImported={() => void loadAll()} />
+                <Button type="button" size="md" onClick={openAddLine}>
+                  + Agregar línea
+                </Button>
+              </div>
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <Alert variant="info">No hay líneas que coincidan con el filtro seleccionado.</Alert>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-3 py-2 font-semibold text-slate-700" aria-hidden />
-                    <th className="px-3 py-2 font-semibold text-slate-700">Miembro</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Comprador</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Detalle</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Cant.</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Total</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Pagado</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Restante</th>
@@ -736,7 +1046,7 @@ export default function AdminChargeDetailPage() {
                     const expanded = expandedMcId === row.id;
                     const history = historyByMc[row.id];
                     const waUrl =
-                      canPay && row.member.phone
+                      canPay && row.member?.phone
                         ? buildChargeDebtWhatsAppLink({
                             fullName: row.member.full_name,
                             phone: row.member.phone,
@@ -761,16 +1071,35 @@ export default function AdminChargeDetailPage() {
                             </Button>
                           </td>
                           <td className="px-3 py-2">
-                            <Link
-                              href={`/admin/socios/${row.member.id}`}
-                              className="font-medium text-slate-900 underline-offset-2 hover:underline"
-                            >
-                              {row.member.full_name}
-                            </Link>
-                            <p className="text-xs text-slate-500">
-                              DNI {row.member.dni} · {row.member.status === "active" ? "Activo" : "Pendiente"}
-                            </p>
+                            {row.member ? (
+                              <>
+                                <Link
+                                  href={`/admin/socios/${row.member.id}`}
+                                  className="font-medium text-slate-900 underline-offset-2 hover:underline"
+                                >
+                                  {row.member.full_name}
+                                </Link>
+                                <p className="text-xs text-slate-500">
+                                  DNI {row.member.dni} · {row.member.status === "active" ? "Activo" : "Pendiente"}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-medium text-slate-900">
+                                  {row.external_name || "Comprador externo"}
+                                </span>
+                                <p className="text-xs">
+                                  <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                                    Externo
+                                  </span>
+                                </p>
+                              </>
+                            )}
                           </td>
+                          <td className="px-3 py-2 text-sm text-slate-700">
+                            {row.description?.trim() || <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-slate-700">{row.quantity}</td>
                           <td className="px-3 py-2 tabular-nums text-slate-900">
                             {formatMoney(row.amount)}
                           </td>
@@ -794,31 +1123,91 @@ export default function AdminChargeDetailPage() {
                             </Badge>
                           </td>
                           <td className="px-3 py-2 align-top">
-                            <div className="flex min-w-[10.5rem] gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openPayModal(row)}
-                                disabled={!canPay}
-                                className="rounded-md bg-success px-2.5 py-1.5 text-center text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Registrar pago
-                              </button>
-                              {waUrl ? (
-                                <a
-                                  href={waUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="rounded-md border border-success bg-success/10 px-2.5 py-1.5 text-center text-xs font-semibold text-success transition-colors hover:bg-success/15"
+                            <div className="flex min-w-[10.5rem] flex-col gap-1.5">
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openPayModal(row)}
+                                  disabled={!canPay}
+                                  className="rounded-md bg-success px-2.5 py-1.5 text-center text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  WhatsApp
-                                </a>
-                              ) : canPay ? (
-                                <span
-                                  className="text-[11px] leading-tight text-slate-500"
-                                  title="El socio no tiene teléfono configurado"
+                                  Registrar pago
+                                </button>
+                                {waUrl ? (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="rounded-md border border-success bg-success/10 px-2.5 py-1.5 text-center text-xs font-semibold text-success transition-colors hover:bg-success/15"
+                                  >
+                                    WhatsApp
+                                  </a>
+                                ) : canPay && row.member ? (
+                                  <span
+                                    className="text-[11px] leading-tight text-slate-500"
+                                    title="El socio no tiene teléfono configurado"
+                                  >
+                                    Sin teléfono para WhatsApp
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="neutral"
+                                  onClick={() => openEditLine(row)}
                                 >
-                                  Sin teléfono para WhatsApp
-                                </span>
+                                  Editar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => void handleDeleteLine(row)}
+                                  disabled={deletingLineId === row.id}
+                                >
+                                  {deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
+                                </Button>
+                                {!row.member ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="neutral"
+                                    onClick={() => {
+                                      setAssigningExternalLineId(
+                                        assigningExternalLineId === row.id ? null : row.id
+                                      );
+                                      setExternalAssignMemberId("");
+                                    }}
+                                  >
+                                    {assigningExternalLineId === row.id ? "Cancelar" : "Asignar a socio"}
+                                  </Button>
+                                ) : null}
+                              </div>
+                              {assigningExternalLineId === row.id ? (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <Select
+                                    value={externalAssignMemberId}
+                                    onChange={(e) => setExternalAssignMemberId(e.target.value)}
+                                    className="rounded-md border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 shadow-none focus:shadow-none"
+                                  >
+                                    <option value="">Elegí un socio…</option>
+                                    {allMembers.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.full_name} · {m.dni}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => void handleAssignExternalLine(row.id)}
+                                    disabled={!externalAssignMemberId}
+                                  >
+                                    Confirmar
+                                  </Button>
+                                </div>
                               ) : null}
                             </div>
                           </td>
@@ -826,7 +1215,7 @@ export default function AdminChargeDetailPage() {
 
                         {expanded ? (
                           <tr className="bg-slate-50/90">
-                            <td colSpan={7} className="px-3 py-3 text-sm text-slate-700">
+                            <td colSpan={9} className="px-3 py-3 text-sm text-slate-700">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Historial de pagos
                               </p>
@@ -943,7 +1332,7 @@ export default function AdminChargeDetailPage() {
         open={payModalRow !== null}
         onClose={closePayModal}
         title="Registrar pago"
-        subtitle={payModalRow?.member.full_name ?? null}
+        subtitle={payModalRow ? chargeLineDisplayName(payModalRow) : null}
         pendingAmount={payModalRow ? remainingAmount(payModalRow) : 0}
         onConfirm={submitPayment}
       />
@@ -1029,6 +1418,135 @@ export default function AdminChargeDetailPage() {
           </Button>
           <Button type="button" size="md" onClick={() => void saveEdit()} disabled={editSaving}>
             {editSaving ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      </AdminModal>
+
+      <AdminModal open={lineModalOpen} onClose={closeLineModal}>
+        <h2 className="text-lg font-semibold text-slate-900">
+          {lineEditingId ? "Editar línea" : "Agregar línea"}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          {lineEditingId
+            ? "Modificá los datos de esta línea. Los pagos asociados (si los hay) no se tocan."
+            : "Sumá una línea a este cargo. Si el comprador no es socio del club, usá el modo 'Externo' y reasignalo después."}
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <p className="mb-1 text-sm font-medium text-slate-700">Tipo de comprador</p>
+            <div className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setLineMode("member")}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  lineMode === "member" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Socio del club
+              </button>
+              <button
+                type="button"
+                onClick={() => setLineMode("external")}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  lineMode === "external" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Externo
+              </button>
+            </div>
+          </div>
+
+          {lineMode === "member" ? (
+            <div>
+              <label htmlFor="line-member" className="mb-1 block text-sm font-medium text-slate-700">
+                Socio <span className="text-danger">*</span>
+              </label>
+              <Select
+                id="line-member"
+                value={lineMemberId}
+                onChange={(e) => setLineMemberId(e.target.value)}
+                className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
+              >
+                <option value="">Elegí un socio…</option>
+                {allMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name} · DNI {m.dni}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="line-external" className="mb-1 block text-sm font-medium text-slate-700">
+                Nombre del comprador <span className="text-danger">*</span>
+              </label>
+              <Input
+                id="line-external"
+                value={lineExternalName}
+                onChange={(e) => setLineExternalName(e.target.value)}
+                placeholder='Ej. "Hueso", "Diame x Lucho"'
+                className="text-sm"
+              />
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="line-description" className="mb-1 block text-sm font-medium text-slate-700">
+              Detalle / talle
+            </label>
+            <Input
+              id="line-description"
+              value={lineDescription}
+              onChange={(e) => setLineDescription(e.target.value)}
+              placeholder="Ej. XXL, M, Talle único"
+              className="text-sm"
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="line-quantity" className="mb-1 block text-sm font-medium text-slate-700">
+                Cantidad <span className="text-danger">*</span>
+              </label>
+              <Input
+                id="line-quantity"
+                type="number"
+                min="1"
+                value={lineQuantity}
+                onChange={(e) => setLineQuantity(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="line-amount" className="mb-1 block text-sm font-medium text-slate-700">
+                Total de la línea <span className="text-danger">*</span>
+              </label>
+              <Input
+                id="line-amount"
+                type="text"
+                inputMode="decimal"
+                value={lineAmount}
+                onChange={(e) => setLineAmount(e.target.value)}
+                placeholder="Ej. 60000"
+                className="text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        {lineFormError ? (
+          <Alert variant="danger" className="mt-3">
+            {lineFormError}
+          </Alert>
+        ) : null}
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <Button type="button" variant="neutral" size="md" onClick={closeLineModal} disabled={lineSaving}>
+            Cancelar
+          </Button>
+          <Button type="button" size="md" onClick={() => void handleSaveLine()} disabled={lineSaving}>
+            {lineSaving ? "Guardando..." : lineEditingId ? "Guardar cambios" : "Agregar línea"}
           </Button>
         </div>
       </AdminModal>

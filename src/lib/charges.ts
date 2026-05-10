@@ -134,20 +134,36 @@ export type ChargePaymentWithContext = ChargePaymentRow & {
 
 export type MemberChargeForChargeRow = {
   id: string;
-  member_id: string;
+  /** Null cuando es una línea de comprador externo. */
+  member_id: string | null;
   charge_id: string;
   amount: number;
   paid_amount: number;
   status: MemberChargeStatus;
+  /** Nombre libre cuando member_id es null (ej. "Hueso", "Diame x Lucho"). */
+  external_name: string | null;
+  /** Talle u observación de la línea. */
+  description: string | null;
+  /** Cantidad por línea (default 1). */
+  quantity: number;
   created_at: string;
+  /** Null para líneas externas. */
   member: {
     id: string;
     full_name: string;
     dni: string;
     phone: string | null;
     status: "pending" | "active";
-  };
+  } | null;
 };
+
+/** Etiqueta para mostrar el "comprador" de una línea (socio o externo). */
+export function chargeLineDisplayName(row: MemberChargeForChargeRow): string {
+  if (row.member) {
+    return row.member.full_name;
+  }
+  return row.external_name?.trim() || "Comprador externo";
+}
 
 const CHARGE_PAYMENTS_WITH_CONTEXT_SELECT = `
   id,
@@ -817,6 +833,9 @@ const MEMBER_CHARGES_FOR_CHARGE_SELECT = `
   amount,
   paid_amount,
   status,
+  external_name,
+  description,
+  quantity,
   created_at,
   members (
     id,
@@ -829,11 +848,14 @@ const MEMBER_CHARGES_FOR_CHARGE_SELECT = `
 
 type RawMemberChargeForChargeRow = {
   id: string;
-  member_id: string;
+  member_id: string | null;
   charge_id: string;
   amount: unknown;
   paid_amount: unknown;
   status: MemberChargeStatus;
+  external_name: string | null;
+  description: string | null;
+  quantity: unknown;
   created_at: string;
   members: {
     id: string;
@@ -846,10 +868,8 @@ type RawMemberChargeForChargeRow = {
 
 function mapRawMemberChargeForCharge(
   row: RawMemberChargeForChargeRow
-): MemberChargeForChargeRow | null {
-  if (!row.members) {
-    return null;
-  }
+): MemberChargeForChargeRow {
+  const qty = Number(row.quantity);
   return {
     id: row.id,
     member_id: row.member_id,
@@ -857,6 +877,9 @@ function mapRawMemberChargeForCharge(
     amount: normalizeAmount(row.amount),
     paid_amount: normalizeAmount(row.paid_amount),
     status: row.status,
+    external_name: row.external_name,
+    description: row.description,
+    quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
     created_at: row.created_at,
     member: row.members,
   };
@@ -875,7 +898,7 @@ function sortMemberChargesForCharge(a: MemberChargeForChargeRow, b: MemberCharge
   if (aRem !== bRem) {
     return bRem - aRem;
   }
-  return a.member.full_name.localeCompare(b.member.full_name, "es");
+  return chargeLineDisplayName(a).localeCompare(chargeLineDisplayName(b), "es");
 }
 
 export async function getMemberChargesForCharge(chargeId: string): Promise<MemberChargeForChargeRow[]> {
@@ -890,10 +913,7 @@ export async function getMemberChargesForCharge(chargeId: string): Promise<Membe
   }
 
   const rows = (data ?? []) as unknown as RawMemberChargeForChargeRow[];
-  return rows
-    .map(mapRawMemberChargeForCharge)
-    .filter((row): row is MemberChargeForChargeRow => row !== null)
-    .sort(sortMemberChargesForCharge);
+  return rows.map(mapRawMemberChargeForCharge).sort(sortMemberChargesForCharge);
 }
 
 export async function getMissingMembersForCharge(params: {
@@ -1178,8 +1198,20 @@ export async function createCharge(payload: {
   type: "per_member" | "total";
   /** `null` = todos los socios **activos** (sin filtrar por grupo deportivo). */
   group_id: string | null;
+  /**
+   * Si viene con ids, el cobro se asigna solo a esas personas activas.
+   * Sirve para el wizard de "cobro simple" cuando el grupo es un atajo pero
+   * el tesorero necesita sumar/quitar nombres antes de confirmar.
+   */
+  member_ids?: string[];
   due_date?: string | null;
   definition_category: CreateChargeDefinitionCategory;
+  /**
+   * Si es `false`, el cargo se crea sin generar líneas en `member_charges`.
+   * Útil para pedidos heterogéneos (camperas, indumentaria) donde el admin
+   * va a cargar las líneas a mano o vía importador. Default: `true`.
+   */
+  auto_assign_lines?: boolean;
 }) {
   if (payload.definition_category === "membership") {
     throw new Error("No se puede crear cuota del club manualmente");
@@ -1234,9 +1266,30 @@ export async function createCharge(payload: {
 
   const chargeId = created.id as string;
 
-  let memberIds: string[] = [];
+  // Si el admin pidió crear el cargo sin líneas, devolvemos el id y listo:
+  // las líneas las va a cargar a mano o vía importador.
+  if (payload.auto_assign_lines === false) {
+    return { id: chargeId };
+  }
 
-  if (groupId) {
+  let memberIds: string[] = [];
+  const explicitMemberIds = [...new Set((payload.member_ids ?? []).map((id) => id.trim()).filter(Boolean))];
+
+  if (explicitMemberIds.length > 0) {
+    const { data: selectedMembers, error: selectedErr } = await supabase
+      .from("members")
+      .select("id")
+      .in("id", explicitMemberIds)
+      .eq("status", "active");
+
+    if (selectedErr) {
+      await supabase.from("charges").delete().eq("id", chargeId);
+      await supabase.from("charge_definitions").delete().eq("id", definitionId);
+      throw selectedErr;
+    }
+
+    memberIds = [...new Set((selectedMembers ?? []).map((row) => row.id))];
+  } else if (groupId) {
     const { data: groupMembers, error: membersError } = await supabase
       .from("member_groups")
       .select("member_id")
@@ -1334,6 +1387,203 @@ export async function deleteCharge(chargeId: string) {
     throw delMcError;
   }
   const { error } = await supabase.from("charges").delete().eq("id", chargeId);
+  if (error) {
+    throw error;
+  }
+}
+
+// =============================================================================
+// CRUD de líneas (member_charges) para cargos manuales tipo "pedido".
+//
+// Una línea representa una "cosa que alguien compra/debe":
+//   - Si es socio del club: member_id apunta al socio.
+//   - Si es comprador externo: member_id null + external_name con el nombre
+//     que viene en la planilla.
+//
+// Para cuotas mensuales no se llaman estas funciones — el flujo automático
+// (generate_monthly_membership_charges + trigger de activación) sigue
+// armando líneas igual que antes.
+// =============================================================================
+
+export type ChargeLineInput = {
+  /** Pasar member_id O external_name. Si pasás ambos, gana member_id (la línea es de socio). */
+  member_id?: string | null;
+  external_name?: string | null;
+  description?: string | null;
+  /** Cantidad de unidades de la línea. Default 1. Debe ser > 0. */
+  quantity?: number;
+  /** Total de la línea (no unitario). El admin puede teclear el valor que quiera. */
+  amount: number;
+};
+
+function normalizeLinePayload(payload: ChargeLineInput) {
+  const memberId = payload.member_id?.trim() || null;
+  const externalName = memberId ? null : payload.external_name?.trim() || null;
+  if (!memberId && !externalName) {
+    throw new Error("Indicá un socio o un nombre de comprador externo.");
+  }
+  const description = payload.description?.trim() || null;
+  const quantity = Number.isFinite(payload.quantity) && (payload.quantity ?? 0) > 0
+    ? Math.floor(payload.quantity as number)
+    : 1;
+  const amount = roundMoney(payload.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("El monto de la línea debe ser mayor a cero.");
+  }
+  return { memberId, externalName, description, quantity, amount };
+}
+
+/** Crea una línea (member_charges) en un cargo existente. Devuelve el id creado. */
+export async function addChargeLine(chargeId: string, payload: ChargeLineInput): Promise<string> {
+  const supabase = getSupabaseClient();
+  const { memberId, externalName, description, quantity, amount } = normalizeLinePayload(payload);
+
+  const { data, error } = await supabase
+    .from("member_charges")
+    .insert({
+      charge_id: chargeId,
+      member_id: memberId,
+      external_name: externalName,
+      description,
+      quantity,
+      amount,
+      paid_amount: 0,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw error ?? new Error("No se pudo crear la línea.");
+  }
+  return data.id as string;
+}
+
+/** Bulk insert (usado por el importador xlsx). */
+export async function addChargeLinesBulk(chargeId: string, lines: ChargeLineInput[]) {
+  if (lines.length === 0) return;
+  const supabase = getSupabaseClient();
+  const rows = lines.map((line) => {
+    const { memberId, externalName, description, quantity, amount } = normalizeLinePayload(line);
+    return {
+      charge_id: chargeId,
+      member_id: memberId,
+      external_name: externalName,
+      description,
+      quantity,
+      amount,
+      paid_amount: 0,
+      status: "pending" as const,
+    };
+  });
+  const { error } = await supabase.from("member_charges").insert(rows);
+  if (error) {
+    throw error;
+  }
+}
+
+/**
+ * Actualiza metadatos de una línea (no toca paid_amount/status; eso lo
+ * mantiene register_charge_payment).
+ */
+export async function updateChargeLine(
+  lineId: string,
+  patch: {
+    member_id?: string | null;
+    external_name?: string | null;
+    description?: string | null;
+    quantity?: number;
+    amount?: number;
+  }
+) {
+  const supabase = getSupabaseClient();
+  const updates: Record<string, unknown> = {};
+
+  if (patch.member_id !== undefined || patch.external_name !== undefined) {
+    // Si tocan cualquiera de los dos, recalculamos los dos para no quedar
+    // inconsistentes con el CHECK constraint.
+    const mid = patch.member_id?.trim() || null;
+    const ext = mid ? null : patch.external_name?.trim() || null;
+    if (!mid && !ext) {
+      throw new Error("La línea necesita un socio o un nombre de comprador externo.");
+    }
+    updates.member_id = mid;
+    updates.external_name = ext;
+  }
+  if (patch.description !== undefined) {
+    updates.description = patch.description?.trim() || null;
+  }
+  if (patch.quantity !== undefined) {
+    if (!Number.isFinite(patch.quantity) || patch.quantity <= 0) {
+      throw new Error("La cantidad debe ser mayor a cero.");
+    }
+    updates.quantity = Math.floor(patch.quantity);
+  }
+  if (patch.amount !== undefined) {
+    const amt = roundMoney(patch.amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      throw new Error("El monto de la línea debe ser mayor a cero.");
+    }
+    updates.amount = amt;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.from("member_charges").update(updates).eq("id", lineId);
+  if (error) {
+    throw error;
+  }
+}
+
+/**
+ * Reasigna una línea externa a un socio del club (caso típico: importé la
+ * planilla, "Hueso" no se matcheó automáticamente, después busco el socio y
+ * lo asigno desde la fila).
+ */
+export async function assignLineToMember(lineId: string, memberId: string) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("member_charges")
+    .update({ member_id: memberId, external_name: null })
+    .eq("id", lineId);
+  if (error) {
+    throw error;
+  }
+}
+
+/** Convierte una línea de socio en línea externa (caso raro pero útil). */
+export async function unassignLineFromMember(lineId: string, externalName: string) {
+  const supabase = getSupabaseClient();
+  const trimmed = externalName.trim();
+  if (!trimmed) {
+    throw new Error("Indicá un nombre para la línea externa.");
+  }
+  const { error } = await supabase
+    .from("member_charges")
+    .update({ member_id: null, external_name: trimmed })
+    .eq("id", lineId);
+  if (error) {
+    throw error;
+  }
+}
+
+/**
+ * Borra una línea. Antes de eliminarla, borra los charge_payments asociados
+ * para no dejar pagos huérfanos. Si la línea tiene pagos, conviene avisarle
+ * al admin desde la UI.
+ */
+export async function deleteChargeLine(lineId: string) {
+  const supabase = getSupabaseClient();
+  const { error: delPayments } = await supabase
+    .from("charge_payments")
+    .delete()
+    .eq("member_charge_id", lineId);
+  if (delPayments) {
+    throw delPayments;
+  }
+  const { error } = await supabase.from("member_charges").delete().eq("id", lineId);
   if (error) {
     throw error;
   }

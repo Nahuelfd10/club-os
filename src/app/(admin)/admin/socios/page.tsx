@@ -58,6 +58,7 @@ export default function SociosPage() {
   const [otherDebtFilter, setOtherDebtFilter] = useState<DebtSliceFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadAdminData = useCallback(async () => {
     setErrorMessage(null);
@@ -141,6 +142,9 @@ export default function SociosPage() {
         )
       );
       setActiveTab("directorio");
+      setActionMessage(
+        "Socio aprobado. La cuota mensual se asigna segun la regla vigente del club; no se cobra retroactivo automaticamente."
+      );
     } catch (error) {
       console.error("Error al aprobar socio:", error);
     } finally {
@@ -188,6 +192,12 @@ export default function SociosPage() {
         {!isLoading && errorMessage ? (
           <Alert className="mt-4" variant="danger">
             {errorMessage}
+          </Alert>
+        ) : null}
+
+        {!isLoading && actionMessage ? (
+          <Alert className="mt-4" variant="success">
+            {actionMessage}
           </Alert>
         ) : null}
 

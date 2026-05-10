@@ -241,3 +241,14 @@ Estos puntos surgen de cruzar el frontend, los tipos TypeScript y las migracione
 ---
 
 *Última actualización alineada al código del repositorio Club OS (revisión estática).*
+ 
+## Actualizacion de modelo de producto - 2026-05-10
+
+El admin se reorganiza bajo el principio **Cobros primero**:
+
+- **Socios**: padron, solicitudes y estado de deuda.
+- **Cobros** (`/admin/charges`): cuota mensual, cobros simples y pedidos/indumentaria.
+- **Caja** (`/admin/expenses`): ingresos reales desde pagos registrados y egresos manuales.
+- **Grupos**: atajos para asignar cobros, no una obligacion para operar.
+
+El usuario objetivo es un tesorero no tecnico. La UI debe hablar de cobros, pedidos, lineas, pagos, deuda y egresos.

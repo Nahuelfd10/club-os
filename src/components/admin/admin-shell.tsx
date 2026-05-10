@@ -35,9 +35,9 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/socios", label: "Socios", icon: Users },
+  { href: "/admin/charges", label: "Cobros", icon: Receipt },
+  { href: "/admin/expenses", label: "Caja", icon: ArrowDownCircle },
   { href: "/admin/groups", label: "Grupos", icon: UsersRound },
-  { href: "/admin/charges", label: "Cargos", icon: Receipt },
-  { href: "/admin/expenses", label: "Movimientos", icon: ArrowDownCircle },
   { href: "/admin/settings", label: "Ajustes", icon: Settings },
 ];
 

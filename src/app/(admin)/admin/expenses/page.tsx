@@ -311,15 +311,15 @@ export default function AdminExpensesPage() {
   return (
     <section className="space-y-4">
       <PageHeader
-        title="Movimientos"
-        description="Ingresos y egresos reales del club, leídos desde los registros existentes sin duplicarlos."
+        title="Caja"
+        description="Ingresos y egresos reales del club. Los ingresos salen de pagos registrados; los egresos son gastos manuales."
         actions={
           <button
             type="button"
             onClick={openCreate}
             className={buttonClassNames({ variant: "primary", size: "lg" })}
           >
-            Nuevo egreso
+            Registrar egreso
           </button>
         }
       />
@@ -328,7 +328,7 @@ export default function AdminExpensesPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Filtros</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Lectura de caja</p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <label htmlFor="movements-month" className="text-sm font-medium text-slate-300">
                   Mes
@@ -395,10 +395,10 @@ export default function AdminExpensesPage() {
           <EmptyState
             className="mt-4"
             title="No hay movimientos para este filtro"
-            description="Los ingresos se leen desde pagos registrados y los egresos desde la sección administrativa del club."
+            description="Los ingresos aparecen cuando registrás pagos en Cobros. Los egresos se cargan acá como gastos reales."
             actions={
               <Button type="button" size="md" onClick={openCreate}>
-                Nuevo egreso
+                Registrar egreso
               </Button>
             }
           />
@@ -503,8 +503,10 @@ export default function AdminExpensesPage() {
       </Card>
 
       <AdminModal open={modalOpen} onClose={closeModal}>
-        <h2 className="text-lg font-semibold text-white">{editing ? "Editar egreso" : "Nuevo egreso"}</h2>
-        <p className="mt-1 text-sm text-slate-300">Completá los datos del movimiento de egreso.</p>
+        <h2 className="text-lg font-semibold text-white">{editing ? "Editar egreso" : "Registrar egreso"}</h2>
+        <p className="mt-1 text-sm text-slate-300">
+          Un egreso es plata que salió del club. Si está relacionado con un cobro o pedido, podés vincularlo sin crear deuda nueva.
+        </p>
 
         <div className="mt-4 space-y-3">
           <div>

@@ -204,26 +204,41 @@ export type Database = {
       member_charges: {
         Row: {
           id: string;
-          member_id: string;
+          /** Null cuando es un comprador externo (ver external_name). */
+          member_id: string | null;
           charge_id: string;
           amount: number;
           paid_amount: number;
           status: "pending" | "partial" | "paid";
+          /** Nombre del comprador cuando no es socio (sólo se usa si member_id es null). */
+          external_name: string | null;
+          /** Talle u observación libre de la línea. */
+          description: string | null;
+          /** Cantidad por línea (ej. "2 camperas talle M"). */
+          quantity: number;
           created_at: string;
         };
         Insert: {
           id?: string;
-          member_id: string;
+          /** Mutuamente excluyente con external_name a nivel CHECK constraint. */
+          member_id?: string | null;
           charge_id: string;
           amount: number;
           paid_amount?: number;
           status?: "pending" | "partial" | "paid";
+          external_name?: string | null;
+          description?: string | null;
+          quantity?: number;
           created_at?: string;
         };
         Update: {
+          member_id?: string | null;
           amount?: number;
           paid_amount?: number;
           status?: "pending" | "partial" | "paid";
+          external_name?: string | null;
+          description?: string | null;
+          quantity?: number;
         };
         Relationships: [];
       };

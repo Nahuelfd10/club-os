@@ -41,7 +41,7 @@ export async function getActiveClubConfig(): Promise<ActiveClubConfig> {
       monthly_due_day: settings.monthly_due_day ?? fallbackClubConfig.monthly_due_day,
       primary_color: settings.primary_color || fallbackClubConfig.primary_color,
       accent_color: settings.accent_color || fallbackClubConfig.accent_color,
-      logo: logoFromDb,
+      logo: logoFromDb || fallbackClubConfig.logo,
       payment_alias: aliasTrimmed || null,
     };
   } catch {
