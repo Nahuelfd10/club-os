@@ -10,7 +10,7 @@ import {
   paymentMethodLabel,
   type ClubPaymentMethod,
 } from "@/config/payment-method";
-import { Badge, Button, Input } from "@/components/ui";
+import { Badge, Button, Input, TableContainer } from "@/components/ui";
 import {
   formatBillingPeriod,
   getChargePaymentsByMemberChargeId,
@@ -359,7 +359,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
         ) : visibleRows.length === 0 ? (
           <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto">
+          <TableContainer className="mt-4">
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50">
                 <tr>
@@ -449,7 +449,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                 })}
               </tbody>
             </table>
-          </div>
+          </TableContainer>
         )}
 
         {futureRows.length > 0 ? (
@@ -467,7 +467,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
             </div>
 
             {showFuture ? (
-              <div className="mt-4 overflow-x-auto">
+              <TableContainer className="mt-4">
                 <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                   <thead className="bg-slate-50">
                     <tr>
@@ -557,7 +557,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                     })}
                   </tbody>
                 </table>
-              </div>
+              </TableContainer>
             ) : null}
           </div>
         ) : null}

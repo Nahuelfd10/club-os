@@ -5,7 +5,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { Badge } from "@/components/ui";
+import { Badge, TableContainer } from "@/components/ui";
 import {
   getChargePaymentsByMemberChargeId,
   getMemberChargesForMember,
@@ -314,7 +314,7 @@ export function MemberChargesSection({
         ) : filteredRows.length === 0 ? (
           <p className="text-sm text-slate-600">Ningún cargo coincide con los filtros.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <TableContainer>
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50">
                 <tr>
@@ -464,7 +464,7 @@ export function MemberChargesSection({
                 })}
               </tbody>
             </table>
-          </div>
+          </TableContainer>
         )}
       </section>
 

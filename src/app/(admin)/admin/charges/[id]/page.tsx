@@ -9,7 +9,7 @@ import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { ImportChargeLines } from "@/components/admin/import-charge-lines";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { Alert, Badge, Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Select, TableContainer, Textarea } from "@/components/ui";
 import {
   addChargeLine,
   assignChargeToMissingMembers,
@@ -855,7 +855,7 @@ export default function AdminChargeDetailPage() {
               No hay egresos asociados a este cargo.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <TableContainer>
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50">
                   <tr>
@@ -896,7 +896,7 @@ export default function AdminChargeDetailPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableContainer>
           )}
         </Card>
 
@@ -1024,7 +1024,7 @@ export default function AdminChargeDetailPage() {
           ) : filteredRows.length === 0 ? (
             <Alert variant="info">No hay líneas que coincidan con el filtro seleccionado.</Alert>
           ) : (
-            <div className="overflow-x-auto">
+            <TableContainer>
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50">
                   <tr>
@@ -1248,7 +1248,7 @@ export default function AdminChargeDetailPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableContainer>
           )}
         </Card>
 

@@ -10,8 +10,10 @@ import {
   Badge,
   EmptyState,
   Input,
+  SegmentedControl,
   Table,
   TableBody,
+  TableContainer,
   TableHead,
   TableRow,
   Td,
@@ -66,49 +68,6 @@ function registerDate(date: string) {
 function csvEscape(value: string | number) {
   const text = String(value ?? "");
   return `"${text.replaceAll('"', '""')}"`;
-}
-
-function FilterSegment<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string; tone?: "default" | "accent" | "success" }[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white shadow-[0_8px_24px_-22px_rgba(15,23,42,0.45)]">
-      <span className="border-r border-slate-200 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-1 p-1">
-        {options.map((option) => {
-          const active = value === option.value;
-          const activeClass =
-            option.tone === "success"
-              ? "bg-success text-white"
-              : option.tone === "accent"
-                ? "bg-accent text-white"
-                : "bg-slate-950 text-white";
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange(option.value)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                active ? activeClass : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 export default function SociosPage() {
@@ -335,20 +294,22 @@ export default function SociosPage() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             {activeTab === "directorio" ? (
               <div className="flex flex-wrap gap-2">
-                <FilterSegment
+                <SegmentedControl
                   label="Cuota"
                   value={membershipFilter}
                   onChange={setMembershipFilter}
+                  ariaLabel="Filtrar por estado de cuota"
                   options={[
                     { value: "all", label: "Todos" },
                     { value: "in_debt", label: "Debe", tone: "accent" },
                     { value: "up_to_date", label: "Al día", tone: "success" },
                   ]}
                 />
-                <FilterSegment
+                <SegmentedControl
                   label="Cargos"
                   value={otherDebtFilter}
                   onChange={setOtherDebtFilter}
+                  ariaLabel="Filtrar por saldo de cargos"
                   options={[
                     { value: "all", label: "Todos" },
                     { value: "in_debt", label: "Con deuda", tone: "accent" },
@@ -397,8 +358,7 @@ export default function SociosPage() {
                 description="Probá limpiando filtros o cambiando el término de búsqueda."
               />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="overflow-x-auto">
+              <TableContainer>
                   <Table>
                     <TableHead>
                       <TableRow>
@@ -476,8 +436,7 @@ export default function SociosPage() {
                       })}
                     </TableBody>
                   </Table>
-                </div>
-              </div>
+              </TableContainer>
             )
           ) : filteredSolicitudes.length === 0 ? (
             <EmptyState
@@ -485,8 +444,7 @@ export default function SociosPage() {
               description="Las nuevas altas aparecerán aquí cuando envíen el formulario de registro."
             />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="overflow-x-auto">
+            <TableContainer>
                 <Table>
                   <TableHead>
                     <TableRow>
@@ -530,8 +488,7 @@ export default function SociosPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
-            </div>
+            </TableContainer>
           )}
         </>
       ) : null}

@@ -7,5 +7,6 @@ export { FormField } from "./form-field";
 export { Input } from "./input";
 export { PageHeader } from "./page-header";
 export { Select } from "./select";
-export { Table, TableBody, TableHead, TableRow, Td, Th } from "./table";
+export { SegmentedControl } from "./segmented-control";
+export { Table, TableBody, TableContainer, TableHead, TableRow, Td, Th } from "./table";
 export { Textarea } from "./textarea";

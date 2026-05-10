@@ -14,6 +14,7 @@ import {
   Select,
   Table,
   TableBody,
+  TableContainer,
   TableHead,
   TableRow,
   Td,
@@ -405,7 +406,7 @@ export default function AdminExpensesPage() {
         ) : null}
 
         {!isLoading && !errorMessage && filteredMovements.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
+          <TableContainer className="mt-4">
             <Table>
               <TableHead>
                 <TableRow>
@@ -423,7 +424,7 @@ export default function AdminExpensesPage() {
                   const expense = movement.sourceExpense;
                   const canEditExpense = movement.type === "expense" && expense;
                   return (
-                    <TableRow key={movement.id} className="transition-colors hover:bg-white/[0.04]">
+                    <TableRow key={movement.id} className="transition-colors hover:bg-slate-50">
                       <Td>
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -435,13 +436,13 @@ export default function AdminExpensesPage() {
                           {movement.type === "income" ? "Ingreso" : "Egreso"}
                         </span>
                       </Td>
-                      <Td className="font-medium text-white">{movement.concept}</Td>
-                      <Td className="text-slate-300">{movement.detail}</Td>
-                      <Td className="text-slate-300">
+                      <Td className="font-medium text-slate-950">{movement.concept}</Td>
+                      <Td className="text-slate-600">{movement.detail}</Td>
+                      <Td className="text-slate-600">
                         {movement.charge ? (
                           <Link
                             href={`/admin/charges/${movement.charge.id}`}
-                            className="underline-offset-2 hover:text-white hover:underline"
+                            className="underline-offset-2 hover:text-slate-950 hover:underline"
                           >
                             {movement.charge.name}
                           </Link>
@@ -457,7 +458,7 @@ export default function AdminExpensesPage() {
                         {movement.type === "income" ? "+" : "-"}
                         {formatMoney(movement.amount)}
                       </Td>
-                      <Td className="text-slate-300">
+                      <Td className="text-slate-600">
                         {movement.type === "income"
                           ? formatMovementDateTime(movement.happened_at)
                           : formatExpenseDate(movement.happened_at.slice(0, 10))}
@@ -467,7 +468,7 @@ export default function AdminExpensesPage() {
                           {movement.charge ? (
                             <Link
                               href={`/admin/charges/${movement.charge.id}`}
-                              className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                              className={buttonClassNames({ variant: "neutral", size: "sm" })}
                             >
                               Ver cargo
                             </Link>
@@ -477,7 +478,7 @@ export default function AdminExpensesPage() {
                               <button
                                 type="button"
                                 onClick={() => openEdit(expense)}
-                                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                                className={buttonClassNames({ variant: "neutral", size: "sm" })}
                               >
                                 Editar
                               </button>
@@ -498,7 +499,7 @@ export default function AdminExpensesPage() {
                 })}
               </TableBody>
             </Table>
-          </div>
+          </TableContainer>
         ) : null}
       </Card>
 

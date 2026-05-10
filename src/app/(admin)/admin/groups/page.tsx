@@ -14,6 +14,7 @@ import {
   PageHeader,
   Table,
   TableBody,
+  TableContainer,
   TableHead,
   TableRow,
   Td,
@@ -164,7 +165,7 @@ export default function AdminGroupsPage() {
         ) : null}
 
         {!isLoading && !errorMessage && groups.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
+          <TableContainer className="mt-4">
             <Table>
               <TableHead>
                 <TableRow>
@@ -176,19 +177,19 @@ export default function AdminGroupsPage() {
               </TableHead>
               <TableBody>
                 {groups.map((group) => (
-                  <TableRow key={group.id} className="transition-colors hover:bg-white/[0.04]">
-                    <Td className="font-medium text-white">{group.name}</Td>
-                    <Td className="max-w-md text-slate-300">
+                  <TableRow key={group.id} className="transition-colors hover:bg-slate-50">
+                    <Td className="font-medium text-slate-950">{group.name}</Td>
+                    <Td className="max-w-md text-slate-600">
                       {group.description?.trim() ? group.description : (
                         <span className="text-slate-500">—</span>
                       )}
                     </Td>
-                    <Td className="text-slate-300 tabular-nums">{group.memberCount}</Td>
+                    <Td className="text-slate-600 tabular-nums">{group.memberCount}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/admin/groups/${group.id}`}
-                          className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                          className={buttonClassNames({ variant: "neutral", size: "sm" })}
                         >
                           Ver detalle
                         </Link>
@@ -206,7 +207,7 @@ export default function AdminGroupsPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </TableContainer>
         ) : null}
       </Card>
 

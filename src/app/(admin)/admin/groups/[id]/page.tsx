@@ -5,7 +5,21 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Alert, Badge, Button, Card, Input, Select } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Select,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Td,
+  Th,
+} from "@/components/ui";
 import { getChargesByGroupId, type ChargeWithGroup } from "@/lib/charges";
 import {
   addMemberToGroup,
@@ -221,36 +235,36 @@ export default function AdminGroupDetailPage() {
         </p>
 
         {membersInGroup.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">DNI</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Acción</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+          <TableContainer className="mt-4">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <Th>Nombre</Th>
+                  <Th>DNI</Th>
+                  <Th>Estado</Th>
+                  <Th>Acción</Th>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {membersInGroup.map((row) => (
-                  <tr key={row.linkId}>
-                    <td className="px-3 py-2">
+                  <TableRow key={row.linkId} className="hover:bg-slate-50">
+                    <Td>
                       <Link
                         href={`/admin/socios/${row.member.id}`}
                         className="font-medium text-slate-900 underline-offset-2 hover:underline"
                       >
                         {row.member.full_name}
                       </Link>
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">{row.member.dni}</td>
-                    <td className="px-3 py-2">
+                    </Td>
+                    <Td className="text-slate-700">{row.member.dni}</Td>
+                    <Td>
                       {row.member.status === "active" ? (
                         <Badge variant="success">Activo</Badge>
                       ) : (
                         <Badge variant="warning">Pendiente</Badge>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
+                    </Td>
+                    <Td>
                       <Button
                         type="button"
                         size="sm"
@@ -260,12 +274,12 @@ export default function AdminGroupDetailPage() {
                       >
                         {removingKey === row.member.id ? "Quitando..." : "Quitar del grupo"}
                       </Button>
-                    </td>
-                  </tr>
+                    </Td>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : null}
       </Card>
 
@@ -278,28 +292,28 @@ export default function AdminGroupDetailPage() {
         </p>
 
         {groupCharges.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Nombre</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
-                  <th className="px-3 py-2 font-semibold text-slate-700">Vencimiento</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+          <TableContainer className="mt-4">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <Th>Nombre</Th>
+                  <Th>Monto</Th>
+                  <Th>Vencimiento</Th>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {groupCharges.map((charge) => (
-                  <tr key={charge.id}>
-                    <td className="px-3 py-2 font-medium text-slate-900">{charge.name}</td>
-                    <td className="px-3 py-2 tabular-nums text-slate-800">
+                  <TableRow key={charge.id} className="hover:bg-slate-50">
+                    <Td className="font-medium text-slate-900">{charge.name}</Td>
+                    <Td className="tabular-nums text-slate-800">
                       {formatMoney(charge.amount)}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">{formatChargeDueDate(charge.due_date)}</td>
-                  </tr>
+                    </Td>
+                    <Td className="text-slate-700">{formatChargeDueDate(charge.due_date)}</Td>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : null}
       </Card>
 

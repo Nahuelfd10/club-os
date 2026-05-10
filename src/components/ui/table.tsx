@@ -5,6 +5,11 @@ type TableProps = {
   className?: string;
 };
 
+type TableContainerProps = {
+  children: React.ReactNode;
+  className?: string;
+};
+
 type TableSectionProps = {
   children: React.ReactNode;
   className?: string;
@@ -29,12 +34,20 @@ export function Table({ children, className = "" }: TableProps) {
   );
 }
 
+export function TableContainer({ children, className = "" }: TableContainerProps) {
+  return (
+    <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white ${className}`.trim()}>
+      <div className="overflow-x-auto">{children}</div>
+    </div>
+  );
+}
+
 export function TableHead({ children, className = "" }: TableSectionProps) {
   return <thead className={`bg-slate-50 ${className}`.trim()}>{children}</thead>;
 }
 
 export function TableBody({ children, className = "" }: TableSectionProps) {
-  return <tbody className={`divide-y divide-slate-200 bg-transparent ${className}`.trim()}>{children}</tbody>;
+  return <tbody className={`divide-y divide-slate-100 bg-white ${className}`.trim()}>{children}</tbody>;
 }
 
 export function TableRow({ children, className = "", ...rest }: TableRowProps) {

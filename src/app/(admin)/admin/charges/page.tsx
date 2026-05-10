@@ -14,6 +14,7 @@ import {
   Select,
   Table,
   TableBody,
+  TableContainer,
   TableHead,
   TableRow,
   Td,
@@ -747,7 +748,7 @@ function ChargesTable({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <TableContainer>
       <Table>
         <TableHead>
           <TableRow>
@@ -764,41 +765,41 @@ function ChargesTable({
           {charges.map((charge) => {
             const progress = progressById[charge.id];
             return (
-              <TableRow key={charge.id} className="transition-colors hover:bg-white/[0.04]">
+              <TableRow key={charge.id} className="transition-colors hover:bg-slate-50">
                 <Td className="font-medium">
-                  <Link href={`/admin/charges/${charge.id}`} className="text-white underline-offset-2 hover:underline">
+                  <Link href={`/admin/charges/${charge.id}`} className="text-slate-950 underline-offset-2 hover:underline">
                     {charge.name}
                   </Link>
                 </Td>
-                {showCategory ? <Td className="text-slate-300">{categoryLabel(charge.category)}</Td> : null}
-                <Td className="text-slate-300">
+                {showCategory ? <Td className="text-slate-600">{categoryLabel(charge.category)}</Td> : null}
+                <Td className="text-slate-600">
                   {charge.group ? (
-                    <Link href={`/admin/groups/${charge.group.id}`} className="underline-offset-2 hover:text-white hover:underline">
+                    <Link href={`/admin/groups/${charge.group.id}`} className="underline-offset-2 hover:text-slate-950 hover:underline">
                       {charge.group.name}
                     </Link>
                   ) : (
                     "Todo el club / manual"
                   )}
                 </Td>
-                <Td className="text-slate-300">
+                <Td className="text-slate-600">
                   {progress && progress.totalMembers > 0 ? (
                     <span className="text-xs">
-                      <span className="font-semibold text-white">{progress.paidMembers} de {progress.totalMembers}</span>
+                      <span className="font-semibold text-slate-950">{progress.paidMembers} de {progress.totalMembers}</span>
                       {progress.partialMembers > 0 ? ` (${progress.partialMembers} parciales)` : ""}
                     </span>
                   ) : (
-                    <span className="text-slate-400">Sin lineas</span>
+                    <span className="text-slate-500">Sin lineas</span>
                   )}
                 </Td>
-                <Td className="tabular-nums text-white">{formatMoney(charge.amount)}</Td>
-                <Td className="text-slate-300">
+                <Td className="tabular-nums text-slate-950">{formatMoney(charge.amount)}</Td>
+                <Td className="text-slate-600">
                   {charge.billing_period ? formatBillingPeriod(charge.billing_period) : formatDueDate(charge.due_date)}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/admin/charges/${charge.id}`}
-                      className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                      className={buttonClassNames({ variant: "neutral", size: "sm" })}
                     >
                       Ver detalle
                     </Link>
@@ -817,6 +818,6 @@ function ChargesTable({
           })}
         </TableBody>
       </Table>
-    </div>
+    </TableContainer>
   );
 }
