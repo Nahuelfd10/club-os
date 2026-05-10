@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter, Space_Grotesk } from "next/font/google";
 
 import { getActiveClubConfig } from "@/config/active-club";
 import "@/styles/globals.css";
 
-const geistSans = Geist({
+const geistSans = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const clubDisplay = Bebas_Neue({
+const clubDisplay = Space_Grotesk({
   variable: "--font-club-display",
-  weight: "400",
+  weight: ["500", "600", "700"],
   subsets: ["latin"],
 });
 

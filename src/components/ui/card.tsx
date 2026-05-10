@@ -1,9 +1,9 @@
-import { ReactNode } from "react";
+import { HTMLAttributes, ReactNode } from "react";
 
 type CardVariant = "default" | "muted" | "hero";
 type CardPadding = "none" | "sm" | "md" | "lg";
 
-type CardProps = {
+type CardProps = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
   className?: string;
   variant?: CardVariant;
@@ -12,11 +12,11 @@ type CardProps = {
 
 const variantClassMap: Record<CardVariant, string> = {
   default:
-    "border border-white/75 bg-white/88 shadow-[0_22px_48px_-34px_rgba(15,23,42,0.35)] backdrop-blur",
+    "border border-slate-200 bg-white shadow-[0_16px_38px_-28px_rgba(15,23,42,0.28)]",
   muted:
-    "border border-slate-200/80 bg-slate-50/88 shadow-[0_18px_38px_-34px_rgba(15,23,42,0.25)]",
+    "border border-slate-200 bg-slate-50 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.18)]",
   hero:
-    "border border-primary/10 bg-white/92 shadow-[0_40px_90px_-52px_rgba(15,23,42,0.45)] backdrop-blur",
+    "border border-slate-200 bg-white shadow-[0_22px_52px_-34px_rgba(15,23,42,0.34)]",
 };
 
 const paddingClassMap: Record<CardPadding, string> = {
@@ -53,6 +53,7 @@ export function Card({
   className = "",
   variant = "default",
   padding = "none",
+  ...rest
 }: CardProps) {
-  return <div className={cardClassNames({ variant, padding, className })}>{children}</div>;
+  return <div className={cardClassNames({ variant, padding, className })} {...rest}>{children}</div>;
 }

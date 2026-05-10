@@ -131,7 +131,7 @@ export default function AdminGroupsPage() {
         }
       />
 
-      <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
+      <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
         {isLoading ? <p className="text-slate-300">Cargando grupos...</p> : null}
 
         {!isLoading && errorMessage ? (

@@ -1,17 +1,31 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
-  --club-primary: #03033f;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --club-primary: #3b82f6;
   --club-secondary: #ffffff;
   --club-accent: #f97316;
   --club-success: #16a34a;
   --club-warning: #f59e0b;
   --club-danger: #dc2626;
   --club-info: #2563eb;
-  --club-border: #cbd5e1;
+  --club-nav-active: #60a5fa;
+  --club-border: #e2e8f0;
   --club-muted: #f1f5f9;
+  --surface-page: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-muted: #f1f5f9;
+  --surface-border: #e2e8f0;
+  --surface-dark: #0b1220;
+  --surface-dark-raised: #101827;
+  --text-strong: #0f172a;
+  --text-body: #334155;
+  --text-muted: #64748b;
+  --radius-card: 1.25rem;
+  --radius-control: 0.75rem;
+  --shadow-card: 0 16px 38px -28px rgba(15, 23, 42, 0.28);
+  --shadow-card-hover: 0 22px 48px -30px rgba(15, 23, 42, 0.36);
 }
 
 @theme inline {
@@ -24,6 +38,7 @@
   --color-warning: var(--club-warning);
   --color-danger: var(--club-danger);
   --color-info: var(--club-info);
+  --color-nav-active: var(--club-nav-active);
   --color-border: var(--club-border);
   --color-muted: var(--club-muted);
   --font-sans: var(--font-geist-sans);
@@ -33,10 +48,12 @@
 
 body {
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--club-primary) 8%, transparent) 0%, transparent 34%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2ff 55%, #f8fafc 100%);
+    radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--club-primary) 10%, transparent) 0%, transparent 28%),
+    linear-gradient(180deg, var(--surface-page) 0%, #f1f5f9 52%, var(--surface-page) 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -111,8 +128,103 @@ select:focus,
 
 .club-display {
   font-family: var(--font-club-display), sans-serif;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.035em;
+  text-transform: none;
+}
+
+.club-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.admin-light-content {
+  color: var(--text-body);
+}
+
+.admin-light-content [class~="text-white"] {
+  color: var(--text-strong) !important;
+}
+
+.admin-light-content [class~="text-slate-300"],
+.admin-light-content [class~="text-slate-400"],
+.admin-light-content [class~="text-white/45"],
+.admin-light-content [class~="text-white/42"] {
+  color: var(--text-muted) !important;
+}
+
+.admin-light-content [class~="border-white/10"],
+.admin-light-content [class~="border-white/8"],
+.admin-light-content [class~="border-white/12"],
+.admin-light-content [class*="border-white/"] {
+  border-color: var(--surface-border) !important;
+}
+
+.admin-light-content [class~="bg-slate-950/58"],
+.admin-light-content [class~="bg-slate-950/62"],
+.admin-light-content [class~="bg-slate-950/72"],
+.admin-light-content [class*="!bg-slate-950"],
+.admin-light-content [class*="bg-slate-950/"],
+.admin-light-content [class~="bg-white/[0.03]"],
+.admin-light-content [class~="bg-white/[0.04]"],
+.admin-light-content [class~="bg-white/[0.045]"],
+.admin-light-content [class~="bg-white/[0.05]"],
+.admin-light-content [class~="bg-white/[0.06]"],
+.admin-light-content [class*="bg-white/["] {
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+.admin-light-content [class~="bg-black/16"],
+.admin-light-content [class~="bg-black/18"],
+.admin-light-content [class~="bg-black/20"],
+.admin-light-content [class~="bg-black/22"],
+.admin-light-content [class*="bg-black/"] {
+  background: #f8fafc !important;
+}
+
+.admin-light-content table {
+  color: var(--text-body);
+}
+
+.admin-light-content a {
+  text-underline-offset: 3px;
+}
+
+.admin-light-content [class*="bg-primary"][class~="text-white"],
+.admin-light-content [class*="bg-accent"][class~="text-white"],
+.admin-light-content [class*="bg-danger"][class~="text-white"],
+.admin-light-content [class~="bg-red-600"][class~="text-white"],
+.admin-light-content [class~="bg-red-700"][class~="text-white"],
+.admin-light-content [class*="bg-success"][class~="text-white"],
+.admin-light-content [class*="bg-slate-950"][class~="text-white"] {
+  color: #fff !important;
+}
+
+.admin-light-content .admin-dark-panel [class~="text-white"],
+.admin-light-content .admin-dark-panel [class~="text-white/45"],
+.admin-light-content .admin-dark-panel [class~="text-white/42"] {
+  color: #fff !important;
+}
+
+.admin-light-content .admin-dark-panel [class~="text-slate-300"],
+.admin-light-content .admin-dark-panel [class~="text-slate-400"] {
+  color: rgba(255, 255, 255, 0.68) !important;
+}
+
+.admin-light-content .admin-dark-panel [class~="border-white/8"],
+.admin-light-content .admin-dark-panel [class~="border-white/10"],
+.admin-light-content .admin-dark-panel [class~="border-white/12"] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.admin-light-content .admin-dark-panel [class~="bg-white/[0.045]"],
+.admin-light-content .admin-dark-panel [class~="bg-white/[0.055]"] {
+  background: rgba(255, 255, 255, 0.055) !important;
+}
+
+.admin-light-content .admin-dark-panel [class~="bg-black/16"] {
+  background: rgba(0, 0, 0, 0.16) !important;
 }
 
 .club-surface {

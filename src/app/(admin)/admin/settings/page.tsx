@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Mail } from "lucide-react";
+import { Bell, CreditCard, ImageIcon, Mail, Save, type LucideIcon } from "lucide-react";
 
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
 import { SponsorsSection } from "@/components/admin/sponsors-section";
@@ -31,6 +31,13 @@ type SettingsSnapshot = Pick<
   | "payment_method"
 >;
 
+const settingsNav = [
+  { href: "#identidad", label: "Identidad del club" },
+  { href: "#cobranza", label: "Valores de cobranza" },
+  { href: "#notificaciones", label: "Notificaciones" },
+  { href: "#sponsors", label: "Sponsors" },
+];
+
 const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
   name: settings.name,
   monthly_fee: settings.monthly_fee,
@@ -52,12 +59,9 @@ export default function AdminSettingsPage() {
   const [aliasCopyFeedback, setAliasCopyFeedback] = useState(false);
 
   const hasUnsavedChanges = useMemo(() => {
-    if (!clubSettings || !initialSettings) {
-      return false;
-    }
+    if (!clubSettings || !initialSettings) return false;
 
     const currentSnapshot = buildSettingsSnapshot(clubSettings);
-
     return (
       currentSnapshot.name !== initialSettings.name ||
       currentSnapshot.monthly_fee !== initialSettings.monthly_fee ||
@@ -109,38 +113,25 @@ export default function AdminSettingsPage() {
     event.preventDefault();
     setMessage(null);
 
-    if (!hasUnsavedChanges) {
-      return;
-    }
+    if (!hasUnsavedChanges) return;
 
-    // Si cambió la cuota mensual, pedir confirmación explícita: el cambio
-    // afecta cargos futuros pendientes (vía trigger
-    // sync_membership_definition_after_club_settings) pero no los pagados/parciales.
-    if (
-      clubSettings &&
-      initialSettings &&
-      clubSettings.monthly_fee !== initialSettings.monthly_fee
-    ) {
+    if (clubSettings && initialSettings && clubSettings.monthly_fee !== initialSettings.monthly_fee) {
       const ok = window.confirm(
         `Vas a cambiar la cuota mensual de $${initialSettings.monthly_fee} a $${clubSettings.monthly_fee}.\n\n` +
-          "Esto afecta sólo los cargos mensuales FUTUROS y los actuales que aún estén pendientes (sin pago). " +
-          "Los meses ya pagados o con pago parcial no se modifican.\n\n¿Confirmás el cambio?"
+          "Esto afecta solo los cargos mensuales futuros y los actuales que aun esten pendientes. " +
+          "Los meses ya pagados o con pago parcial no se modifican.\n\nConfirmas el cambio?"
       );
-      if (!ok) {
-        return;
-      }
+      if (!ok) return;
     }
 
     setIsSaving(true);
 
     try {
       if (!clubSettings?.id) {
-        console.error("No hay ID de configuración");
         setMessage(uiMessages.settings.noConfigId);
         return;
       }
 
-      console.log("Updating config ID:", clubSettings.id);
       await updateClubSettingsById(clubSettings.id, {
         name: clubSettings.name,
         monthly_fee: clubSettings.monthly_fee,
@@ -154,7 +145,6 @@ export default function AdminSettingsPage() {
       setInitialSettings(buildSettingsSnapshot(clubSettings));
       setMessage(uiMessages.settings.saveSuccess);
     } catch (error) {
-      console.error("Error al guardar configuracion:", error);
       setMessage(error instanceof Error ? error.message : uiMessages.settings.saveError);
     } finally {
       setIsSaving(false);
@@ -163,9 +153,8 @@ export default function AdminSettingsPage() {
 
   const handleCopyPaymentAlias = async () => {
     const value = clubSettings?.payment_alias?.trim();
-    if (!value) {
-      return;
-    }
+    if (!value) return;
+
     try {
       await navigator.clipboard.writeText(value);
       setAliasCopyFeedback(true);
@@ -177,12 +166,7 @@ export default function AdminSettingsPage() {
 
   const handleTogglePaymentEmail = () => {
     setClubSettings((prev) =>
-      prev
-        ? {
-            ...prev,
-            send_payment_confirmation_email: !prev.send_payment_confirmation_email,
-          }
-        : prev
+      prev ? { ...prev, send_payment_confirmation_email: !prev.send_payment_confirmation_email } : prev
     );
   };
 
@@ -191,15 +175,11 @@ export default function AdminSettingsPage() {
     setIsSendingTestEmail(true);
 
     try {
-      const response = await fetch("/api/test-email", {
-        method: "GET",
-      });
+      const response = await fetch("/api/test-email", { method: "GET" });
       const result = (await response.json()) as {
         ok?: boolean;
         error?: string;
-        response?: {
-          data?: { id?: string };
-        };
+        response?: { data?: { id?: string } };
       };
 
       if (!response.ok || !result.ok) {
@@ -207,11 +187,7 @@ export default function AdminSettingsPage() {
       }
 
       const emailId = result.response?.data?.id;
-      setMessage(
-        emailId
-          ? `Test email enviado. Resend ID: ${emailId}`
-          : "Test email ejecutado correctamente."
-      );
+      setMessage(emailId ? `Test email enviado. Resend ID: ${emailId}` : "Test email ejecutado correctamente.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo ejecutar el test de email.");
     } finally {
@@ -222,273 +198,312 @@ export default function AdminSettingsPage() {
   if (isLoading) {
     return (
       <section>
-        <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
-          <p className="text-slate-300">Cargando configuracion...</p>
+        <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
+          <p className="text-slate-600">Cargando configuracion...</p>
         </Card>
       </section>
     );
   }
 
-  if (!clubSettings) {
-    return null;
-  }
+  if (!clubSettings) return null;
 
   return (
     <section className="space-y-5">
       <PageHeader
-        title="Configuracion del club"
-        description="Personaliza identidad visual, valores y notificaciones del panel."
+        eyebrow="Configuracion"
+        title="Ajustes del club"
+        description="Identidad visual, valores de cobranza, notificaciones y sponsors del producto."
+        actions={
+          <Button
+            type="submit"
+            form="settings-form"
+            disabled={isSaving || !hasUnsavedChanges || !clubSettings.id}
+            size="lg"
+          >
+            <Save className="h-4 w-4" aria-hidden />
+            {isSaving ? "Guardando..." : "Guardar cambios"}
+          </Button>
+        }
       />
 
-      <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
-        <div
-          className="mb-5 rounded-xl border border-white/10 p-4"
-          style={{
-            backgroundImage:
-              "linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
-          }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Preview del tema</p>
-          <p className="mt-1 text-sm font-medium text-white">{clubSettings.name}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <ClubLogoUpload
-            settingsId={clubSettings.id || null}
-            logoUrl={clubSettings.logo_url}
-            onLogoUpdated={(publicUrl) =>
-              setClubSettings((prev) => (prev ? { ...prev, logo_url: publicUrl } : prev))
-            }
-          />
-
-          <FormField htmlFor="name" label="Nombre">
-            <Input
-              id="name"
-              value={clubSettings.name}
-              onChange={(event) =>
-                setClubSettings((prev) => (prev ? { ...prev, name: event.target.value } : prev))
-              }
-              required
-              className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
-            />
-          </FormField>
-
-          <FormField htmlFor="monthly_fee" label="Cuota mensual">
-            <Input
-              id="monthly_fee"
-              type="number"
-              min="0"
-              value={clubSettings.monthly_fee}
-              onChange={(event) =>
-                setClubSettings((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        monthly_fee: Number(event.target.value) || 0,
-                      }
-                    : prev
-                )
-              }
-              required
-              className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
-            />
-          </FormField>
-
-          <FormField htmlFor="monthly_due_day" label="Día de vencimiento mensual">
-            <div className="space-y-1">
-              <Input
-                id="monthly_due_day"
-                type="number"
-                min="1"
-                max="31"
-                value={clubSettings.monthly_due_day ?? 10}
-                onChange={(event) =>
-                  setClubSettings((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          monthly_due_day: Number(event.target.value) || 1,
-                        }
-                      : prev
-                  )
-                }
-                required
-                className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
-              />
-              <p className="text-xs text-slate-400">
-                Se usar&aacute; para calcular el vencimiento de las cuotas generadas autom&aacute;ticamente por
-                adelantado para los meses futuros.
-              </p>
-            </div>
-          </FormField>
-
-          <FormField htmlFor="payment_alias" label="Alias para transferencias">
-            <div className="space-y-1">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <Input
-                  id="payment_alias"
-                  name="payment_alias"
-                  type="text"
-                  autoComplete="off"
-                  placeholder="Ej: CVU, alias o CBU"
-                  value={clubSettings.payment_alias ?? ""}
-                  onChange={(event) => {
-                    const v = event.target.value;
-                    setClubSettings((prev) =>
-                      prev ? { ...prev, payment_alias: v === "" ? null : v } : prev
-                    );
-                  }}
-                  className="border-white/10 bg-white/[0.05] text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08] sm:min-w-0 sm:flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="neutral"
-                  size="md"
-                  className="shrink-0"
-                  disabled={!clubSettings.payment_alias?.trim()}
-                  onClick={() => void handleCopyPaymentAlias()}
-                >
-                  {aliasCopyFeedback ? "Copiado" : "Copiar alias"}
-                </Button>
-              </div>
-              <p className="text-xs text-slate-400">Este alias se enviará en los recordatorios de pago</p>
-            </div>
-          </FormField>
-
-          <FormField htmlFor="payment_method" label="Método de pago default">
-            <div className="space-y-1">
-              <Select
-                id="payment_method"
-                value={clubSettings.payment_method}
-                onChange={(event) =>
-                  setClubSettings((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          payment_method: event.target.value as ClubPaymentMethod,
-                        }
-                      : prev
-                  )
-                }
-                className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:bg-white/[0.08] focus:shadow-none"
+      <div className="grid gap-6 lg:grid-cols-[15rem_1fr]">
+        <aside className="hidden lg:block">
+          <nav className="sticky top-8 space-y-1">
+            {settingsNav.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950"
               >
-                {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-slate-400">
-                Método sugerido al registrar pagos manuales. El admin puede cambiarlo en cada cobro.
-              </p>
-            </div>
-          </FormField>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </aside>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField htmlFor="primary_color" label="Color primario">
-              <input
-                id="primary_color"
-                type="color"
-                value={clubSettings.primary_color}
-                onChange={(event) =>
-                  setClubSettings((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          primary_color: event.target.value,
-                        }
-                      : prev
-                  )
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1"
+        <div className="space-y-6">
+          <form id="settings-form" onSubmit={handleSubmit} className="space-y-6">
+            <Card id="identidad" className="rounded-[1.5rem] border-slate-200 bg-white p-6">
+              <SectionHeader
+                icon={ImageIcon}
+                title="Identidad del club"
+                description="Estos datos aparecen en la landing publica del club y dentro del panel."
               />
-            </FormField>
 
-            <FormField htmlFor="accent_color" label="Color de acento">
-              <input
-                id="accent_color"
-                type="color"
-                value={clubSettings.accent_color}
-                onChange={(event) =>
-                  setClubSettings((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          accent_color: event.target.value,
-                        }
-                      : prev
-                  )
-                }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1"
-              />
-            </FormField>
-          </div>
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <ClubLogoUpload
+                  settingsId={clubSettings.id || null}
+                  logoUrl={clubSettings.logo_url}
+                  onLogoUpdated={(publicUrl) =>
+                    setClubSettings((prev) => (prev ? { ...prev, logo_url: publicUrl } : prev))
+                  }
+                />
+              </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="mb-4 inline-flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent">
-                <Mail className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-              </span>
-              <h3 className="text-base font-semibold text-white">Notificaciones</h3>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={clubSettings.send_payment_confirmation_email}
-                  onClick={handleTogglePaymentEmail}
-                  className={`mt-0.5 inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors ${
-                    clubSettings.send_payment_confirmation_email ? "bg-slate-900" : "bg-slate-300"
-                  }`}
-                >
-                  <span
-                    className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                      clubSettings.send_payment_confirmation_email ? "translate-x-5" : "translate-x-0"
-                    }`}
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <FormField htmlFor="name" label="Nombre del club">
+                  <Input
+                    id="name"
+                    value={clubSettings.name}
+                    onChange={(event) =>
+                      setClubSettings((prev) => (prev ? { ...prev, name: event.target.value } : prev))
+                    }
+                    required
                   />
-                </button>
+                </FormField>
 
-                <div>
-                <p className="text-sm font-semibold text-white">Enviar email automatico al registrar pagos</p>
-                <p className="text-sm text-slate-300">El socio recibira un email de confirmacion</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Preview publico</p>
+                  <p className="mt-3 text-lg font-semibold text-slate-950">{clubSettings.name}</p>
+                  <p className="mt-1 text-sm text-slate-600">Landing, emails y panel administrativo.</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  onClick={() => void handleTestEmail()}
-                  disabled={isSendingTestEmail}
-                  variant="neutral"
-                  size="md"
-                >
-                  {isSendingTestEmail ? "Enviando test..." : "Test email"}
-                </Button>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <ColorField
+                  id="primary_color"
+                  label="Color primario"
+                  value={clubSettings.primary_color}
+                  onChange={(value) =>
+                    setClubSettings((prev) => (prev ? { ...prev, primary_color: value } : prev))
+                  }
+                />
+                <ColorField
+                  id="accent_color"
+                  label="Color de acento"
+                  value={clubSettings.accent_color}
+                  onChange={(value) =>
+                    setClubSettings((prev) => (prev ? { ...prev, accent_color: value } : prev))
+                  }
+                />
               </div>
-            </div>
-          </div>
+            </Card>
 
-          <Button
-            type="submit"
-            disabled={isSaving || !hasUnsavedChanges || !clubSettings.id}
-            fullWidth
-            variant="primary"
-            size="lg"
-          >
-            {isSaving ? "Guardando..." : "Guardar configuracion"}
-          </Button>
-        </form>
+            <Card id="cobranza" className="rounded-[1.5rem] border-slate-200 bg-white p-6">
+              <SectionHeader
+                icon={CreditCard}
+                title="Valores de cobranza"
+                description="Configuracion base para cuota mensual, vencimiento y alias de pago."
+              />
 
-        {message ? (
-          <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">{message}</p>
-        ) : null}
-      </Card>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <FormField htmlFor="monthly_fee" label="Cuota mensual">
+                  <Input
+                    id="monthly_fee"
+                    type="number"
+                    min="0"
+                    value={clubSettings.monthly_fee}
+                    onChange={(event) =>
+                      setClubSettings((prev) =>
+                        prev ? { ...prev, monthly_fee: Number(event.target.value) || 0 } : prev
+                      )
+                    }
+                    required
+                  />
+                </FormField>
 
-      <Card className="mx-auto w-full max-w-3xl border-white/10 !bg-slate-950/58 p-6">
-        <SponsorsSection />
-      </Card>
+                <FormField htmlFor="monthly_due_day" label="Dia de vencimiento mensual">
+                  <Input
+                    id="monthly_due_day"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={clubSettings.monthly_due_day ?? 10}
+                    onChange={(event) =>
+                      setClubSettings((prev) =>
+                        prev ? { ...prev, monthly_due_day: Number(event.target.value) || 1 } : prev
+                      )
+                    }
+                    required
+                  />
+                </FormField>
+              </div>
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                El cambio de cuota se aplica a cargos mensuales futuros y pendientes. No modifica meses ya pagados o con pago parcial.
+              </p>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_16rem]">
+                <FormField htmlFor="payment_alias" label="Alias para transferencias">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      id="payment_alias"
+                      name="payment_alias"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Ej: CVU, alias o CBU"
+                      value={clubSettings.payment_alias ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setClubSettings((prev) =>
+                          prev ? { ...prev, payment_alias: value === "" ? null : value } : prev
+                        );
+                      }}
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="neutral"
+                      size="md"
+                      className="shrink-0"
+                      disabled={!clubSettings.payment_alias?.trim()}
+                      onClick={() => void handleCopyPaymentAlias()}
+                    >
+                      {aliasCopyFeedback ? "Copiado" : "Copiar alias"}
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">Este alias se usa en los recordatorios de pago.</p>
+                </FormField>
+
+                <FormField htmlFor="payment_method" label="Metodo default">
+                  <Select
+                    id="payment_method"
+                    value={clubSettings.payment_method}
+                    onChange={(event) =>
+                      setClubSettings((prev) =>
+                        prev ? { ...prev, payment_method: event.target.value as ClubPaymentMethod } : prev
+                      )
+                    }
+                  >
+                    {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+              </div>
+            </Card>
+
+            <Card id="notificaciones" className="rounded-[1.5rem] border-slate-200 bg-white p-6">
+              <SectionHeader
+                icon={Bell}
+                title="Notificaciones"
+                description="Automatizaciones livianas para confirmar pagos y probar el canal de email."
+              />
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={clubSettings.send_payment_confirmation_email}
+                      onClick={handleTogglePaymentEmail}
+                      className={`mt-1 inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors ${
+                        clubSettings.send_payment_confirmation_email ? "bg-primary" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          clubSettings.send_payment_confirmation_email ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">Email automatico al registrar pagos</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        El socio recibe una confirmacion cuando el admin registra un pago.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => void handleTestEmail()}
+                    disabled={isSendingTestEmail}
+                    variant="neutral"
+                    size="md"
+                  >
+                    <Mail className="h-4 w-4" aria-hidden />
+                    {isSendingTestEmail ? "Enviando..." : "Test email"}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {message ? (
+              <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
+                {message}
+              </p>
+            ) : null}
+          </form>
+
+          <Card id="sponsors" className="rounded-[1.5rem] border-slate-200 bg-white p-6">
+            <SponsorsSection />
+          </Card>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <div>
+        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <FormField htmlFor={id} label={label}>
+      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_8px_20px_-18px_rgba(15,23,42,0.35)]">
+        <input
+          id={id}
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-8 w-10 shrink-0 rounded-lg border border-slate-200 bg-white p-1"
+        />
+        <span className="font-mono text-sm text-slate-700">{value}</span>
+      </div>
+    </FormField>
   );
 }

@@ -279,23 +279,23 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
 
   return (
     <>
-      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-white">Cuota mensual del club</h2>
-            <p className="mt-1 text-sm text-slate-300">
+            <h2 className="text-lg font-semibold text-slate-950">Cuota mensual del club</h2>
+            <p className="mt-1 text-sm text-slate-600">
               Cuotas mensuales del club agrupadas por año, con los meses futuros colapsados para acortar la vista.
             </p>
           </div>
-          <label className="space-y-1 text-sm text-slate-300">
-            <span className="block text-xs font-semibold uppercase tracking-wide text-white/45">Año</span>
+          <label className="space-y-1 text-sm text-slate-600">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Año</span>
             <select
               value={selectedYear}
               onChange={(event) => {
                 setSelectedYear(Number(event.target.value));
                 setShowFuture(false);
               }}
-              className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none focus:border-slate-400"
             >
               {years.map((year) => (
                 <option key={year} value={year}>
@@ -306,9 +306,9 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
           <div className="space-y-2">
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-slate-600">
               <span className="font-semibold">Saldo total del año:</span>{" "}
               {totalDebt > 0.001 ? (
                 <Badge variant="danger">{formatMoney(totalDebt)}</Badge>
@@ -320,10 +320,10 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
               <span className="rounded-full border border-danger/25 bg-danger/10 px-2.5 py-1 text-danger">
                 Vencidas: {overdueRows.length}
               </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-slate-200">
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
                 Mes actual: {currentRows.length}
               </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-slate-300">
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
                 Futuras: {futureRows.length}
               </span>
             </div>
@@ -334,14 +334,14 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                 type="button"
                 onClick={() => openBulkModal("rest")}
                 disabled={payableRestRows.length === 0}
-                className="rounded-lg border border-success/25 bg-success/12 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-success/18 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-success/25 bg-success px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Pagar resto del año
               </button>
               <button
                 type="button"
                 onClick={() => openBulkModal("select")}
-                className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.1]"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50"
               >
                 Elegir meses
               </button>
@@ -355,22 +355,22 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
         ) : null}
 
         {rowsForYear.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-300">No hay cuotas mensuales registradas para {selectedYear}.</p>
+          <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas para {selectedYear}.</p>
         ) : visibleRows.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-300">No hay cuotas mensuales registradas.</p>
+          <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-              <thead className="bg-white/[0.045]">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-3 py-2 font-semibold text-white/45" aria-hidden />
-                  <th className="px-3 py-2 font-semibold text-white/45">Período</th>
-                  <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
-                  <th className="px-3 py-2 font-semibold text-white/45">Monto</th>
-                  <th className="px-3 py-2 font-semibold text-white/45">Acción</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500" aria-hidden />
+                  <th className="px-3 py-2 font-semibold text-slate-500">Período</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500">Estado</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500">Monto</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/8 bg-transparent">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {visibleRows.map((row) => {
                   const rem = remainingAmount(row);
                   const canPay = memberStatus === "active" && rem > 0.001;
@@ -378,18 +378,18 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                   const history = historyByMc[row.id];
                   return (
                     <Fragment key={row.id}>
-                      <tr className={expanded ? "bg-white/[0.04]" : undefined}>
+                      <tr className={expanded ? "bg-slate-50" : undefined}>
                         <td className="px-3 py-2 align-top">
                           <button
                             type="button"
                             onClick={() => toggleExpand(row.id)}
-                            className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-semibold text-white hover:bg-white/[0.12]"
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                             aria-expanded={expanded}
                           >
                             {expanded ? "Ocultar" : "Pagos"}
                           </button>
                         </td>
-                        <td className="px-3 py-2 font-medium text-white">
+                        <td className="px-3 py-2 font-medium text-slate-950">
                           <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
                         </td>
                         <td className="px-3 py-2">
@@ -397,7 +397,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                             {memberChargeStatusLabel(row.status)}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
+                        <td className="px-3 py-2 tabular-nums text-slate-950">{formatMoney(row.amount)}</td>
                         <td className="px-3 py-2">
                           {memberStatus === "pending" ? (
                             <span className="text-xs font-semibold text-slate-400">No aplica</span>
@@ -417,29 +417,29 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                         </td>
                       </tr>
                       {expanded ? (
-                        <tr className="bg-white/[0.035]">
-                          <td colSpan={5} className="px-3 py-3 text-sm text-slate-300">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/42">
+                        <tr className="bg-slate-50">
+                          <td colSpan={5} className="px-3 py-3 text-sm text-slate-600">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Historial de pagos
                             </p>
                             {historyLoadingId === row.id ? (
-                              <p className="text-slate-300">Cargando...</p>
+                              <p className="text-slate-600">Cargando...</p>
                             ) : history && history.length > 0 ? (
-                              <ul className="space-y-1.5 border-l-2 border-white/10 pl-3">
+                              <ul className="space-y-1.5 border-l-2 border-slate-200 pl-3">
                                 {history.map((payment) => (
                                   <li key={payment.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                    <span className="font-semibold tabular-nums text-white">
+                                    <span className="font-semibold tabular-nums text-slate-950">
                                       {formatMoney(payment.amount)}
                                     </span>
-                                    <span className="text-slate-300">{formatPaidAt(payment.paid_at)}</span>
-                                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-slate-200">
+                                    <span className="text-slate-600">{formatPaidAt(payment.paid_at)}</span>
+                                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
                                       {paymentMethodLabel(payment.payment_method)}
                                     </span>
                                   </li>
                                 ))}
                               </ul>
                             ) : (
-                              <p className="text-slate-300">Todavía no hay pagos registrados para esta cuota.</p>
+                              <p className="text-slate-600">Todavía no hay pagos registrados para esta cuota.</p>
                             )}
                           </td>
                         </tr>
@@ -453,11 +453,11 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
         )}
 
         {futureRows.length > 0 ? (
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-white">Cuotas futuras del {selectedYear}</p>
-                <p className="mt-1 text-sm text-slate-300">
+                <p className="text-sm font-semibold text-slate-950">Cuotas futuras del {selectedYear}</p>
+                <p className="mt-1 text-sm text-slate-600">
                   Hay {futureRows.length} cuota(s) ya generadas para pago adelantado.
                 </p>
               </div>
@@ -468,17 +468,17 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
 
             {showFuture ? (
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-                  <thead className="bg-white/[0.045]">
+                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 font-semibold text-white/45" aria-hidden />
-                      <th className="px-3 py-2 font-semibold text-white/45">Período</th>
-                      <th className="px-3 py-2 font-semibold text-white/45">Estado</th>
-                      <th className="px-3 py-2 font-semibold text-white/45">Monto</th>
-                      <th className="px-3 py-2 font-semibold text-white/45">Acción</th>
+                      <th className="px-3 py-2 font-semibold text-slate-500" aria-hidden />
+                      <th className="px-3 py-2 font-semibold text-slate-500">Período</th>
+                      <th className="px-3 py-2 font-semibold text-slate-500">Estado</th>
+                      <th className="px-3 py-2 font-semibold text-slate-500">Monto</th>
+                      <th className="px-3 py-2 font-semibold text-slate-500">Acción</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/8 bg-transparent">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {futureRows.map((row) => {
                       const rem = remainingAmount(row);
                       const canPay = memberStatus === "active" && rem > 0.001;
@@ -486,18 +486,18 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                       const history = historyByMc[row.id];
                       return (
                         <Fragment key={row.id}>
-                          <tr className={expanded ? "bg-white/[0.04]" : undefined}>
+                          <tr className={expanded ? "bg-slate-50" : undefined}>
                             <td className="px-3 py-2 align-top">
                               <button
                                 type="button"
                                 onClick={() => toggleExpand(row.id)}
-                                className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-semibold text-white hover:bg-white/[0.12]"
+                                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                                 aria-expanded={expanded}
                               >
                                 {expanded ? "Ocultar" : "Pagos"}
                               </button>
                             </td>
-                            <td className="px-3 py-2 font-medium text-white">
+                            <td className="px-3 py-2 font-medium text-slate-950">
                               <div className="capitalize">{row.billing_period ? formatBillingPeriod(row.billing_period) : "—"}</div>
                             </td>
                             <td className="px-3 py-2">
@@ -505,7 +505,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                                 {memberChargeStatusLabel(row.status)}
                               </Badge>
                             </td>
-                            <td className="px-3 py-2 tabular-nums text-white">{formatMoney(row.amount)}</td>
+                            <td className="px-3 py-2 tabular-nums text-slate-950">{formatMoney(row.amount)}</td>
                             <td className="px-3 py-2">
                               {memberStatus === "pending" ? (
                                 <span className="text-xs font-semibold text-slate-400">No aplica</span>
@@ -525,29 +525,29 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                             </td>
                           </tr>
                           {expanded ? (
-                            <tr className="bg-white/[0.035]">
-                              <td colSpan={5} className="px-3 py-3 text-sm text-slate-300">
-                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/42">
+                            <tr className="bg-slate-50">
+                              <td colSpan={5} className="px-3 py-3 text-sm text-slate-600">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                                   Historial de pagos
                                 </p>
                                 {historyLoadingId === row.id ? (
-                                  <p className="text-slate-300">Cargando...</p>
+                                  <p className="text-slate-600">Cargando...</p>
                                 ) : history && history.length > 0 ? (
-                                  <ul className="space-y-1.5 border-l-2 border-white/10 pl-3">
+                                  <ul className="space-y-1.5 border-l-2 border-slate-200 pl-3">
                                     {history.map((payment) => (
                                       <li key={payment.id} className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                        <span className="font-semibold tabular-nums text-white">
+                                        <span className="font-semibold tabular-nums text-slate-950">
                                           {formatMoney(payment.amount)}
                                         </span>
-                                        <span className="text-slate-300">{formatPaidAt(payment.paid_at)}</span>
-                                        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-slate-200">
+                                        <span className="text-slate-600">{formatPaidAt(payment.paid_at)}</span>
+                                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
                                           {paymentMethodLabel(payment.payment_method)}
                                         </span>
                                       </li>
                                     ))}
                                   </ul>
                                 ) : (
-                                  <p className="text-slate-300">Todavía no hay pagos registrados para esta cuota.</p>
+                                  <p className="text-slate-600">Todavía no hay pagos registrados para esta cuota.</p>
                                 )}
                               </td>
                             </tr>

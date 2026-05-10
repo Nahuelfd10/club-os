@@ -429,20 +429,20 @@ export default function MemberDetailPage() {
       <MemberGroupsSection memberId={member.id} />
 
       {memberCharges === null ? (
-        <div className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
-          <p className="text-sm text-slate-300">Cargando cargos...</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-600">Cargando cargos...</p>
         </div>
       ) : (
         <>
-          <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-4 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setFinanceTab("membership")}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   financeTab === "membership"
-                    ? "bg-white text-slate-950"
-                    : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                    ? "bg-slate-950 text-white"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
               >
                 Cuotas del club
@@ -452,8 +452,8 @@ export default function MemberDetailPage() {
                 onClick={() => setFinanceTab("other")}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   financeTab === "other"
-                    ? "bg-white text-slate-950"
-                    : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                    ? "bg-slate-950 text-white"
+                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
               >
                 Otros cargos

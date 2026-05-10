@@ -15,7 +15,7 @@ const variantClassMap: Record<AlertVariant, string> = {
   success: "border border-success/20 bg-success/10 text-success",
   warning: "border border-warning/20 bg-warning/10 text-warning",
   danger: "border border-danger/20 bg-danger/10 text-danger",
-  neutral: "border border-white/10 bg-white/[0.05] text-slate-300",
+  neutral: "border border-slate-200 bg-slate-50 text-slate-700",
 };
 
 export function Alert({ children, variant = "neutral", className = "" }: AlertProps) {
@@ -25,4 +25,3 @@ export function Alert({ children, variant = "neutral", className = "" }: AlertPr
     </p>
   );
 }
-

@@ -72,45 +72,27 @@ export function AdminShell({ children }: AdminShellProps) {
   };
 
   return (
-    <div className="club-page-shell relative min-h-screen overflow-hidden bg-transparent">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(50rem 28rem at -10% -10%, color-mix(in srgb, var(--club-primary) 22%, transparent) 0%, transparent 62%), radial-gradient(46rem 26rem at 110% -10%, color-mix(in srgb, var(--club-accent) 20%, transparent) 0%, transparent 60%), linear-gradient(to bottom, rgba(2,8,23,0.18), rgba(2,8,23,0.02))",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:72px_72px] opacity-20"
-      />
-      <ClubLogo
-        src={config.logo}
-        alt={isConfigLoading ? "Escudo del club" : `Escudo de ${config.name}`}
-        className="pointer-events-none absolute -right-32 top-24 hidden h-[40rem] w-[40rem] opacity-[0.055] xl:block"
-      />
-
-      <div className="relative mx-auto flex w-full max-w-[100rem] gap-4 p-3 md:p-5">
-        <aside className="hidden w-72 shrink-0 flex-col rounded-[2rem] border border-white/10 bg-slate-950/76 p-4 shadow-[0_28px_70px_-40px_rgba(2,8,23,0.92)] backdrop-blur-xl md:flex">
-          <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0.03)_100%)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Club OS</p>
-            <div className="mt-3 flex items-start gap-3">
+    <div className="h-screen overflow-hidden bg-slate-50 text-slate-800">
+      <div className="min-h-screen md:block">
+        <aside className="hidden h-screen w-[268px] flex-col overflow-y-auto border-r border-white/8 bg-[#0b1220] px-4 py-5 text-white shadow-[18px_0_42px_-34px_rgba(15,23,42,0.75)] md:fixed md:inset-y-0 md:left-0 md:flex">
+          <div className="border-b border-white/8 px-2 pb-4">
+            <div className="flex items-center gap-3">
               <ClubLogo
                 src={config.logo}
                 alt={isConfigLoading ? "Logo del club" : `Logo de ${config.name}`}
-                className="h-12 w-12 shrink-0 rounded-[1rem] bg-white/92 p-1.5 shadow-[0_16px_30px_-24px_rgba(2,8,23,0.7)]"
+                className="h-10 w-10 shrink-0 rounded-xl bg-white p-1.5 shadow-[0_12px_24px_-18px_rgba(0,0,0,0.65)]"
               />
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold leading-tight text-white">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">Admin</p>
+                <h2 className="mt-1 truncate text-sm font-semibold leading-tight text-white">
                   {isConfigLoading ? "Cargando..." : config.name}
                 </h2>
-                <p className="mt-1 text-xs text-slate-300">Panel administrativo con identidad de marca</p>
               </div>
             </div>
           </div>
 
-          <nav className="mt-4 flex flex-1 flex-col gap-1.5">
+          <nav className="mt-5 flex flex-1 flex-col gap-1">
+            <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Gestion</p>
             {navItems.map((item) => {
               const isActive = isNavItemActive(pathname, item.href);
               const Icon = item.icon;
@@ -119,73 +101,66 @@ export function AdminShell({ children }: AdminShellProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`inline-flex items-center gap-2 rounded-[1rem] px-3.5 py-3 text-sm font-medium transition-all ${
+                  className={`relative inline-flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                     isActive
-                      ? "text-white shadow-[0_22px_44px_-24px_rgba(2,8,23,0.78)]"
-                      : "text-slate-300 hover:bg-white/8 hover:text-white"
+                      ? "bg-nav-active/14 text-white ring-1 ring-nav-active/25"
+                      : "text-white/72 hover:bg-white/[0.055] hover:text-white"
                   }`}
-                  style={
-                    isActive
-                      ? {
-                          background:
-                            "linear-gradient(135deg, var(--club-primary) 0%, color-mix(in srgb, var(--club-primary) 78%, var(--club-accent)) 100%)",
-                        }
-                      : undefined
-                  }
                 >
-                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} aria-hidden />
+                  {isActive ? <span className="absolute -left-4 top-2 bottom-2 w-0.75 rounded-r-full bg-nav-active" /> : null}
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-nav-active" : "text-white/62"}`} strokeWidth={1.8} aria-hidden />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0.03)_100%)] p-4">
+          <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.04] p-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-white/10 p-2 text-[color:var(--club-accent)]">
+              <div className="rounded-full bg-emerald-400/12 p-2 text-emerald-300">
                 <BadgeCheck className="h-4 w-4" aria-hidden />
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Resumen del club</p>
-                <p className="text-xs text-slate-300">Datos visibles tambien en la experiencia publica.</p>
+                <p className="text-xs text-white/48">Datos base del sistema.</p>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              <div className="rounded-[1.15rem] border border-white/10 bg-black/16 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">Cuota mensual</p>
+            <div className="mt-4 grid gap-2">
+              <div className="rounded-xl border border-white/8 bg-black/18 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/42">Cuota mensual</p>
                 <p className="mt-2 text-lg font-semibold text-white">{monthlyFeeLabel}</p>
               </div>
-              <div className="rounded-[1.15rem] border border-white/10 bg-black/16 p-3">
+              <div className="rounded-xl border border-white/8 bg-black/18 p-3">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-accent" aria-hidden />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/45">Alias de cobro</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/42">Alias</p>
                 </div>
                 <p className="mt-2 truncate text-sm font-semibold text-white">{paymentAliasLabel}</p>
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <Link
                 href="/club"
                 className={buttonClassNames({
                   variant: "ghost",
-                  size: "md",
+                  size: "sm",
                   fullWidth: true,
                   className: "border border-white/10 text-white hover:bg-white/10 hover:text-white",
                 })}
               >
                 <House className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-                Ver sitio
+                Sitio
               </Link>
               <button
                 type="button"
                 onClick={() => void handleLogout()}
                 className={buttonClassNames({
                   variant: "ghost",
-                  size: "md",
+                  size: "sm",
                   fullWidth: true,
-                  className: "border border-transparent text-white/78 hover:bg-danger/10 hover:text-danger",
+                  className: "border border-transparent text-white/78 hover:bg-danger/10 hover:text-red-300",
                 })}
               >
                 <LogOut className="h-4 w-4" strokeWidth={1.8} aria-hidden />
@@ -195,18 +170,18 @@ export function AdminShell({ children }: AdminShellProps) {
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="mb-4 rounded-[1.75rem] border border-white/10 bg-slate-950/76 p-3 shadow-[0_24px_64px_-36px_rgba(2,8,23,0.94)] backdrop-blur-xl md:hidden">
+        <div className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto md:ml-[268px]">
+          <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/92 p-3 shadow-[0_14px_28px_-28px_rgba(15,23,42,0.3)] backdrop-blur md:hidden">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <ClubLogo
                   src={config.logo}
                   alt={isConfigLoading ? "Logo del club" : `Logo de ${config.name}`}
-                  className="h-10 w-10 shrink-0 rounded-[0.9rem] bg-white/92 p-1"
+                  className="h-10 w-10 shrink-0 rounded-xl bg-white p-1 shadow-sm"
                 />
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Admin</p>
-                  <p className="truncate text-sm font-semibold text-white">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Admin</p>
+                  <p className="truncate text-sm font-semibold text-slate-950">
                     {isConfigLoading ? "Cargando..." : config.name}
                   </p>
                 </div>
@@ -217,12 +192,12 @@ export function AdminShell({ children }: AdminShellProps) {
                   className={buttonClassNames({
                     variant: "ghost",
                     size: "sm",
-                    className: "border border-white/10 text-white hover:bg-white/10 hover:text-white",
+                    className: "border border-slate-200 text-slate-700 hover:bg-slate-100",
                   })}
                 >
                   Ver sitio
                 </Link>
-                <Button type="button" variant="ghost" size="md" onClick={() => void handleLogout()} className="border border-white/10 text-white hover:bg-white/10 hover:text-white">
+                <Button type="button" variant="ghost" size="md" onClick={() => void handleLogout()} className="border border-slate-200 text-slate-700 hover:bg-slate-100">
                   Salir
                 </Button>
               </div>
@@ -239,17 +214,9 @@ export function AdminShell({ children }: AdminShellProps) {
                     href={item.href}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all ${
                       isActive
-                        ? "text-white shadow-[0_16px_32px_-20px_rgba(2,8,23,0.78)]"
-                        : "bg-white/8 text-slate-300 hover:bg-white/12 hover:text-white"
+                        ? "bg-slate-950 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-950"
                     }`}
-                    style={
-                      isActive
-                        ? {
-                            background:
-                              "linear-gradient(135deg, var(--club-primary) 0%, color-mix(in srgb, var(--club-primary) 78%, var(--club-accent)) 100%)",
-                          }
-                        : undefined
-                    }
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
                     {item.label}
@@ -259,15 +226,13 @@ export function AdminShell({ children }: AdminShellProps) {
             </nav>
           </header>
 
-          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/72 p-4 shadow-[0_30px_80px_-42px_rgba(2,8,23,0.92)] backdrop-blur-xl md:p-6">
+          <main className="admin-light-content min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8 lg:px-10">
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:72px_72px] opacity-10"
+              className="pointer-events-none fixed inset-y-0 right-0 hidden w-[38rem] bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_55%)] lg:block"
             />
-            <div className="relative z-10">
-            {children}
-            </div>
-          </div>
+            <div className="relative z-10 mx-auto w-full max-w-[86rem]">{children}</div>
+          </main>
         </div>
       </div>
     </div>

@@ -40,14 +40,14 @@ export function AdminModal({ open, onClose, children, width = "md" }: AdminModal
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-[2px] md:items-center md:p-4"
+      className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-950/45 backdrop-blur-[2px] md:items-center md:p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Diálogo"
       onClick={onClose}
     >
       <div
-        className={`max-h-[min(90vh,100%)] w-full ${widthMap[width]} overflow-y-auto rounded-t-2xl border border-white/10 bg-slate-950/94 p-5 text-white shadow-[0_30px_80px_-40px_rgba(2,8,23,0.95)] backdrop-blur-xl md:rounded-2xl`}
+        className={`admin-light-content max-h-[min(90vh,100%)] w-full ${widthMap[width]} overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-5 text-slate-950 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.35)] md:rounded-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         {children}

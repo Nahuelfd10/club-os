@@ -321,25 +321,25 @@ export default function AdminChargesPage() {
         }
       />
 
-      <Card className="w-full border-white/10 !bg-slate-950/58 p-6">
+      <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
         <div className="grid gap-3 md:grid-cols-2">
           <button
             type="button"
             onClick={() => resetCreate("simple")}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition-colors hover:bg-white/[0.08]"
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:bg-slate-100"
           >
-            <p className="text-sm font-semibold text-white">Cobro a socios</p>
-            <p className="mt-1 text-xs leading-5 text-slate-300">
+            <p className="text-sm font-semibold text-slate-950">Cobro a socios</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
               Cuotas especiales, viajes, torneos, inscripciones o matriculas.
             </p>
           </button>
           <button
             type="button"
             onClick={() => resetCreate("order")}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition-colors hover:bg-white/[0.08]"
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:bg-slate-100"
           >
-            <p className="text-sm font-semibold text-white">Pedido / indumentaria</p>
-            <p className="mt-1 text-xs leading-5 text-slate-300">Crea un cobro vacio para cargar lineas variables o importar Excel.</p>
+            <p className="text-sm font-semibold text-slate-950">Pedido / indumentaria</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Crea un cobro vacio para cargar lineas variables o importar Excel.</p>
           </button>
         </div>
 
@@ -349,8 +349,8 @@ export default function AdminChargesPage() {
             onClick={() => setActiveTab("membership")}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
               activeTab === "membership"
-                ? "bg-white text-slate-950"
-                : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                ? "bg-slate-950 text-white"
+                : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
             }`}
           >
             Cuota mensual
@@ -360,8 +360,8 @@ export default function AdminChargesPage() {
             onClick={() => setActiveTab("manual")}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
               activeTab === "manual"
-                ? "bg-white text-slate-950"
-                : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+                ? "bg-slate-950 text-white"
+                : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
             }`}
           >
             Cobros y pedidos

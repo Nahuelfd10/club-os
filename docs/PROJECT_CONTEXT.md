@@ -9,6 +9,7 @@ Este documento resume el estado real observado en el repo, la base Supabase cone
 - `AGENTS.md`: este proyecto usa Next.js 16.2.1 y avisa que las APIs/convensiones pueden diferir de lo conocido. Antes de escribir codigo Next, leer la guia relevante en `node_modules/next/dist/docs/`.
 - `docs/AI_GUIDELINES.md`: exige leer README/contexto, mantener documentacion alineada, no adivinar estructura DB y tener cuidado especial con cobros/deuda/RPC.
 - `docs/PRODUCT_MODEL.md`: define el modelo de producto "Cobros primero".
+- `docs/UI_DESIGN_DIRECTION.md`: define la direccion visual nueva: admin claro con sidebar oscura y landings limpias.
 - `docs/CONTEXTO_APLICACION.md`: util como base, pero esta parcialmente desactualizado. Este documento refleja lo observado al 2026-05-10.
 
 ## Stack
@@ -38,6 +39,16 @@ Club OS es una app para operar un club deportivo/social:
 - Gestion de socios, grupos, cargos, cuotas, pagos, egresos, sponsors y ajustes del club.
 - Superficie publica de club/demo en `/club`.
 - Landing de producto en `/`.
+
+## Direccion visual
+
+Desde mayo de 2026 se adopta una direccion visual mas sobria:
+
+- Admin: fondo claro, sidebar oscura, tablas y formularios sobre superficies blancas.
+- Landings: fondo oscuro, composicion minimalista y ejemplos concretos.
+- La landing de Club OS conserva el ejemplo realista de WhatsApp y el flujo del sistema.
+- La landing del club prioriza identidad, alta de socio, equipos, proyectos y sponsors.
+- El hub HTML del rediseño externo sirve como mapa interno de pantallas, no como landing publica principal.
 
 ## Modelo mental del producto
 
