@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 
 export type GroupRow = {
   id: string;
@@ -19,7 +20,7 @@ export type GroupMemberRow = {
     full_name: string;
     dni: string;
     email: string | null;
-    status: "pending" | "active";
+    status: MemberStatus;
   };
 };
 
@@ -77,6 +78,28 @@ export async function createGroup(payload: { name: string; description?: string 
       name: payload.name.trim(),
       description: payload.description?.trim() ? payload.description.trim() : null,
     })
+    .select("id, name, description, created_at")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as GroupRow;
+}
+
+export async function updateGroup(
+  id: string,
+  payload: { name: string; description?: string | null }
+): Promise<GroupRow> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("groups")
+    .update({
+      name: payload.name.trim(),
+      description: payload.description?.trim() ? payload.description.trim() : null,
+    })
+    .eq("id", id)
     .select("id, name, description, created_at")
     .single();
 
@@ -147,7 +170,7 @@ export async function getMembersInGroup(groupId: string): Promise<GroupMemberRow
       full_name: string;
       dni: string;
       email: string | null;
-      status: "pending" | "active";
+      status: MemberStatus;
     } | null;
   };
 

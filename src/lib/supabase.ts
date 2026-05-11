@@ -2,7 +2,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ClubPaymentMethod } from "@/config/payment-method";
-import type { Member } from "@/types";
+import type { Member, MemberStatus } from "@/types";
 
 export type Database = {
   public: {
@@ -15,7 +15,7 @@ export type Database = {
           dni: string;
           address: string;
           phone: string | null;
-          status: "pending" | "active";
+          status: MemberStatus;
           created_at: string;
         };
         Insert: {
@@ -25,7 +25,7 @@ export type Database = {
           dni: string;
           address: string;
           phone?: string | null;
-          status?: "pending" | "active";
+          status?: MemberStatus;
           created_at?: string;
         };
         Update: {
@@ -34,7 +34,7 @@ export type Database = {
           dni?: string;
           address?: string;
           phone?: string | null;
-          status?: "pending" | "active";
+          status?: MemberStatus;
         };
         Relationships: [];
       };

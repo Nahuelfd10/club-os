@@ -9,6 +9,7 @@ import { addChargeLine, registerChargePayment } from "@/lib/charges";
 import { DEFAULT_PAYMENT_METHOD } from "@/config/payment-method";
 import { formatMoney } from "@/lib/formatters";
 import { listMembers } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 
 /**
  * Importador de líneas desde planillas xlsx.
@@ -46,7 +47,7 @@ type ImportChargeLinesProps = {
   onImported: () => void | Promise<void>;
 };
 
-type MemberOption = { id: string; full_name: string; dni: string; status: "pending" | "active" };
+type MemberOption = { id: string; full_name: string; dni: string; status: MemberStatus };
 
 function parseNumber(value: unknown): number {
   if (value === null || value === undefined || value === "") return 0;

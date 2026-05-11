@@ -8,6 +8,8 @@ type TableProps = {
 type TableContainerProps = {
   children: React.ReactNode;
   className?: string;
+  footer?: React.ReactNode;
+  header?: React.ReactNode;
 };
 
 type TableSectionProps = {
@@ -34,10 +36,12 @@ export function Table({ children, className = "" }: TableProps) {
   );
 }
 
-export function TableContainer({ children, className = "" }: TableContainerProps) {
+export function TableContainer({ children, className = "", footer, header }: TableContainerProps) {
   return (
     <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white ${className}`.trim()}>
+      {header ? <div className="border-b border-slate-200 px-4 py-3">{header}</div> : null}
       <div className="overflow-x-auto">{children}</div>
+      {footer ? <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">{footer}</div> : null}
     </div>
   );
 }

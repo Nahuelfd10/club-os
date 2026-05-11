@@ -4,6 +4,7 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 
 export type ChargeRow = {
   id: string;
@@ -153,7 +154,7 @@ export type MemberChargeForChargeRow = {
     full_name: string;
     dni: string;
     phone: string | null;
-    status: "pending" | "active";
+    status: MemberStatus;
   } | null;
 };
 
@@ -862,7 +863,7 @@ type RawMemberChargeForChargeRow = {
     full_name: string;
     dni: string;
     phone: string | null;
-    status: "pending" | "active";
+    status: MemberStatus;
   } | null;
 };
 
@@ -920,7 +921,7 @@ export async function getMissingMembersForCharge(params: {
   chargeId: string;
   /** `null` = cargo del club completo (comparar con socios activos). */
   groupId: string | null;
-}): Promise<Array<{ id: string; full_name: string; dni: string; status: "pending" | "active" }>> {
+}): Promise<Array<{ id: string; full_name: string; dni: string; status: MemberStatus }>> {
   const supabase = getSupabaseClient();
 
   const { data: existingMc, error: mcErr } = await supabase
@@ -965,7 +966,7 @@ export async function getMissingMembersForCharge(params: {
       id: string;
       full_name: string;
       dni: string;
-      status: "pending" | "active";
+      status: MemberStatus;
     }>;
   }
 
@@ -983,7 +984,7 @@ export async function getMissingMembersForCharge(params: {
     id: string;
     full_name: string;
     dni: string;
-    status: "pending" | "active";
+    status: MemberStatus;
   }>;
 }
 

@@ -41,6 +41,7 @@ import { formatDueDate, formatPaidAt } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 import { createExpense, deleteExpense, listExpensesByChargeId, updateExpense, type ExpenseRow } from "@/lib/expenses";
 import { buildChargeDebtWhatsAppLink } from "@/lib/whatsapp-reminder";
+import type { MemberStatus } from "@/types";
 
 type FilterKey = "all" | "pending" | "partial" | "paid";
 
@@ -52,7 +53,7 @@ export default function AdminChargeDetailPage() {
   const [hasPayments, setHasPayments] = useState<boolean | null>(null);
   const [rows, setRows] = useState<MemberChargeForChargeRow[]>([]);
   const [missingMembers, setMissingMembers] = useState<
-    Array<{ id: string; full_name: string; dni: string; status: "pending" | "active" }>
+    Array<{ id: string; full_name: string; dni: string; status: MemberStatus }>
   >([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -86,7 +87,7 @@ export default function AdminChargeDetailPage() {
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
 
   // Líneas (member_charges) — agregar/editar/eliminar manualmente.
-  type MemberOption = { id: string; full_name: string; dni: string; status: "pending" | "active" };
+  type MemberOption = { id: string; full_name: string; dni: string; status: MemberStatus };
   const [allMembers, setAllMembers] = useState<MemberOption[]>([]);
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [lineEditingId, setLineEditingId] = useState<string | null>(null);
@@ -1080,7 +1081,7 @@ export default function AdminChargeDetailPage() {
                                   {row.member.full_name}
                                 </Link>
                                 <p className="text-xs text-slate-500">
-                                  DNI {row.member.dni} · {row.member.status === "active" ? "Activo" : "Pendiente"}
+                                  DNI {row.member.dni} · {row.member.status === "active" ? "Activo" : row.member.status === "inactive" ? "Baja" : "Pendiente"}
                                 </p>
                               </>
                             ) : (
@@ -1299,7 +1300,7 @@ export default function AdminChargeDetailPage() {
                       <div className="min-w-0">
                         <p className="font-semibold text-slate-900">{m.full_name}</p>
                         <p className="text-xs text-slate-500">
-                          DNI {m.dni} · {m.status === "active" ? "Activo" : "Pendiente"}
+                          DNI {m.dni} · {m.status === "active" ? "Activo" : m.status === "inactive" ? "Baja" : "Pendiente"}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">

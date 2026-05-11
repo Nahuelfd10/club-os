@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -7,7 +8,6 @@ import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
   Button,
-  Card,
   EmptyState,
   Input,
   PageHeader,
@@ -312,89 +312,88 @@ export default function AdminExpensesPage() {
   return (
     <section className="space-y-4">
       <PageHeader
-        title="Caja"
-        description="Ingresos y egresos reales del club. Los ingresos salen de pagos registrados; los egresos son gastos manuales."
+        eyebrow="Caja del club"
+        title="Movimientos"
+        description="Ingresos y egresos reales del club, leidos desde los registros existentes sin duplicarlos."
         actions={
           <button
             type="button"
             onClick={openCreate}
-            className={buttonClassNames({ variant: "primary", size: "lg" })}
+            className={buttonClassNames({ variant: "primary", size: "md" })}
           >
-            Registrar egreso
+            <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
+            Nuevo egreso
           </button>
         }
       />
 
-      <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Lectura de caja</p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <label htmlFor="movements-month" className="text-sm font-medium text-slate-300">
-                  Mes
-                </label>
-                <Input
-                  id="movements-month"
-                  type="month"
-                  value={monthFilter}
-                  onChange={(e) => setMonthFilter(e.target.value)}
-                  className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08] sm:w-48"
-                />
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    ["all", "Todos"],
-                    ["income", "Ingresos"],
-                    ["expense", "Egresos"],
-                  ] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setTypeFilter(value)}
-                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                        typeFilter === value
-                          ? "bg-white text-slate-950"
-                          : "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Lectura de caja</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <label htmlFor="movements-month" className="text-sm font-medium text-slate-600">
+                Mes
+              </label>
+              <Input
+                id="movements-month"
+                type="month"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="rounded-full text-sm sm:w-48"
+              />
+              <div className="inline-flex w-fit flex-wrap gap-1 rounded-full bg-slate-100 p-1">
+                {([
+                  ["all", "Todos"],
+                  ["income", "Ingresos"],
+                  ["expense", "Egresos"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTypeFilter(value)}
+                    className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
+                      typeFilter === value
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "text-slate-600 hover:text-slate-950"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Ingresos</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-success">{formatMoney(summary.income)}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Egresos</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{formatMoney(summary.expense)}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Balance</p>
-                <p
-                  className={`mt-1 text-2xl font-bold tabular-nums ${
-                    summary.balance >= 0 ? "text-success" : "text-danger"
-                  }`}
-                >
-                  {formatMoney(summary.balance)}
-                </p>
-              </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Ingresos</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-success">{formatMoney(summary.income)}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Egresos</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-warning">{formatMoney(summary.expense)}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Balance</p>
+              <p
+                className={`mt-1 text-2xl font-bold tabular-nums ${
+                  summary.balance >= 0 ? "text-success" : "text-danger"
+                }`}
+              >
+                {formatMoney(summary.balance)}
+              </p>
             </div>
           </div>
         </div>
 
-        {isLoading ? <p className="mt-4 text-slate-300">Cargando movimientos...</p> : null}
+        {isLoading ? <p className="text-sm text-slate-600">Cargando movimientos...</p> : null}
 
-        {!isLoading && errorMessage ? <Alert className="mt-4" variant="danger">{errorMessage}</Alert> : null}
-        {!isLoading && actionMessage ? <Alert className="mt-4">{actionMessage}</Alert> : null}
+        {!isLoading && errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+        {!isLoading && actionMessage ? <Alert>{actionMessage}</Alert> : null}
 
         {!isLoading && !errorMessage && filteredMovements.length === 0 ? (
           <EmptyState
-            className="mt-4"
             title="No hay movimientos para este filtro"
             description="Los ingresos aparecen cuando registrás pagos en Cobros. Los egresos se cargan acá como gastos reales."
             actions={
@@ -406,7 +405,7 @@ export default function AdminExpensesPage() {
         ) : null}
 
         {!isLoading && !errorMessage && filteredMovements.length > 0 ? (
-          <TableContainer className="mt-4">
+          <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
@@ -501,7 +500,7 @@ export default function AdminExpensesPage() {
             </Table>
           </TableContainer>
         ) : null}
-      </Card>
+      </section>
 
       <AdminModal open={modalOpen} onClose={closeModal}>
         <h2 className="text-lg font-semibold text-white">{editing ? "Editar egreso" : "Registrar egreso"}</h2>

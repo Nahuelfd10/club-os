@@ -1,5 +1,6 @@
 import { clubConfig } from "@/config/club";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 import { getServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -174,7 +175,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const members = (membersRows ?? []) as Array<{
     id: string;
     full_name: string;
-    status: "pending" | "active";
+    status: MemberStatus;
     created_at: string;
   }>;
 

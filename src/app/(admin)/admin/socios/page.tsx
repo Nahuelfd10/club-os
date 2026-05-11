@@ -24,16 +24,17 @@ import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { listMemberChargeBalancesSplit, type MemberChargeBalancesSplit } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
 import { listMembers, updateMemberStatus } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 
 type MemberRow = {
   id: string;
   full_name: string;
   dni: string;
-  status: "pending" | "active";
+  status: MemberStatus;
   created_at: string;
 };
 
-type SociosTab = "directorio" | "solicitudes";
+type SociosTab = "directorio" | "solicitudes" | "bajas";
 type DebtSliceFilter = "all" | "in_debt" | "up_to_date";
 
 function splitMapFromRows(rows: MemberChargeBalancesSplit[]) {
@@ -106,6 +107,7 @@ export default function SociosPage() {
 
   const activeMembers = useMemo(() => members.filter((m) => m.status === "active"), [members]);
   const pendingMembers = useMemo(() => members.filter((m) => m.status === "pending"), [members]);
+  const inactiveMembers = useMemo(() => members.filter((m) => m.status === "inactive"), [members]);
 
   const filteredDirectorio = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -143,6 +145,19 @@ export default function SociosPage() {
     });
   }, [pendingMembers, searchTerm]);
 
+  const filteredBajas = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return inactiveMembers.filter((member) => {
+      if (normalizedSearch.length === 0) {
+        return true;
+      }
+      return (
+        member.full_name.toLowerCase().includes(normalizedSearch) ||
+        member.dni.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [inactiveMembers, searchTerm]);
+
   const handleApprove = async (memberId: string) => {
     setApprovingId(memberId);
 
@@ -175,7 +190,9 @@ export default function SociosPage() {
               registerDate(member.created_at),
             ];
           })
-        : filteredSolicitudes.map((member) => [member.full_name, member.dni, registerDate(member.created_at)]);
+        : activeTab === "solicitudes"
+          ? filteredSolicitudes.map((member) => [member.full_name, member.dni, registerDate(member.created_at)])
+          : filteredBajas.map((member) => [member.full_name, member.dni, registerDate(member.created_at)]);
     const headers =
       activeTab === "directorio"
         ? ["Nombre", "DNI", "Saldo cuota", "Saldo otros cargos", "Registro"]
@@ -185,7 +202,7 @@ export default function SociosPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = activeTab === "directorio" ? "socios.csv" : "solicitudes.csv";
+    a.download = activeTab === "directorio" ? "socios.csv" : activeTab === "solicitudes" ? "solicitudes.csv" : "bajas.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -193,6 +210,7 @@ export default function SociosPage() {
   const totalMembers = members.length;
   const pendingCount = pendingMembers.length;
   const activeCount = activeMembers.length;
+  const inactiveCount = inactiveMembers.length;
 
   return (
     <section className="space-y-5">
@@ -206,7 +224,7 @@ export default function SociosPage() {
             <p className="mt-1 text-sm text-slate-600">
               {isConfigLoading
                 ? "Cargando configuración..."
-                : `${totalMembers} personas registradas · ${activeCount} activos · ${pendingCount} esperando aprobación.`}
+                : `${totalMembers} personas registradas · ${activeCount} activos · ${pendingCount} esperando aprobación · ${inactiveCount} bajas.`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -285,6 +303,19 @@ export default function SociosPage() {
               >
                 Solicitudes <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === "solicitudes" ? "bg-nav-active !text-white" : "bg-slate-300 text-slate-800"}`}>{pendingCount}</span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "bajas"}
+                onClick={() => setActiveTab("bajas")}
+                className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
+                  activeTab === "bajas"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
+                }`}
+              >
+                Bajas <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === "bajas" ? "bg-nav-active !text-white" : "bg-slate-300 text-slate-800"}`}>{inactiveCount}</span>
+              </button>
             </div>
             <p className="text-xs text-slate-500">
               Cuota mensual y otros cargos se gestionan por separado.
@@ -318,7 +349,11 @@ export default function SociosPage() {
                 />
               </div>
             ) : (
-              <p className="text-sm text-slate-600">Personas que enviaron el formulario y esperan aprobación.</p>
+              <p className="text-sm text-slate-600">
+                {activeTab === "solicitudes"
+                  ? "Personas que enviaron el formulario y esperan aprobación."
+                  : "Socios dados de baja. Conservan historial de pagos, cargos y datos de contacto."}
+              </p>
             )}
 
             <div className="relative w-full lg:w-[300px]">
@@ -333,7 +368,7 @@ export default function SociosPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Total</p>
               <p className="mt-2 text-2xl font-bold text-slate-950">{totalMembers}</p>
@@ -348,6 +383,11 @@ export default function SociosPage() {
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Solicitudes</p>
               <p className="mt-2 text-2xl font-bold text-accent">{pendingCount}</p>
               <p className="text-xs text-slate-600">esperando</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Bajas</p>
+              <p className="mt-2 text-2xl font-bold text-slate-500">{inactiveCount}</p>
+              <p className="text-xs text-slate-600">fuera del padrón activo</p>
             </div>
           </div>
 
@@ -438,12 +478,13 @@ export default function SociosPage() {
                   </Table>
               </TableContainer>
             )
-          ) : filteredSolicitudes.length === 0 ? (
+          ) : activeTab === "solicitudes" ? (
+            filteredSolicitudes.length === 0 ? (
             <EmptyState
               title="No hay solicitudes pendientes."
               description="Las nuevas altas aparecerán aquí cuando envíen el formulario de registro."
             />
-          ) : (
+            ) : (
             <TableContainer>
                 <Table>
                   <TableHead>
@@ -483,6 +524,57 @@ export default function SociosPage() {
                           >
                             {approvingId === member.id ? "Aprobando..." : "Aprobar"}
                           </button>
+                        </Td>
+                      </tr>
+                    ))}
+                  </TableBody>
+                </Table>
+            </TableContainer>
+            )
+          ) : filteredBajas.length === 0 ? (
+            <EmptyState
+              title="No hay socios dados de baja."
+              description="Cuando marques una baja desde la ficha del socio, aparecerá en esta sección."
+            />
+          ) : (
+            <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <Th>Nombre</Th>
+                      <Th>DNI</Th>
+                      <Th>Registro</Th>
+                      <Th className="text-right">Acciones</Th>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredBajas.map((member) => (
+                      <tr
+                        key={member.id}
+                        onClick={() => router.push(`/admin/socios/${member.id}`)}
+                        className="cursor-pointer transition-colors hover:bg-slate-50"
+                      >
+                        <Td>
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                              {memberInitials(member.full_name)}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-slate-950">{member.full_name}</span>
+                              <span className="text-xs text-slate-500">{memberSince(member.created_at)}</span>
+                            </span>
+                          </div>
+                        </Td>
+                        <Td className="tabular-nums text-slate-600">{member.dni}</Td>
+                        <Td className="text-slate-700">{registerDate(member.created_at)}</Td>
+                        <Td className="text-right">
+                          <Link
+                            href={`/admin/socios/${member.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className={buttonClassNames({ variant: "neutral", size: "sm" })}
+                          >
+                            Ver ficha
+                          </Link>
                         </Td>
                       </tr>
                     ))}

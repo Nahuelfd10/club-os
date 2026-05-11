@@ -231,7 +231,7 @@ export function AdminShell({ children }: AdminShellProps) {
               aria-hidden
               className="pointer-events-none fixed inset-y-0 right-0 hidden w-[38rem] bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_55%)] lg:block"
             />
-            <div className="relative z-10 mx-auto w-full max-w-[86rem]">{children}</div>
+            <div className="relative z-10 w-full">{children}</div>
           </main>
         </div>
       </div>

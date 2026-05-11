@@ -1,3 +1,5 @@
+export type MemberStatus = "pending" | "active" | "inactive";
+
 export type Member = {
   id: string;
   full_name: string;
@@ -5,6 +7,6 @@ export type Member = {
   dni: string;
   address: string;
   phone?: string;
-  status: "pending" | "active";
+  status: MemberStatus;
   created_at: string;
 };

@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,7 +9,6 @@ import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
   Button,
-  Card,
   EmptyState,
   Input,
   PageHeader,
@@ -115,8 +115,9 @@ export default function AdminGroupsPage() {
   return (
     <section className="space-y-4">
       <PageHeader
+        eyebrow="Equipos y categorias"
         title="Grupos"
-        description="Equipos o categorías para organizar socios."
+        description="Organiza tus socios por equipo, categoria o disciplina. Cada grupo puede tener cargos propios."
         actions={
           <button
             type="button"
@@ -125,15 +126,16 @@ export default function AdminGroupsPage() {
               setCreateName("");
               setCreateDescription("");
             }}
-            className={buttonClassNames({ variant: "primary", size: "lg" })}
+            className={buttonClassNames({ variant: "primary", size: "md" })}
           >
+            <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
             Crear grupo
           </button>
         }
       />
 
-      <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
-        {isLoading ? <p className="text-slate-300">Cargando grupos...</p> : null}
+      <section className="space-y-4">
+        {isLoading ? <p className="text-sm text-slate-600">Cargando grupos...</p> : null}
 
         {!isLoading && errorMessage ? (
           <Alert variant="danger">{errorMessage}</Alert>
@@ -145,7 +147,6 @@ export default function AdminGroupsPage() {
 
         {!isLoading && !errorMessage && groups.length === 0 ? (
           <EmptyState
-            className="mt-2"
             title="Todavía no hay grupos."
             description="Creá el primero para empezar a asignar socios y registrar cargos."
             actions={
@@ -165,7 +166,7 @@ export default function AdminGroupsPage() {
         ) : null}
 
         {!isLoading && !errorMessage && groups.length > 0 ? (
-          <TableContainer className="mt-4">
+          <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
@@ -177,7 +178,11 @@ export default function AdminGroupsPage() {
               </TableHead>
               <TableBody>
                 {groups.map((group) => (
-                  <TableRow key={group.id} className="transition-colors hover:bg-slate-50">
+                  <TableRow
+                    key={group.id}
+                    onClick={() => router.push(`/admin/groups/${group.id}`)}
+                    className="cursor-pointer transition-colors hover:bg-slate-50"
+                  >
                     <Td className="font-medium text-slate-950">{group.name}</Td>
                     <Td className="max-w-md text-slate-600">
                       {group.description?.trim() ? group.description : (
@@ -189,13 +194,17 @@ export default function AdminGroupsPage() {
                       <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/admin/groups/${group.id}`}
+                          onClick={(event) => event.stopPropagation()}
                           className={buttonClassNames({ variant: "neutral", size: "sm" })}
                         >
                           Ver detalle
                         </Link>
                         <button
                           type="button"
-                          onClick={() => void handleDelete(group)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDelete(group);
+                          }}
                           disabled={deletingId === group.id}
                           className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                         >
@@ -209,7 +218,7 @@ export default function AdminGroupsPage() {
             </Table>
           </TableContainer>
         ) : null}
-      </Card>
+      </section>
 
       <AdminModal open={createOpen} onClose={() => !isCreating && setCreateOpen(false)}>
         <h2 className="text-lg font-semibold text-white">Nuevo grupo</h2>

@@ -25,12 +25,41 @@ import {
 } from "@/lib/charges-ui";
 import { datetimeLocalToIso, formatPaidAt, toDatetimeLocalValue } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
+import type { MemberStatus } from "@/types";
 
 type Props = {
   rows: MemberChargeWithDetails[];
-  memberStatus: "pending" | "active";
+  memberStatus: MemberStatus;
   onPaid: () => void | Promise<void>;
 };
+
+function getBillingPeriodParts(billingPeriod: string | null) {
+  if (!billingPeriod) return null;
+  const isoPeriod = /^(\d{4})-(\d{2})/.exec(billingPeriod);
+  if (isoPeriod) {
+    return { year: Number(isoPeriod[1]), month: Number(isoPeriod[2]) };
+  }
+  const periodDate = new Date(`${billingPeriod}T12:00:00`);
+  if (Number.isNaN(periodDate.getTime())) return null;
+  return { year: periodDate.getFullYear(), month: periodDate.getMonth() + 1 };
+}
+
+function isSameBillingMonth(
+  billingPeriod: string | null,
+  currentPeriod: { year: number; month: number }
+) {
+  const period = getBillingPeriodParts(billingPeriod);
+  return Boolean(period && period.year === currentPeriod.year && period.month === currentPeriod.month);
+}
+
+function isDueBillingMonth(
+  billingPeriod: string | null,
+  currentPeriod: { year: number; month: number }
+) {
+  const period = getBillingPeriodParts(billingPeriod);
+  if (!period) return true;
+  return period.year < currentPeriod.year || (period.year === currentPeriod.year && period.month <= currentPeriod.month);
+}
 
 export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) {
   const [payRow, setPayRow] = useState<MemberChargeWithDetails | null>(null);
@@ -77,13 +106,17 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
     return new Date(now.getFullYear(), now.getMonth(), 1);
   }, []);
 
+  const currentPeriod = useMemo(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }, []);
+
   const years = useMemo(() => {
     const set = new Set<number>();
     set.add(new Date().getFullYear());
     sorted.forEach((row) => {
-      if (row.billing_period) {
-        set.add(new Date(`${row.billing_period}T12:00:00`).getFullYear());
-      }
+      const period = getBillingPeriodParts(row.billing_period);
+      if (period) set.add(period.year);
     });
     return [...set].sort((a, b) => b - a);
   }, [sorted]);
@@ -102,7 +135,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
       if (!row.billing_period) {
         return selectedYear === new Date().getFullYear();
       }
-      return new Date(`${row.billing_period}T12:00:00`).getFullYear() === selectedYear;
+      return getBillingPeriodParts(row.billing_period)?.year === selectedYear;
     });
   }, [selectedYear, sorted]);
 
@@ -111,18 +144,23 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
       if (!row.billing_period) {
         return true;
       }
-      return new Date(`${row.billing_period}T12:00:00`) <= currentMonthStart;
+      return isDueBillingMonth(row.billing_period, currentPeriod);
     });
-  }, [currentMonthStart, rowsForYear]);
+  }, [currentPeriod, rowsForYear]);
 
   const futureRows = useMemo(() => {
     return rowsForYear.filter((row) => {
       if (!row.billing_period) {
         return false;
       }
-      return new Date(`${row.billing_period}T12:00:00`) > currentMonthStart;
+      return !isDueBillingMonth(row.billing_period, currentPeriod);
     });
-  }, [currentMonthStart, rowsForYear]);
+  }, [currentPeriod, rowsForYear]);
+
+  const displayedRows = useMemo(
+    () => (showFuture ? rowsForYear : visibleRows),
+    [rowsForYear, showFuture, visibleRows]
+  );
 
   const payableRowsForYear = useMemo(
     () => rowsForYear.filter((row) => memberStatus === "active" && remainingAmount(row) > 0.001),
@@ -171,18 +209,23 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
       if (!row.billing_period) {
         return false;
       }
-      return new Date(`${row.billing_period}T12:00:00`) < currentMonthStart && remainingAmount(row) > 0.001;
+      const period = getBillingPeriodParts(row.billing_period);
+      if (!period) return false;
+      return (
+        (period.year < currentPeriod.year || (period.year === currentPeriod.year && period.month < currentPeriod.month)) &&
+        remainingAmount(row) > 0.001
+      );
     });
-  }, [currentMonthStart, rowsForYear]);
+  }, [currentPeriod, rowsForYear]);
 
   const currentRows = useMemo(() => {
     return rowsForYear.filter((row) => {
       if (!row.billing_period) {
         return false;
       }
-      return new Date(`${row.billing_period}T12:00:00`).getTime() === currentMonthStart.getTime();
+      return isSameBillingMonth(row.billing_period, currentPeriod);
     });
-  }, [currentMonthStart, rowsForYear]);
+  }, [currentPeriod, rowsForYear]);
 
   const openBulkModal = (mode: "rest" | "select") => {
     setBulkMode(mode);
@@ -279,10 +322,10 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
 
   return (
     <>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Cuota mensual del club</h2>
+            <h3 className="text-base font-semibold text-slate-950">Cuota mensual del club</h3>
             <p className="mt-1 text-sm text-slate-600">
               Cuotas mensuales del club agrupadas por año, con los meses futuros colapsados para acortar la vista.
             </p>
@@ -356,10 +399,26 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
 
         {rowsForYear.length === 0 ? (
           <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas para {selectedYear}.</p>
-        ) : visibleRows.length === 0 ? (
+        ) : displayedRows.length === 0 ? (
           <p className="mt-4 text-sm text-slate-600">No hay cuotas mensuales registradas.</p>
         ) : (
-          <TableContainer className="mt-4">
+          <TableContainer
+            className="mt-4"
+            footer={
+              futureRows.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+                  <span>{futureRows.length} cuotas futuras del {selectedYear} colapsadas</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFuture((prev) => !prev)}
+                    className="text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950"
+                  >
+                    {showFuture ? "Ocultar futuras" : "Ver futuras"} →
+                  </button>
+                </div>
+              ) : null
+            }
+          >
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50">
                 <tr>
@@ -371,9 +430,9 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {visibleRows.map((row) => {
+                {displayedRows.map((row) => {
                   const rem = remainingAmount(row);
-                  const canPay = memberStatus === "active" && rem > 0.001;
+                  const canPay = memberStatus !== "pending" && rem > 0.001;
                   const expanded = expandedId === row.id;
                   const history = historyByMc[row.id];
                   return (
@@ -452,7 +511,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
           </TableContainer>
         )}
 
-        {futureRows.length > 0 ? (
+        {false ? (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -481,7 +540,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {futureRows.map((row) => {
                       const rem = remainingAmount(row);
-                      const canPay = memberStatus === "active" && rem > 0.001;
+                      const canPay = memberStatus !== "pending" && rem > 0.001;
                       const expanded = expandedId === row.id;
                       const history = historyByMc[row.id];
                       return (

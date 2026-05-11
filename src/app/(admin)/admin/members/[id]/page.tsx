@@ -3,10 +3,12 @@
 import {
   Calendar,
   ChevronLeft,
+  Edit3,
   IdCard,
   Mail,
   MapPin,
   Phone,
+  Send,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MemberChargesSection } from "@/components/admin/member-charges-section";
 import { MemberGroupsSection } from "@/components/admin/member-groups-section";
 import { MembershipMonthlySection } from "@/components/admin/membership-monthly-section";
-import { Badge, buttonClassNames } from "@/components/ui";
+import { Alert, buttonClassNames } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import {
   getMemberChargesForMember,
@@ -24,7 +26,7 @@ import {
   type MemberChargeWithDetails,
 } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
-import { getMemberById, updateMember } from "@/lib/supabase";
+import { getMemberById, updateMember, updateMemberStatus } from "@/lib/supabase";
 import type { Member } from "@/types";
 
 type EditForm = {
@@ -35,7 +37,6 @@ type EditForm = {
 };
 
 type FinanceTab = "membership" | "other";
-
 type InfoIconName = "email" | "phone" | "location" | "calendar" | "id";
 
 const infoIconByName: Record<InfoIconName, LucideIcon> = {
@@ -55,6 +56,24 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function memberInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "S";
+}
+
+function memberSince(date: string) {
+  return new Date(date).toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function memberStatusLabel(status: Member["status"]) {
+  if (status === "active") return "Activo";
+  if (status === "inactive") return "Baja";
+  return "Pendiente";
+}
+
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
   const memberId = params?.id ?? "";
@@ -65,6 +84,8 @@ export default function MemberDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [financeTab, setFinanceTab] = useState<FinanceTab>("membership");
   const [form, setForm] = useState<EditForm>({
     full_name: "",
@@ -74,22 +95,17 @@ export default function MemberDetailPage() {
   });
 
   const loadCharges = useCallback(async () => {
-    if (!memberId) {
-      return;
-    }
+    if (!memberId) return;
     const data = await getMemberChargesForMember(memberId);
     setMemberCharges(data);
   }, [memberId]);
 
   const loadMemberData = useCallback(async () => {
-    if (!memberId) {
-      return;
-    }
+    if (!memberId) return;
 
     setIsLoading(true);
     try {
       const [memberData] = await Promise.all([getMemberById(memberId), loadCharges()]);
-
       setMember(memberData);
 
       if (memberData) {
@@ -129,9 +145,7 @@ export default function MemberDetailPage() {
   const membershipOverdueCharges = useMemo(
     () =>
       membershipCharges.filter((charge) => {
-        if (!charge.billing_period) {
-          return false;
-        }
+        if (!charge.billing_period) return false;
         return new Date(`${charge.billing_period}T12:00:00`) < currentMonthStart;
       }),
     [currentMonthStart, membershipCharges]
@@ -140,19 +154,14 @@ export default function MemberDetailPage() {
   const membershipCurrentCharges = useMemo(
     () =>
       membershipCharges.filter((charge) => {
-        if (!charge.billing_period) {
-          return false;
-        }
+        if (!charge.billing_period) return false;
         return new Date(`${charge.billing_period}T12:00:00`).getTime() === currentMonthStart.getTime();
       }),
     [currentMonthStart, membershipCharges]
   );
 
   const otherDebt = useMemo(
-    () =>
-      roundMoney(
-        otherCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)
-      ),
+    () => roundMoney(otherCharges.reduce((sum, charge) => sum + (charge.amount - charge.paid_amount), 0)),
     [otherCharges]
   );
 
@@ -181,12 +190,11 @@ export default function MemberDetailPage() {
     () => roundMoney(membershipOverdueDebt + membershipCurrentDebt + otherDebt),
     [membershipCurrentDebt, membershipOverdueDebt, otherDebt]
   );
+
   const hasCharges = (memberCharges?.length ?? 0) > 0;
 
   const handleSave = async () => {
-    if (!member) {
-      return;
-    }
+    if (!member) return;
 
     setIsSaving(true);
     try {
@@ -205,11 +213,33 @@ export default function MemberDetailPage() {
     }
   };
 
+  const handleDeactivate = async () => {
+    if (!member) return;
+
+    const ok = window.confirm(
+      `Dar de baja a ${member.full_name}? El historial de pagos y cargos se conserva, pero dejara de figurar como socio activo.`
+    );
+    if (!ok) return;
+
+    setIsChangingStatus(true);
+    setActionMessage(null);
+    try {
+      await updateMemberStatus(member.id, "inactive");
+      setMember((prev) => (prev ? { ...prev, status: "inactive" } : prev));
+      setActionMessage("Socio dado de baja. El historial queda disponible para consulta.");
+    } catch (error) {
+      console.error("Error al dar de baja socio:", error);
+      setActionMessage("No se pudo dar de baja el socio. Proba nuevamente.");
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
-          <p className="text-slate-300">Cargando detalle del socio...</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-slate-600">Cargando detalle del socio...</p>
         </div>
       </section>
     );
@@ -218,11 +248,11 @@ export default function MemberDetailPage() {
   if (!member) {
     return (
       <section className="space-y-6">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
-          <p className="text-slate-300">No se encontró el socio solicitado.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-slate-600">No se encontro el socio solicitado.</p>
           <Link
             href="/admin/socios"
-            className="mt-3 inline-block text-sm font-medium text-white/72 hover:text-white"
+            className="mt-3 inline-block text-sm font-medium text-slate-600 hover:text-slate-950"
           >
             Volver a socios
           </Link>
@@ -232,195 +262,170 @@ export default function MemberDetailPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-5">
       <div>
         <Link
           href="/admin/socios"
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950"
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
           Volver a socios
         </Link>
       </div>
 
-      <header className="mt-[-24px] flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-white/42">Ficha del socio</p>
-          <h1 className="break-words text-3xl font-bold tracking-tight text-white">
-            {member.full_name}
-          </h1>
-          <p className="mt-1 text-sm text-slate-300">
-            {isConfigLoading ? "Cargando..." : `Perfil financiero y de contacto · ${config.name}`}
-          </p>
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white">
+            {memberInitials(member.full_name)}
+          </span>
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-primary/60">Ficha del socio</p>
+            <h1 className="break-words text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
+              {member.full_name}
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              DNI {member.dni} · {memberStatusLabel(member.status)} desde {memberSince(member.created_at)}
+              {isConfigLoading ? "" : ` · ${config.name}`}
+            </p>
+          </div>
         </div>
+
         {!isEditing ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className={buttonClassNames({
-              variant: "ghost",
-              size: "lg",
-              className: "border border-white/10 text-white hover:bg-white/10 hover:text-white",
-            })}
-          >
-            Editar
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={buttonClassNames({ variant: "neutral", size: "md" })}
+              disabled={!member.phone}
+              title={member.phone ? undefined : "Carga un telefono para abrir WhatsApp."}
+            >
+              <Send className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+              Recordatorio
+            </button>
+            {member.status === "active" ? (
+              <button
+                type="button"
+                onClick={() => void handleDeactivate()}
+                disabled={isChangingStatus}
+                className={buttonClassNames({ variant: "danger", size: "md" })}
+              >
+                {isChangingStatus ? "Procesando..." : "Dar de baja"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className={buttonClassNames({ variant: "primary", size: "md" })}
+            >
+              <Edit3 className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+              Editar
+            </button>
+          </div>
         ) : null}
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">
-          <span className="font-semibold text-white">Estado</span>
-          {member.status === "active" ? (
-            <Badge variant="success">Activo</Badge>
-          ) : (
-            <Badge variant="warning">Pendiente</Badge>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">
-          <InfoIcon name="calendar" />
-          <span className="font-semibold text-white">Registro</span>
-          <span className="font-medium text-white">
-            {new Date(member.created_at).toLocaleDateString("es-AR")}
-          </span>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300">
-          <span className="font-semibold text-white">DNI</span>{" "}
-          <span className="font-medium text-white">{member.dni}</span>
-        </div>
-      </div>
+      {actionMessage ? (
+        <Alert variant={actionMessage.startsWith("No se pudo") ? "danger" : "success"}>{actionMessage}</Alert>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-3">
-        <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Deuda total</p>
-          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(actionableDebt)}</p>
-          <p className="mt-1 text-xs text-slate-400">
-            {hasCharges ? "Incluye atraso, cuota actual y otros cargos." : "Todavía no tiene cargos asignados."}
+        <article
+          className={`rounded-2xl border p-4 shadow-sm ${
+            actionableDebt > 0.001 ? "border-danger/25 bg-danger/5" : "border-slate-200 bg-white"
+          }`}
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Deuda total</p>
+          <p className={`mt-2 text-2xl font-bold ${actionableDebt > 0.001 ? "text-danger" : "text-success"}`}>
+            {formatMoney(actionableDebt)}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {hasCharges ? "Incluye cuota exigible y otros cargos." : "Todavia no tiene cargos asignados."}
           </p>
         </article>
-        <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Cuota del club</p>
-          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(membershipDueDebt)}</p>
-          <p className="mt-1 text-xs text-slate-400">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Cuota del club</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{formatMoney(membershipDueDebt)}</p>
+          <p className="mt-1 text-xs text-slate-600">
             {membershipOverdueCharges.length > 0
-              ? `${membershipOverdueCharges.length} mes(es) vencido(s) + cuota actual.`
+              ? `${membershipOverdueCharges.length} cuota(s) vencida(s) + mes actual.`
               : membershipCurrentCharges.length > 0
-                ? "Solo incluye la cuota exigible del período actual."
+                ? "Solo incluye la cuota exigible del periodo actual."
                 : "No tiene cuota exigible en este momento."}
           </p>
         </article>
-        <article className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Deuda de cargos</p>
-          <p className="mt-1 text-2xl font-bold text-white">{formatMoney(otherDebt)}</p>
-          <p className="mt-1 text-xs text-slate-400">{otherCharges.length} registro(s)</p>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Cargos pendientes</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950">{formatMoney(otherDebt)}</p>
+          <p className="mt-1 text-xs text-slate-600">{otherCharges.length} cargo(s) registrados</p>
         </article>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-slate-950/58 p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-white">Datos de contacto</h2>
+      <section className="space-y-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Datos del socio</p>
+          <h2 className="text-lg font-semibold text-slate-950">Contacto y direccion</h2>
+        </div>
+
         {!isEditing ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-white/[0.08] px-2 py-1 text-xs font-semibold text-slate-400">
-                <InfoIcon name="email" />
-                Email
-              </p>
-              <p className="text-sm font-semibold text-white">{member.email || "-"}</p>
-            </article>
-            <article className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-white/[0.08] px-2 py-1 text-xs font-semibold text-slate-400">
-                <InfoIcon name="phone" />
-                Teléfono
-              </p>
-              <p className="text-sm font-semibold text-white">{member.phone || "-"}</p>
-            </article>
-            <article className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-white/[0.08] px-2 py-1 text-xs font-semibold text-slate-400">
-                <InfoIcon name="location" />
-                Dirección
-              </p>
-              <p className="text-sm font-semibold text-white">{member.address}</p>
-            </article>
-            <article className="rounded-xl border border-white/10 bg-white/[0.05] p-3">
-              <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-white/[0.08] px-2 py-1 text-xs font-semibold text-slate-400">
-                <InfoIcon name="id" />
-                DNI
-              </p>
-              <p className="text-sm font-semibold text-white">{member.dni}</p>
-            </article>
+            <ContactCard icon="email" label="Email" value={member.email || "-"} />
+            <ContactCard icon="phone" label="Telefono" value={member.phone || "-"} />
+            <ContactCard icon="location" label="Direccion" value={member.address} />
+            <ContactCard icon="id" label="DNI" value={member.dni} />
           </div>
         ) : (
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="full_name" className="mb-1 block text-sm font-medium text-slate-300">
-                Nombre
-              </label>
-              <input
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="space-y-3">
+              <EditInput
                 id="full_name"
+                label="Nombre"
                 value={form.full_name}
-                onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                onChange={(value) => setForm((prev) => ({ ...prev, full_name: value }))}
               />
-            </div>
-            <div>
-              <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-300">
-                Email
-              </label>
-              <input
+              <EditInput
                 id="email"
+                label="Email"
                 type="email"
                 value={form.email}
-                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                onChange={(value) => setForm((prev) => ({ ...prev, email: value }))}
               />
-            </div>
-            <div>
-              <label htmlFor="address" className="mb-1 block text-sm font-medium text-slate-300">
-                Dirección
-              </label>
-              <input
+              <EditInput
                 id="address"
+                label="Direccion"
                 value={form.address}
-                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                onChange={(value) => setForm((prev) => ({ ...prev, address: value }))}
               />
-            </div>
-            <div>
-              <label htmlFor="phone" className="mb-1 block text-sm font-medium text-slate-300">
-                Teléfono
-              </label>
-              <input
+              <EditInput
                 id="phone"
+                label="Telefono"
                 value={form.phone}
-                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))}
               />
-            </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={isSaving}
-                className="rounded-md bg-success px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSaving ? "Guardando..." : "Guardar"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsEditing(false);
-                  setForm({
-                    full_name: member.full_name,
-                    email: member.email ?? "",
-                    address: member.address,
-                    phone: member.phone ?? "",
-                  });
-                }}
-                className="rounded-md border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm font-semibold text-white"
-              >
-                Cancelar
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={isSaving}
+                  className="rounded-md bg-success px-3 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSaving ? "Guardando..." : "Guardar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setForm({
+                      full_name: member.full_name,
+                      email: member.email ?? "",
+                      address: member.address,
+                      phone: member.phone ?? "",
+                    });
+                  }}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -434,15 +439,19 @@ export default function MemberDetailPage() {
         </div>
       ) : (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap gap-2">
+          <section className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Cobros</p>
+              <h2 className="text-lg font-semibold text-slate-950">Cuotas y cargos del socio</h2>
+            </div>
+            <div className="inline-flex w-fit flex-wrap gap-1 rounded-full bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setFinanceTab("membership")}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
                   financeTab === "membership"
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
                 }`}
               >
                 Cuotas del club
@@ -450,10 +459,10 @@ export default function MemberDetailPage() {
               <button
                 type="button"
                 onClick={() => setFinanceTab("other")}
-                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
                   financeTab === "other"
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    ? "bg-white text-slate-950 shadow-sm"
+                    : "text-slate-600 hover:text-slate-950"
                 }`}
               >
                 Otros cargos
@@ -462,11 +471,7 @@ export default function MemberDetailPage() {
           </section>
 
           {financeTab === "membership" ? (
-            <MembershipMonthlySection
-              rows={membershipCharges}
-              memberStatus={member.status}
-              onPaid={loadCharges}
-            />
+            <MembershipMonthlySection rows={membershipCharges} memberStatus={member.status} onPaid={loadCharges} />
           ) : (
             <MemberChargesSection
               memberId={member.id}
@@ -481,5 +486,46 @@ export default function MemberDetailPage() {
         </>
       )}
     </section>
+  );
+}
+
+function ContactCard({ icon, label, value }: { icon: InfoIconName; label: string; value: string }) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4">
+      <p className="mb-2 flex items-center gap-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+        <InfoIcon name={icon} />
+        {label}
+      </p>
+      <p className="text-sm font-semibold text-slate-950">{value}</p>
+    </article>
+  );
+}
+
+function EditInput({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-600">
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400"
+      />
+    </div>
   );
 }

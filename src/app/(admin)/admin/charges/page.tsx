@@ -1,13 +1,14 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
   Button,
-  Card,
   EmptyState,
   Input,
   PageHeader,
@@ -36,12 +37,13 @@ import { formatDueDate } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 import { listAllGroupsForSelect } from "@/lib/groups";
 import { listMembers } from "@/lib/supabase";
+import type { MemberStatus } from "@/types";
 
 type ManualChargeCategory = Exclude<CreateChargeDefinitionCategory, "membership">;
 type ChargesTab = "membership" | "manual";
 type ChargeScenario = "simple" | "order";
 type AudienceMode = "all" | "group" | "members";
-type MemberOption = { id: string; full_name: string; dni: string; status: "pending" | "active" };
+type MemberOption = { id: string; full_name: string; dni: string; status: MemberStatus };
 
 const scenarioCopy: Record<
   ChargeScenario,
@@ -83,6 +85,42 @@ function sortMembership(a: ChargeWithGroup, b: ChargeWithGroup) {
   const pa = a.billing_period?.trim() ?? "";
   const pb = b.billing_period?.trim() ?? "";
   return pa.localeCompare(pb);
+}
+
+function getBillingPeriodParts(billingPeriod: string | null) {
+  if (!billingPeriod) return null;
+  const isoPeriod = /^(\d{4})-(\d{2})/.exec(billingPeriod);
+  if (isoPeriod) {
+    return { year: Number(isoPeriod[1]), month: Number(isoPeriod[2]) };
+  }
+  const periodDate = new Date(`${billingPeriod}T12:00:00`);
+  if (Number.isNaN(periodDate.getTime())) return null;
+  return { year: periodDate.getFullYear(), month: periodDate.getMonth() + 1 };
+}
+
+function isSameBillingMonth(
+  billingPeriod: string | null,
+  currentPeriod: { year: number; month: number }
+) {
+  const period = getBillingPeriodParts(billingPeriod);
+  return Boolean(period && period.year === currentPeriod.year && period.month === currentPeriod.month);
+}
+
+function isDueBillingMonth(
+  billingPeriod: string | null,
+  currentPeriod: { year: number; month: number }
+) {
+  const period = getBillingPeriodParts(billingPeriod);
+  if (!period) return true;
+  return period.year < currentPeriod.year || (period.year === currentPeriod.year && period.month <= currentPeriod.month);
+}
+
+function collectionProgressTone(paid: number, total: number) {
+  if (total <= 0) return "bg-slate-300";
+  const ratio = paid / total;
+  if (ratio >= 0.7) return "bg-success";
+  if (ratio >= 0.25) return "bg-accent";
+  return "bg-danger";
 }
 
 export default function AdminChargesPage() {
@@ -156,17 +194,16 @@ export default function AdminChargesPage() {
     [charges]
   );
 
-  const currentMonthStart = useMemo(() => {
+  const currentPeriod = useMemo(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
   }, []);
 
   const membershipYears = useMemo(() => {
     const years = new Set<number>([new Date().getFullYear()]);
     membershipCharges.forEach((charge) => {
-      if (charge.billing_period) {
-        years.add(new Date(`${charge.billing_period}T12:00:00`).getFullYear());
-      }
+      const period = getBillingPeriodParts(charge.billing_period);
+      if (period) years.add(period.year);
     });
     return [...years].sort((a, b) => b - a);
   }, [membershipCharges]);
@@ -175,36 +212,35 @@ export default function AdminChargesPage() {
     return membershipCharges
       .filter((charge) => {
         if (!charge.billing_period) return selectedYear === new Date().getFullYear();
-        return new Date(`${charge.billing_period}T12:00:00`).getFullYear() === selectedYear;
+        return getBillingPeriodParts(charge.billing_period)?.year === selectedYear;
       })
       .sort(sortMembership);
   }, [membershipCharges, selectedYear]);
 
-  const currentMembership = useMemo(
-    () =>
-      membershipForYear.find((charge) => {
-        if (!charge.billing_period) return false;
-        return new Date(`${charge.billing_period}T12:00:00`).getTime() === currentMonthStart.getTime();
-      }) ?? null,
-    [currentMonthStart, membershipForYear]
-  );
-
   const dueMembership = useMemo(
     () =>
       membershipForYear.filter((charge) => {
-        if (!charge.billing_period) return true;
-        return new Date(`${charge.billing_period}T12:00:00`) <= currentMonthStart;
+        return isDueBillingMonth(charge.billing_period, currentPeriod);
       }),
-    [currentMonthStart, membershipForYear]
+    [currentPeriod, membershipForYear]
   );
   const futureMembership = useMemo(
     () =>
       membershipForYear.filter((charge) => {
-        if (!charge.billing_period) return false;
-        return new Date(`${charge.billing_period}T12:00:00`) > currentMonthStart;
+        return !isDueBillingMonth(charge.billing_period, currentPeriod);
       }),
-    [currentMonthStart, membershipForYear]
+    [currentPeriod, membershipForYear]
   );
+
+  const displayedMembership = useMemo(
+    () => (showFuture ? membershipForYear : dueMembership),
+    [dueMembership, membershipForYear, showFuture]
+  );
+
+  const currentMembershipId = useMemo(() => {
+    if (selectedYear !== currentPeriod.year) return null;
+    return displayedMembership.find((charge) => isSameBillingMonth(charge.billing_period, currentPeriod))?.id ?? null;
+  }, [currentPeriod, displayedMembership, selectedYear]);
 
   const filteredMembers = useMemo(() => {
     const term = memberSearch.trim().toLowerCase();
@@ -309,102 +345,73 @@ export default function AdminChargesPage() {
   return (
     <section className="space-y-4">
       <PageHeader
+        eyebrow="Cobranza"
         title="Cobros"
-        description="Cuotas, pedidos y cobros puntuales en un solo lugar: quien debe, cuanto pago y que falta hacer."
+        description="La cuota del club y los cobros manuales usan el mismo motor, pero no necesitan el mismo flujo."
         actions={
           <button
             type="button"
             onClick={() => resetCreate("simple")}
-            className={buttonClassNames({ variant: "primary", size: "lg" })}
+            className={buttonClassNames({ variant: "primary", size: "md" })}
           >
-            Nuevo cobro
+            <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
+            Nuevo cobro manual
           </button>
         }
       />
 
-      <Card className="w-full rounded-[1.5rem] border-slate-200 bg-white p-6">
-        <div className="grid gap-3 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => resetCreate("simple")}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:bg-slate-100"
-          >
-            <p className="text-sm font-semibold text-slate-950">Cobro a socios</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">
-              Cuotas especiales, viajes, torneos, inscripciones o matriculas.
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => resetCreate("order")}
-            className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:bg-slate-100"
-          >
-            <p className="text-sm font-semibold text-slate-950">Pedido / indumentaria</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Crea un cobro vacio para cargar lineas variables o importar Excel.</p>
-          </button>
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex w-fit flex-wrap gap-1 rounded-full bg-slate-100 p-1">
           <button
             type="button"
             onClick={() => setActiveTab("membership")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
               activeTab === "membership"
-                ? "bg-slate-950 text-white"
-                : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Cuota mensual
+            Cuotas del club
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("manual")}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
               activeTab === "manual"
-                ? "bg-slate-950 text-white"
-                : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Cobros y pedidos
+            Cobros manuales
           </button>
         </div>
+        {activeTab === "membership" ? (
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Año</span>
+            <Select
+              value={selectedYear}
+              onChange={(event) => {
+                setSelectedYear(Number(event.target.value));
+                setShowFuture(false);
+              }}
+              className="w-auto rounded-lg px-3 py-2 text-sm"
+            >
+              {membershipYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </Select>
+          </label>
+        ) : null}
+      </div>
 
-        {isLoading ? <p className="mt-4 text-slate-300">Cargando cobros...</p> : null}
-        {!isLoading && errorMessage ? <Alert className="mt-4" variant="danger">{errorMessage}</Alert> : null}
-        {!isLoading && actionMessage ? <Alert className="mt-4">{actionMessage}</Alert> : null}
+      {isLoading ? <p className="text-sm text-slate-600">Cargando cobros...</p> : null}
+      {!isLoading && errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
+      {!isLoading && actionMessage ? <Alert>{actionMessage}</Alert> : null}
 
-        {!isLoading && !errorMessage && activeTab === "membership" ? (
-          <section className="mt-6 space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Cuota mensual</h2>
-                <p className="mt-1 text-sm text-slate-300">
-                  La cuota se genera automaticamente para socios activos. El mes actual queda primero para operar rapido.
-                </p>
-              </div>
-              <label className="space-y-1 text-sm text-slate-300">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-white/45">Anio</span>
-                <Select
-                  value={selectedYear}
-                  onChange={(event) => {
-                    setSelectedYear(Number(event.target.value));
-                    setShowFuture(false);
-                  }}
-                  className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
-                >
-                  {membershipYears.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
-
-            {currentMembership ? (
-              <CurrentMonthCard charge={currentMembership} progress={progressById[currentMembership.id]} />
-            ) : null}
-
+      {!isLoading && !errorMessage && activeTab === "membership" ? (
+        <section className="space-y-4">
             {membershipForYear.length === 0 ? (
               <EmptyState
                 title={`No hay cuotas para ${selectedYear}.`}
@@ -412,62 +419,69 @@ export default function AdminChargesPage() {
               />
             ) : (
               <ChargesTable
-                charges={dueMembership}
+                allowDelete={false}
+                charges={displayedMembership}
+                description="Revisa las cuotas exigibles. Las futuras quedan colapsadas hasta que necesites operar."
+                footer={
+                  futureMembership.length > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+                      <span>{futureMembership.length} cuotas futuras del {selectedYear} listas para cobro adelantado</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFuture((prev) => !prev)}
+                        className="text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950"
+                      >
+                        {showFuture ? "Ocultar futuras" : "Ver futuras"} →
+                      </button>
+                    </div>
+                  ) : null
+                }
                 progressById={progressById}
                 deletingId={deletingId}
                 onDelete={handleDelete}
+                currentChargeId={currentMembershipId}
                 emptyText="No hay cuotas exigibles para este filtro."
+                isMembershipTable
+                title={`Cuotas del club · ${selectedYear}`}
               />
             )}
-
-            {futureMembership.length > 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Cuotas futuras</p>
-                    <p className="mt-1 text-sm text-slate-300">
-                      {futureMembership.length} cuota(s) generadas para cobro adelantado.
-                    </p>
-                  </div>
-                  <Button type="button" variant="neutral" size="md" onClick={() => setShowFuture((prev) => !prev)}>
-                    {showFuture ? "Ocultar futuras" : "Ver futuras"}
-                  </Button>
-                </div>
-                {showFuture ? (
-                  <div className="mt-4">
-                    <ChargesTable
-                      charges={futureMembership}
-                      progressById={progressById}
-                      deletingId={deletingId}
-                      onDelete={handleDelete}
-                      emptyText="No hay cuotas futuras."
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </section>
-        ) : null}
+      ) : null}
 
-        {!isLoading && !errorMessage && activeTab === "manual" ? (
-          <section className="mt-6 space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-white">Cobros y pedidos</h2>
-              <p className="mt-1 text-sm text-slate-300">
-                Todo lo que no es cuota mensual: viajes, inscripciones, pedidos de indumentaria y listas variables.
+      {!isLoading && !errorMessage && activeTab === "manual" ? (
+        <section className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => resetCreate("simple")}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
+            >
+              <p className="text-sm font-semibold text-slate-950">Cobro a socios</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Cuotas especiales, viajes, torneos, inscripciones o matriculas.
               </p>
-            </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => resetCreate("order")}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
+            >
+              <p className="text-sm font-semibold text-slate-950">Pedido / indumentaria</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Crea un cobro vacio para cargar lineas variables o importar Excel.</p>
+            </button>
+          </div>
             <ChargesTable
               charges={manualCharges}
+              description="Todo lo que no es cuota mensual: viajes, inscripciones, pedidos de indumentaria y listas variables."
               progressById={progressById}
               deletingId={deletingId}
               onDelete={handleDelete}
               emptyText="Todavia no hay cobros manuales."
               showCategory
+              title="Cobros manuales"
             />
           </section>
-        ) : null}
-      </Card>
+      ) : null}
 
       <AdminModal open={createOpen} onClose={() => !isCreating && setCreateOpen(false)} width="2xl">
         <h2 className="text-lg font-semibold text-white">Nuevo cobro</h2>
@@ -694,71 +708,62 @@ export default function AdminChargesPage() {
   );
 }
 
-function CurrentMonthCard({
-  charge,
-  progress,
-}: {
-  charge: ChargeWithGroup;
-  progress?: ChargeProgressSummary;
-}) {
-  const paid = progress?.paidMembers ?? 0;
-  const total = progress?.totalMembers ?? 0;
-  const partial = progress?.partialMembers ?? 0;
-  return (
-    <div className="rounded-2xl border border-success/20 bg-success/10 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-success">Mes actual</p>
-          <h3 className="mt-1 text-lg font-semibold text-white">
-            {charge.billing_period ? formatBillingPeriod(charge.billing_period) : charge.name}
-          </h3>
-          <p className="mt-1 text-sm text-slate-300">
-            {total > 0 ? `${paid} de ${total} socios pagaron` : "Todavia no hay socios asignados"}.
-            {partial > 0 ? ` ${partial} con pago parcial.` : ""}
-          </p>
-        </div>
-        <Link
-          href={`/admin/charges/${charge.id}`}
-          className="rounded-lg bg-success px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Ver deudores y cobrar
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 function ChargesTable({
+  allowDelete = true,
   charges,
+  currentChargeId,
+  description,
+  footer,
+  isMembershipTable = false,
   progressById,
   deletingId,
   onDelete,
   emptyText,
   showCategory = false,
+  title,
 }: {
+  allowDelete?: boolean;
   charges: ChargeWithGroup[];
+  currentChargeId?: string | null;
+  description?: string;
+  footer?: ReactNode;
+  isMembershipTable?: boolean;
   progressById: Record<string, ChargeProgressSummary>;
   deletingId: string | null;
   onDelete: (charge: ChargeWithGroup) => void | Promise<void>;
   emptyText: string;
   showCategory?: boolean;
+  title?: string;
 }) {
   if (charges.length === 0) {
     return <EmptyState title={emptyText} description="Cuando haya registros, van a aparecer en esta tabla." />;
   }
 
   return (
-    <TableContainer>
+    <TableContainer
+      footer={footer}
+      header={
+        title || description ? (
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              {title ? <h2 className="text-base font-semibold text-slate-950">{title}</h2> : null}
+              {description ? <p className="mt-1 text-sm text-slate-600">{description}</p> : null}
+            </div>
+          </div>
+        ) : null
+      }
+    >
       <Table>
         <TableHead>
           <TableRow>
             <Th>Nombre</Th>
-            {showCategory ? <Th>Tipo</Th> : null}
-            <Th>Alcance</Th>
+            {isMembershipTable ? <Th>Periodo</Th> : null}
+            {showCategory && !isMembershipTable ? <Th>Tipo</Th> : null}
+            {!isMembershipTable ? <Th>Alcance</Th> : null}
             <Th>Cobranza</Th>
             <Th>Monto</Th>
-            <Th>Vencimiento</Th>
-            <Th>Acciones</Th>
+            {!isMembershipTable ? <Th>Vencimiento</Th> : null}
+            <Th className="text-right">Acciones</Th>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -771,20 +776,42 @@ function ChargesTable({
                     {charge.name}
                   </Link>
                 </Td>
-                {showCategory ? <Td className="text-slate-600">{categoryLabel(charge.category)}</Td> : null}
-                <Td className="text-slate-600">
-                  {charge.group ? (
-                    <Link href={`/admin/groups/${charge.group.id}`} className="underline-offset-2 hover:text-slate-950 hover:underline">
-                      {charge.group.name}
-                    </Link>
-                  ) : (
-                    "Todo el club / manual"
-                  )}
-                </Td>
+                {isMembershipTable ? (
+                  <Td className="text-slate-700">
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>{charge.billing_period ? formatBillingPeriod(charge.billing_period) : "Sin periodo"}</span>
+                      {charge.id === currentChargeId ? (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                          en curso
+                        </span>
+                      ) : null}
+                    </span>
+                  </Td>
+                ) : null}
+                {showCategory && !isMembershipTable ? <Td className="text-slate-600">{categoryLabel(charge.category)}</Td> : null}
+                {!isMembershipTable ? (
+                  <Td className="text-slate-600">
+                    {charge.group ? (
+                      <Link href={`/admin/groups/${charge.group.id}`} className="underline-offset-2 hover:text-slate-950 hover:underline">
+                        {charge.group.name}
+                      </Link>
+                    ) : (
+                      "Todo el club / manual"
+                    )}
+                  </Td>
+                ) : null}
                 <Td className="text-slate-600">
                   {progress && progress.totalMembers > 0 ? (
-                    <span className="text-xs">
-                      <span className="font-semibold text-slate-950">{progress.paidMembers} de {progress.totalMembers}</span>
+                    <span className="inline-flex items-center gap-2 text-xs">
+                      <span className="font-semibold text-slate-950">{progress.paidMembers} / {progress.totalMembers}</span>
+                      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+                        <span
+                          className={`block h-full rounded-full ${collectionProgressTone(progress.paidMembers, progress.totalMembers)}`}
+                          style={{
+                            width: `${Math.min(100, Math.max(0, (progress.paidMembers / progress.totalMembers) * 100))}%`,
+                          }}
+                        />
+                      </span>
                       {progress.partialMembers > 0 ? ` (${progress.partialMembers} parciales)` : ""}
                     </span>
                   ) : (
@@ -792,25 +819,29 @@ function ChargesTable({
                   )}
                 </Td>
                 <Td className="tabular-nums text-slate-950">{formatMoney(charge.amount)}</Td>
-                <Td className="text-slate-600">
-                  {charge.billing_period ? formatBillingPeriod(charge.billing_period) : formatDueDate(charge.due_date)}
-                </Td>
+                {!isMembershipTable ? (
+                  <Td className="text-slate-600">
+                    {charge.billing_period ? formatBillingPeriod(charge.billing_period) : formatDueDate(charge.due_date)}
+                  </Td>
+                ) : null}
                 <Td>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <Link
                       href={`/admin/charges/${charge.id}`}
                       className={buttonClassNames({ variant: "neutral", size: "sm" })}
                     >
                       Ver detalle
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => void onDelete(charge)}
-                      disabled={deletingId === charge.id}
-                      className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
-                    </button>
+                    {allowDelete ? (
+                      <button
+                        type="button"
+                        onClick={() => void onDelete(charge)}
+                        disabled={deletingId === charge.id}
+                        className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {deletingId === charge.id ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    ) : null}
                   </div>
                 </Td>
               </TableRow>
