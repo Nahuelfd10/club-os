@@ -4,14 +4,17 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import { MemberChargeTrackingSelect } from "@/components/admin/member-charge-tracking-select";
 import { paymentMethodLabel } from "@/config/payment-method";
 import { Badge, TableContainer } from "@/components/ui";
 import {
   getChargePaymentsByMemberChargeId,
   getMemberChargesForMember,
   registerChargePayment,
+  updateMemberChargeTracking,
   type ChargePaymentRow,
   type MemberChargeStatus,
+  type MemberChargeTrackingStatus,
   type MemberChargeWithDetails,
 } from "@/lib/charges";
 import {
@@ -63,6 +66,7 @@ export function MemberChargesSection({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+  const [trackingUpdatingId, setTrackingUpdatingId] = useState<string | null>(null);
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeWithDetails | null>(null);
 
@@ -180,6 +184,41 @@ export function MemberChargesSection({
     return m;
   }, [rows]);
 
+  const updateRowTracking = async (
+    row: MemberChargeWithDetails,
+    trackingStatus: MemberChargeTrackingStatus
+  ) => {
+    setTrackingUpdatingId(row.id);
+    setRows((prev) =>
+      prev.map((item) =>
+        item.id === row.id
+          ? {
+              ...item,
+              tracking_status: trackingStatus,
+              tracking_updated_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+    try {
+      await updateMemberChargeTracking(row.id, {
+        tracking_status: trackingStatus,
+        tracking_note: row.tracking_note,
+        tracking_next_action_at: row.tracking_next_action_at,
+      });
+      if (chargesFromParent !== undefined) {
+        await onChargesRefresh?.();
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudo actualizar el seguimiento."
+      );
+      await reload();
+    } finally {
+      setTrackingUpdatingId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -198,7 +237,7 @@ export function MemberChargesSection({
     );
   }
 
-  const colCount = 9;
+  const colCount = 10;
 
   return (
     <>
@@ -328,6 +367,7 @@ export function MemberChargesSection({
                     Restante
                   </th>
                   <th className="px-3 py-2 font-semibold text-slate-500">Estado</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500">Seguimiento</th>
                   <th className="px-3 py-2 font-semibold text-slate-500">Acciones</th>
                 </tr>
               </thead>
@@ -401,6 +441,13 @@ export function MemberChargesSection({
                             {memberChargeStatusLabel(row.status)}
                           </Badge>
                         </td>
+                        <td className="px-3 py-2">
+                          <MemberChargeTrackingSelect
+                            value={row.tracking_status}
+                            disabled={trackingUpdatingId === row.id}
+                            onChange={(value) => void updateRowTracking(row, value)}
+                          />
+                        </td>
                         <td className="px-3 py-2 align-top">
                           <div className="flex min-w-[10.5rem] gap-1.5">
                             <button
@@ -416,6 +463,7 @@ export function MemberChargesSection({
                                 href={waUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => void updateRowTracking(row, "message_sent")}
                                 className="rounded-md border border-success bg-success/10 px-2.5 py-1.5 text-center text-xs font-semibold text-success transition-colors hover:bg-success/15"
                               >
                                 WhatsApp

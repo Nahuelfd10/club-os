@@ -2,7 +2,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ClubPaymentMethod } from "@/config/payment-method";
-import type { Member, MemberStatus } from "@/types";
+import type { Member, MemberChargeTrackingStatus, MemberStatus } from "@/types";
 
 export type Database = {
   public: {
@@ -216,6 +216,10 @@ export type Database = {
           description: string | null;
           /** Cantidad por línea (ej. "2 camperas talle M"). */
           quantity: number;
+          tracking_status: MemberChargeTrackingStatus;
+          tracking_note: string | null;
+          tracking_next_action_at: string | null;
+          tracking_updated_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -229,6 +233,10 @@ export type Database = {
           external_name?: string | null;
           description?: string | null;
           quantity?: number;
+          tracking_status?: MemberChargeTrackingStatus;
+          tracking_note?: string | null;
+          tracking_next_action_at?: string | null;
+          tracking_updated_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -239,6 +247,10 @@ export type Database = {
           external_name?: string | null;
           description?: string | null;
           quantity?: number;
+          tracking_status?: MemberChargeTrackingStatus;
+          tracking_note?: string | null;
+          tracking_next_action_at?: string | null;
+          tracking_updated_at?: string | null;
         };
         Relationships: [];
       };

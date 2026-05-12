@@ -4,7 +4,7 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { MemberStatus } from "@/types";
+import type { MemberChargeTrackingStatus, MemberStatus } from "@/types";
 
 export type ChargeRow = {
   id: string;
@@ -37,6 +37,24 @@ export type ChargeOption = { id: string; name: string };
 
 export type MemberChargeStatus = "pending" | "partial" | "paid";
 
+export type { MemberChargeTrackingStatus };
+
+export const MEMBER_CHARGE_TRACKING_OPTIONS: Array<{
+  value: MemberChargeTrackingStatus;
+  label: string;
+}> = [
+  { value: "not_contacted", label: "Sin contactar" },
+  { value: "message_sent", label: "Mensaje enviado" },
+  { value: "responded", label: "Respondio" },
+  { value: "promised", label: "Prometio pagar" },
+  { value: "partial_payment", label: "Pago parcial" },
+  { value: "closed", label: "Cerrado" },
+];
+
+export function memberChargeTrackingLabel(status: MemberChargeTrackingStatus): string {
+  return MEMBER_CHARGE_TRACKING_OPTIONS.find((option) => option.value === status)?.label ?? status;
+}
+
 /** Valores habituales en BD: `membership` | `activity` | `fee`. */
 export type ChargeDefinitionCategory = "membership" | "activity" | "fee" | string;
 
@@ -47,6 +65,10 @@ export type MemberChargeWithDetails = {
   amount: number;
   paid_amount: number;
   status: MemberChargeStatus;
+  tracking_status: MemberChargeTrackingStatus;
+  tracking_note: string | null;
+  tracking_next_action_at: string | null;
+  tracking_updated_at: string | null;
   created_at: string;
   /** Nombre del concepto: `charge_definitions.name` si existe, si no `charges.name`. */
   conceptName: string;
@@ -111,6 +133,21 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeTrackingStatus(value: unknown): MemberChargeTrackingStatus {
+  const raw = typeof value === "string" ? value : "";
+  if (
+    raw === "not_contacted" ||
+    raw === "message_sent" ||
+    raw === "responded" ||
+    raw === "promised" ||
+    raw === "partial_payment" ||
+    raw === "closed"
+  ) {
+    return raw;
+  }
+  return "not_contacted";
+}
+
 export type ChargePaymentRow = {
   id: string;
   member_charge_id: string;
@@ -141,6 +178,10 @@ export type MemberChargeForChargeRow = {
   amount: number;
   paid_amount: number;
   status: MemberChargeStatus;
+  tracking_status: MemberChargeTrackingStatus;
+  tracking_note: string | null;
+  tracking_next_action_at: string | null;
+  tracking_updated_at: string | null;
   /** Nombre libre cuando member_id es null (ej. "Hueso", "Diame x Lucho"). */
   external_name: string | null;
   /** Talle u observación de la línea. */
@@ -367,6 +408,8 @@ export async function registerChargePayment(payload: {
     throw new Error(msg);
   }
 
+  await syncTrackingAfterPayment(payload.member_charge_id);
+
   // Disparamos la notificación por email server-side (respeta el flag
   // club_settings.send_payment_confirmation_email). Es fire-and-forget:
   // si el envío falla, no anulamos el pago — sólo logueamos.
@@ -391,6 +434,39 @@ export async function registerChargePayment(payload: {
     }
   } catch (notifyErr) {
     console.warn("No se pudo disparar la notificación de pago:", notifyErr);
+  }
+}
+
+async function syncTrackingAfterPayment(memberChargeId: string) {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+
+  const paidUpdate = await supabase
+    .from("member_charges")
+    .update({ tracking_status: "closed", tracking_updated_at: now })
+    .eq("id", memberChargeId)
+    .eq("status", "paid");
+
+  if (paidUpdate.error) {
+    const msg = paidUpdate.error.message?.toLowerCase() ?? "";
+    if (msg.includes("tracking_status") || msg.includes("schema cache")) {
+      return;
+    }
+    throw paidUpdate.error;
+  }
+
+  const partialUpdate = await supabase
+    .from("member_charges")
+    .update({ tracking_status: "partial_payment", tracking_updated_at: now })
+    .eq("id", memberChargeId)
+    .eq("status", "partial");
+
+  if (partialUpdate.error) {
+    const msg = partialUpdate.error.message?.toLowerCase() ?? "";
+    if (msg.includes("tracking_status") || msg.includes("schema cache")) {
+      return;
+    }
+    throw partialUpdate.error;
   }
 }
 
@@ -834,6 +910,30 @@ const MEMBER_CHARGES_FOR_CHARGE_SELECT = `
   amount,
   paid_amount,
   status,
+  tracking_status,
+  tracking_note,
+  tracking_next_action_at,
+  tracking_updated_at,
+  external_name,
+  description,
+  quantity,
+  created_at,
+  members (
+    id,
+    full_name,
+    dni,
+    phone,
+    status
+  )
+`;
+
+const MEMBER_CHARGES_FOR_CHARGE_SELECT_LEGACY = `
+  id,
+  member_id,
+  charge_id,
+  amount,
+  paid_amount,
+  status,
   external_name,
   description,
   quantity,
@@ -854,6 +954,10 @@ type RawMemberChargeForChargeRow = {
   amount: unknown;
   paid_amount: unknown;
   status: MemberChargeStatus;
+  tracking_status?: unknown;
+  tracking_note?: string | null;
+  tracking_next_action_at?: string | null;
+  tracking_updated_at?: string | null;
   external_name: string | null;
   description: string | null;
   quantity: unknown;
@@ -878,6 +982,10 @@ function mapRawMemberChargeForCharge(
     amount: normalizeAmount(row.amount),
     paid_amount: normalizeAmount(row.paid_amount),
     status: row.status,
+    tracking_status: normalizeTrackingStatus(row.tracking_status),
+    tracking_note: row.tracking_note ?? null,
+    tracking_next_action_at: row.tracking_next_action_at ?? null,
+    tracking_updated_at: row.tracking_updated_at ?? null,
     external_name: row.external_name,
     description: row.description,
     quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
@@ -904,16 +1012,32 @@ function sortMemberChargesForCharge(a: MemberChargeForChargeRow, b: MemberCharge
 
 export async function getMemberChargesForCharge(chargeId: string): Promise<MemberChargeForChargeRow[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("member_charges")
     .select(MEMBER_CHARGES_FOR_CHARGE_SELECT)
     .eq("charge_id", chargeId);
+
+  let data: unknown = first.data;
+  let error = first.error;
+
+  if (error) {
+    const msg = error.message?.toLowerCase() ?? "";
+    const code = (error as { code?: string }).code;
+    if (code === "42703" || msg.includes("tracking_status") || msg.includes("schema cache")) {
+      const second = await supabase
+        .from("member_charges")
+        .select(MEMBER_CHARGES_FOR_CHARGE_SELECT_LEGACY)
+        .eq("charge_id", chargeId);
+      data = second.data;
+      error = second.error;
+    }
+  }
 
   if (error) {
     throw error;
   }
 
-  const rows = (data ?? []) as unknown as RawMemberChargeForChargeRow[];
+  const rows = (data ?? []) as RawMemberChargeForChargeRow[];
   return rows.map(mapRawMemberChargeForCharge).sort(sortMemberChargesForCharge);
 }
 
@@ -1015,8 +1139,61 @@ export async function assignChargeToMember(payload: {
   }
 }
 
+export async function updateMemberChargeTracking(
+  memberChargeId: string,
+  patch: {
+    tracking_status: MemberChargeTrackingStatus;
+    tracking_note?: string | null;
+    tracking_next_action_at?: string | null;
+  }
+) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("member_charges")
+    .update({
+      tracking_status: patch.tracking_status,
+      tracking_note: patch.tracking_note?.trim() ? patch.tracking_note.trim() : null,
+      tracking_next_action_at: patch.tracking_next_action_at?.trim() || null,
+      tracking_updated_at: new Date().toISOString(),
+    })
+    .eq("id", memberChargeId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 /** Incluye `charge_definitions` si en Supabase existe la FK `charges.charge_definition_id`. */
 const MEMBER_CHARGE_SELECT = `
+  id,
+  member_id,
+  charge_id,
+  amount,
+  paid_amount,
+  status,
+  tracking_status,
+  tracking_note,
+  tracking_next_action_at,
+  tracking_updated_at,
+  created_at,
+  charges (
+    id,
+    name,
+    due_date,
+    billing_period,
+    charge_definitions (
+      id,
+      name,
+      category
+    ),
+    groups (
+      id,
+      name
+    )
+  )
+`;
+
+const MEMBER_CHARGE_SELECT_WITH_TRACKING_LEGACY = `
   id,
   member_id,
   charge_id,
@@ -1069,6 +1246,10 @@ type RawMemberChargeRow = {
   amount: unknown;
   paid_amount: unknown;
   status: MemberChargeStatus;
+  tracking_status?: unknown;
+  tracking_note?: string | null;
+  tracking_next_action_at?: string | null;
+  tracking_updated_at?: string | null;
   created_at: string;
   charges: {
     id: string;
@@ -1107,6 +1288,10 @@ function mapRawMemberCharge(row: RawMemberChargeRow): MemberChargeWithDetails | 
     amount: normalizeAmount(row.amount),
     paid_amount: normalizeAmount(row.paid_amount),
     status: row.status,
+    tracking_status: normalizeTrackingStatus(row.tracking_status),
+    tracking_note: row.tracking_note ?? null,
+    tracking_next_action_at: row.tracking_next_action_at ?? null,
+    tracking_updated_at: row.tracking_updated_at ?? null,
     created_at: row.created_at,
     conceptName: conceptName.length > 0 ? conceptName : c.name,
     category,
@@ -1156,7 +1341,7 @@ export async function getMemberChargesForMember(memberId: string): Promise<Membe
     .select(MEMBER_CHARGE_SELECT)
     .eq("member_id", memberId);
 
-  let data = first.data;
+  let data: unknown = first.data;
   let error = first.error;
 
   if (error) {
@@ -1172,10 +1357,28 @@ export async function getMemberChargesForMember(memberId: string): Promise<Membe
     if (retry) {
       const second = await supabase
         .from("member_charges")
-        .select(MEMBER_CHARGE_SELECT_LEGACY)
+        .select(MEMBER_CHARGE_SELECT_WITH_TRACKING_LEGACY)
         .eq("member_id", memberId);
       data = second.data;
       error = second.error;
+
+      if (error) {
+        const secondCode = (error as { code?: string }).code;
+        const secondMsg = error.message?.toLowerCase() ?? "";
+        const retryLegacy =
+          secondCode === "PGRST200" ||
+          secondMsg.includes("charge_definitions") ||
+          secondMsg.includes("schema cache") ||
+          secondMsg.includes("category");
+        if (retryLegacy) {
+          const third = await supabase
+            .from("member_charges")
+            .select(MEMBER_CHARGE_SELECT_LEGACY)
+            .eq("member_id", memberId);
+          data = third.data;
+          error = third.error;
+        }
+      }
     }
   }
 
@@ -1183,7 +1386,7 @@ export async function getMemberChargesForMember(memberId: string): Promise<Membe
     throw error;
   }
 
-  const rows = (data ?? []) as unknown as RawMemberChargeRow[];
+  const rows = (data ?? []) as RawMemberChargeRow[];
   return rows
     .map(mapRawMemberCharge)
     .filter((row): row is MemberChargeWithDetails => row !== null)

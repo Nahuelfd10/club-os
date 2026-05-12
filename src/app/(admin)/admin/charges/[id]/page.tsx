@@ -8,6 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { ImportChargeLines } from "@/components/admin/import-charge-lines";
+import { MemberChargeTrackingSelect } from "@/components/admin/member-charge-tracking-select";
 import { paymentMethodLabel } from "@/config/payment-method";
 import { Alert, Badge, Button, Card, Input, Select, TableContainer, Textarea } from "@/components/ui";
 import {
@@ -26,10 +27,12 @@ import {
   registerChargePayment,
   updateCharge,
   updateChargeLine,
+  updateMemberChargeTracking,
   chargeLineDisplayName,
   type ChargeDetail,
   type ChargePaymentRow,
   type MemberChargeForChargeRow,
+  type MemberChargeTrackingStatus,
 } from "@/lib/charges";
 import { listMembers } from "@/lib/supabase";
 import {
@@ -73,6 +76,7 @@ export default function AdminChargeDetailPage() {
   const [expandedMcId, setExpandedMcId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+  const [trackingUpdatingId, setTrackingUpdatingId] = useState<string | null>(null);
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeForChargeRow | null>(null);
 
@@ -307,6 +311,42 @@ export default function AdminChargeDetailPage() {
     await loadAll();
     if (expandedMcId === memberChargeId) {
       await loadHistory(memberChargeId);
+    }
+  };
+
+  const handleTrackingChange = async (
+    row: MemberChargeForChargeRow,
+    trackingStatus: MemberChargeTrackingStatus,
+    options?: { silent?: boolean }
+  ) => {
+    setTrackingUpdatingId(row.id);
+    setRows((prev) =>
+      prev.map((item) =>
+        item.id === row.id
+          ? {
+              ...item,
+              tracking_status: trackingStatus,
+              tracking_updated_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+    try {
+      await updateMemberChargeTracking(row.id, {
+        tracking_status: trackingStatus,
+        tracking_note: row.tracking_note,
+        tracking_next_action_at: row.tracking_next_action_at,
+      });
+      if (!options?.silent) {
+        setActionMessage("Seguimiento actualizado.");
+      }
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error ? error.message : "No se pudo actualizar el seguimiento."
+      );
+      await loadAll();
+    } finally {
+      setTrackingUpdatingId(null);
     }
   };
 
@@ -1037,6 +1077,7 @@ export default function AdminChargeDetailPage() {
                     <th className="px-3 py-2 font-semibold text-slate-700">Pagado</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Restante</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Seguimiento</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
                   </tr>
                 </thead>
@@ -1123,6 +1164,13 @@ export default function AdminChargeDetailPage() {
                               {memberChargeStatusLabel(row.status)}
                             </Badge>
                           </td>
+                          <td className="px-3 py-2">
+                            <MemberChargeTrackingSelect
+                              value={row.tracking_status}
+                              disabled={trackingUpdatingId === row.id}
+                              onChange={(value) => void handleTrackingChange(row, value)}
+                            />
+                          </td>
                           <td className="px-3 py-2 align-top">
                             <div className="flex min-w-[10.5rem] flex-col gap-1.5">
                               <div className="flex flex-wrap gap-1.5">
@@ -1139,6 +1187,9 @@ export default function AdminChargeDetailPage() {
                                     href={waUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() =>
+                                      void handleTrackingChange(row, "message_sent", { silent: true })
+                                    }
                                     className="rounded-md border border-success bg-success/10 px-2.5 py-1.5 text-center text-xs font-semibold text-success transition-colors hover:bg-success/15"
                                   >
                                     WhatsApp
@@ -1216,7 +1267,7 @@ export default function AdminChargeDetailPage() {
 
                         {expanded ? (
                           <tr className="bg-slate-50/90">
-                            <td colSpan={9} className="px-3 py-3 text-sm text-slate-700">
+                            <td colSpan={10} className="px-3 py-3 text-sm text-slate-700">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Historial de pagos
                               </p>

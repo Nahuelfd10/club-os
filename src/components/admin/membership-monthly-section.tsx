@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
+import { MemberChargeTrackingSelect } from "@/components/admin/member-charge-tracking-select";
 import {
   CLUB_PAYMENT_METHOD_OPTIONS,
   DEFAULT_PAYMENT_METHOD,
@@ -15,7 +16,9 @@ import {
   formatBillingPeriod,
   getChargePaymentsByMemberChargeId,
   registerChargePayment,
+  updateMemberChargeTracking,
   type ChargePaymentRow,
+  type MemberChargeTrackingStatus,
   type MemberChargeWithDetails,
 } from "@/lib/charges";
 import {
@@ -75,6 +78,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+  const [trackingUpdatingId, setTrackingUpdatingId] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -320,6 +324,23 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
     }
   };
 
+  const updateTracking = async (
+    row: MemberChargeWithDetails,
+    trackingStatus: MemberChargeTrackingStatus
+  ) => {
+    setTrackingUpdatingId(row.id);
+    try {
+      await updateMemberChargeTracking(row.id, {
+        tracking_status: trackingStatus,
+        tracking_note: row.tracking_note,
+        tracking_next_action_at: row.tracking_next_action_at,
+      });
+      await onPaid();
+    } finally {
+      setTrackingUpdatingId(null);
+    }
+  };
+
   return (
     <>
       <section className="space-y-4">
@@ -425,6 +446,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                   <th className="px-3 py-2 font-semibold text-slate-500" aria-hidden />
                   <th className="px-3 py-2 font-semibold text-slate-500">Período</th>
                   <th className="px-3 py-2 font-semibold text-slate-500">Estado</th>
+                  <th className="px-3 py-2 font-semibold text-slate-500">Seguimiento</th>
                   <th className="px-3 py-2 font-semibold text-slate-500">Monto</th>
                   <th className="px-3 py-2 font-semibold text-slate-500">Acción</th>
                 </tr>
@@ -456,6 +478,13 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                             {memberChargeStatusLabel(row.status)}
                           </Badge>
                         </td>
+                        <td className="px-3 py-2">
+                          <MemberChargeTrackingSelect
+                            value={row.tracking_status}
+                            disabled={trackingUpdatingId === row.id}
+                            onChange={(value) => void updateTracking(row, value)}
+                          />
+                        </td>
                         <td className="px-3 py-2 tabular-nums text-slate-950">{formatMoney(row.amount)}</td>
                         <td className="px-3 py-2">
                           {memberStatus === "pending" ? (
@@ -477,7 +506,7 @@ export function MembershipMonthlySection({ rows, memberStatus, onPaid }: Props) 
                       </tr>
                       {expanded ? (
                         <tr className="bg-slate-50">
-                          <td colSpan={5} className="px-3 py-3 text-sm text-slate-600">
+                          <td colSpan={6} className="px-3 py-3 text-sm text-slate-600">
                             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Historial de pagos
                             </p>
