@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, MessageCircle, Pencil, Trash2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -8,9 +8,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { ImportChargeLines } from "@/components/admin/import-charge-lines";
-import { MemberChargeTrackingSelect } from "@/components/admin/member-charge-tracking-select";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { Alert, Badge, Button, Card, Input, Select, TableContainer, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Input, PageHeader, Select, TableContainer, Textarea } from "@/components/ui";
 import {
   addChargeLine,
   assignChargeToMissingMembers,
@@ -29,6 +28,7 @@ import {
   updateChargeLine,
   updateMemberChargeTracking,
   chargeLineDisplayName,
+  MEMBER_CHARGE_TRACKING_OPTIONS,
   type ChargeDetail,
   type ChargePaymentRow,
   type MemberChargeForChargeRow,
@@ -36,17 +36,68 @@ import {
 } from "@/lib/charges";
 import { listMembers } from "@/lib/supabase";
 import {
-  memberChargeStatusBadgeVariant,
   memberChargeStatusLabel,
   remainingAmount,
 } from "@/lib/charges-ui";
 import { formatDueDate, formatPaidAt } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 import { createExpense, deleteExpense, listExpensesByChargeId, updateExpense, type ExpenseRow } from "@/lib/expenses";
-import { buildChargeDebtWhatsAppLink } from "@/lib/whatsapp-reminder";
+import {
+  buildChargeDebtWhatsAppLink,
+  buildChargeDebtWhatsAppMessage,
+  digitsOnly,
+} from "@/lib/whatsapp-reminder";
 import type { MemberStatus } from "@/types";
 
 type FilterKey = "all" | "pending" | "partial" | "paid";
+type TrackingFilterKey = "all" | MemberChargeTrackingStatus;
+
+function chargeCategoryLabel(category: string | null): string {
+  if (category === "membership") return "Cuota mensual";
+  if (category === "activity") return "Actividad";
+  if (category === "fee") return "Inscripcion / otro";
+  return category ?? "Cobro";
+}
+
+function chargeScopeLabel(charge: ChargeDetail): string {
+  return charge.group?.name ?? "Todo el club - activos";
+}
+
+function lineStatusPillClass(status: MemberChargeForChargeRow["status"]): string {
+  if (status === "paid") {
+    return "border-success/20 bg-success/10 text-success";
+  }
+
+  if (status === "partial") {
+    return "border-warning/25 bg-warning/10 text-warning";
+  }
+
+  return "border-warning/25 bg-warning/10 text-warning";
+}
+
+function trackingPillClass(status: MemberChargeTrackingStatus): string {
+  if (status === "closed") {
+    return "border-success/25 bg-success/10 text-success";
+  }
+
+  if (status === "message_sent") {
+    return "border-sky-300 bg-sky-50 text-sky-700";
+  }
+
+  if (status === "responded") {
+    return "border-violet-300 bg-violet-50 text-violet-700";
+  }
+
+  if (status === "promised" || status === "partial_payment") {
+    return "border-warning/30 bg-warning/10 text-warning";
+  }
+
+  return "border-slate-200 bg-white text-slate-700";
+}
+
+function trackingLabel(status: MemberChargeTrackingStatus): string {
+  return MEMBER_CHARGE_TRACKING_OPTIONS.find((option) => option.value === status)?.label ?? "Sin contactar";
+}
 
 export default function AdminChargeDetailPage() {
   const params = useParams<{ id: string }>();
@@ -72,6 +123,7 @@ export default function AdminChargeDetailPage() {
   const [expensesLoading, setExpensesLoading] = useState(false);
 
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [trackingFilter, setTrackingFilter] = useState<TrackingFilterKey>("all");
 
   const [expandedMcId, setExpandedMcId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
@@ -79,6 +131,10 @@ export default function AdminChargeDetailPage() {
   const [trackingUpdatingId, setTrackingUpdatingId] = useState<string | null>(null);
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeForChargeRow | null>(null);
+  const [selectedWhatsAppIds, setSelectedWhatsAppIds] = useState<string[]>([]);
+  const [whatsAppBatchOpen, setWhatsAppBatchOpen] = useState(false);
+  const [whatsAppBatchIndex, setWhatsAppBatchIndex] = useState(0);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
@@ -186,11 +242,47 @@ export default function AdminChargeDetailPage() {
   }, [loadAll]);
 
   const filteredRows = useMemo(() => {
-    if (filter === "all") {
-      return rows;
-    }
-    return rows.filter((row) => row.status === filter);
-  }, [rows, filter]);
+    return rows.filter((row) => {
+      if (filter !== "all" && row.status !== filter) {
+        return false;
+      }
+      if (trackingFilter !== "all" && row.tracking_status !== trackingFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [rows, filter, trackingFilter]);
+
+  const whatsAppEligibleRows = useMemo(() => {
+    return filteredRows.filter((row) => {
+      if (!row.member?.phone) {
+        return false;
+      }
+      if (digitsOnly(row.member.phone).length < 8) {
+        return false;
+      }
+      return remainingAmount(row) > 0.001;
+    });
+  }, [filteredRows]);
+
+  const whatsAppNoPhoneRows = useMemo(() => {
+    return filteredRows.filter((row) => {
+      if (!row.member || remainingAmount(row) <= 0.001) {
+        return false;
+      }
+      return !row.member.phone || digitsOnly(row.member.phone).length < 8;
+    });
+  }, [filteredRows]);
+
+  const visiblePaidRows = useMemo(
+    () => filteredRows.filter((row) => remainingAmount(row) <= 0.001),
+    [filteredRows]
+  );
+
+  const selectedWhatsAppRows = useMemo(() => {
+    const selected = new Set(selectedWhatsAppIds);
+    return rows.filter((row) => selected.has(row.id) && row.member?.phone && remainingAmount(row) > 0.001);
+  }, [rows, selectedWhatsAppIds]);
 
   const counts = useMemo(() => {
     const map: Record<FilterKey, number> = { all: rows.length, pending: 0, partial: 0, paid: 0 };
@@ -199,6 +291,27 @@ export default function AdminChargeDetailPage() {
     }
     return map;
   }, [rows]);
+
+  const trackingCounts = useMemo(() => {
+    const map: Record<TrackingFilterKey, number> = {
+      all: rows.length,
+      not_contacted: 0,
+      message_sent: 0,
+      responded: 0,
+      promised: 0,
+      partial_payment: 0,
+      closed: 0,
+    };
+    for (const row of rows) {
+      map[row.tracking_status] += 1;
+    }
+    return map;
+  }, [rows]);
+
+  useEffect(() => {
+    const available = new Set(whatsAppEligibleRows.map((row) => row.id));
+    setSelectedWhatsAppIds((prev) => prev.filter((id) => available.has(id)));
+  }, [whatsAppEligibleRows]);
 
   /**
    * Detecta nombres externos que se repiten (ej. "Diame" en 7 líneas de
@@ -348,6 +461,99 @@ export default function AdminChargeDetailPage() {
     } finally {
       setTrackingUpdatingId(null);
     }
+  };
+
+  const buildWhatsAppBatchMessage = (row: MemberChargeForChargeRow) => {
+    if (!charge || !row.member) {
+      return "";
+    }
+
+    return buildChargeDebtWhatsAppMessage({
+      fullName: row.member.full_name,
+      chargeName: charge.name,
+      groupName: charge.group?.name ?? "Sin grupo",
+      remainingFormatted: formatMoney(remainingAmount(row)),
+    });
+  };
+
+  const buildWhatsAppBatchUrl = (row: MemberChargeForChargeRow) => {
+    if (!row.member?.phone) {
+      return null;
+    }
+    const digits = digitsOnly(row.member.phone);
+    if (digits.length < 8) {
+      return null;
+    }
+    return `https://wa.me/${digits}?text=${encodeURIComponent(buildWhatsAppBatchMessage(row))}`;
+  };
+
+  const toggleWhatsAppSelection = (rowId: string) => {
+    setSelectedWhatsAppIds((prev) =>
+      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
+    );
+  };
+
+  const selectVisibleWhatsAppRows = () => {
+    setSelectedWhatsAppIds(whatsAppEligibleRows.map((row) => row.id));
+  };
+
+  const openWhatsAppBatch = () => {
+    if (selectedWhatsAppRows.length === 0) {
+      setActionMessage("Selecciona al menos un socio con saldo y telefono.");
+      return;
+    }
+    setWhatsAppBatchIndex(0);
+    setCopyMessage(null);
+    setWhatsAppBatchOpen(true);
+  };
+
+  const closeWhatsAppBatch = () => {
+    setWhatsAppBatchOpen(false);
+    setCopyMessage(null);
+  };
+
+  const currentWhatsAppBatchRow = selectedWhatsAppRows[whatsAppBatchIndex] ?? null;
+
+  const goToNextWhatsApp = () => {
+    setCopyMessage(null);
+    setWhatsAppBatchIndex((prev) => Math.min(prev + 1, Math.max(0, selectedWhatsAppRows.length - 1)));
+  };
+
+  const markCurrentWhatsAppSent = async (options?: { next?: boolean }) => {
+    if (!currentWhatsAppBatchRow) {
+      return;
+    }
+    await handleTrackingChange(currentWhatsAppBatchRow, "message_sent", { silent: true });
+    if (options?.next && whatsAppBatchIndex < selectedWhatsAppRows.length - 1) {
+      goToNextWhatsApp();
+    } else {
+      setActionMessage("Mensaje marcado como enviado.");
+    }
+  };
+
+  const copyCurrentWhatsAppMessage = async () => {
+    if (!currentWhatsAppBatchRow) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(buildWhatsAppBatchMessage(currentWhatsAppBatchRow));
+      setCopyMessage("Mensaje copiado.");
+    } catch {
+      setCopyMessage("No se pudo copiar automaticamente. Podes seleccionar el texto manualmente.");
+    }
+  };
+
+  const openCurrentWhatsApp = async () => {
+    if (!currentWhatsAppBatchRow) {
+      return;
+    }
+    const url = buildWhatsAppBatchUrl(currentWhatsAppBatchRow);
+    if (!url) {
+      setCopyMessage("Este socio no tiene un telefono valido.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    await markCurrentWhatsAppSent();
   };
 
   const openCreateExpense = () => {
@@ -709,17 +915,85 @@ export default function AdminChargeDetailPage() {
   return (
     <>
       <section className="space-y-6">
-        <div>
-          <Link
-            href="/admin/charges"
-            className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
-          >
-            <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-            Volver a cargos
-          </Link>
-        </div>
+        <Link
+          href="/admin/charges"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+        >
+          <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+          Volver a cobros
+        </Link>
 
-        <header className="flex flex-wrap items-end justify-between gap-3">
+        <PageHeader
+          eyebrow={`Cobranza${charge.category === "membership" ? " · Cuota mensual" : ""}`}
+          title={charge.name}
+          description={
+            charge.description?.trim()
+              ? charge.description
+              : charge.category === "membership"
+                ? "Generada automaticamente. Aplica al padron activo del club."
+                : "Cobro manual del club."
+          }
+          actions={
+            <>
+              <Button
+                type="button"
+                size="md"
+                variant="neutral"
+                onClick={openEdit}
+                disabled={Boolean(hasPayments)}
+                title={hasPayments ? "Este cargo ya tiene pagos y no puede ser editado" : undefined}
+              >
+                Editar
+              </Button>
+              <Button type="button" size="md" onClick={openCreateExpense}>
+                Registrar egreso
+              </Button>
+            </>
+          }
+        />
+
+        <section className="rounded-2xl border border-slate-200 bg-white/70 px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Resumen del cargo</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+                {charge.category === "membership"
+                  ? `Cuota mensual del club generada automaticamente para ${rows.length} socios activos.`
+                  : `${rows.length} linea(s) asociadas a este cobro.`}
+                {charge.due_date ? ` Vencimiento estimado el dia ${formatDueDate(charge.due_date)}.` : ""}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  Grupo <span className="ml-1 text-slate-950">{chargeScopeLabel(charge)}</span>
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  Categoria <span className="ml-1 text-slate-950">{chargeCategoryLabel(charge.category)}</span>
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  Tipo <span className="ml-1 text-slate-950">{charge.type === "total" ? "Total a dividir" : "Por persona"}</span>
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  Monto <span className="ml-1 text-slate-950">{formatMoney(charge.amount)}</span>
+                </span>
+                {charge.category === "membership" ? (
+                  <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+                    Mes facturado{" "}
+                    <span className="ml-1 capitalize text-slate-950">
+                      {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "-"}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            {hasPayments ? (
+              <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+                Ya tiene pagos - no editable
+              </span>
+            ) : null}
+          </div>
+        </section>
+
+        <header className="hidden">
           <div className="min-w-0 flex-1">
             <h1 className="break-words text-3xl font-bold tracking-tight text-slate-900">
               {charge.name}
@@ -801,7 +1075,7 @@ export default function AdminChargeDetailPage() {
 
         {actionMessage ? <Alert variant="info">{actionMessage}</Alert> : null}
 
-        <Card className="border border-slate-200/80 p-6">
+        <section>
           {(() => {
             const totalExpected = financials?.total_expected ?? rows.reduce((sum, r) => sum + r.amount, 0);
             const totalCollected = financials?.total_collected ?? rows.reduce((sum, r) => sum + r.paid_amount, 0);
@@ -867,16 +1141,17 @@ export default function AdminChargeDetailPage() {
                       aria-hidden
                     />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    {formatMoney(totalCollected)} / {formatMoney(totalExpected)}
-                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <span>{formatMoney(totalCollected)} cobrados</span>
+                    <span>{formatMoney(Math.max(0, totalExpected - totalCollected))} restantes</span>
+                  </div>
                 </div>
               </>
             );
           })()}
-        </Card>
+        </section>
 
-        <Card className="border border-slate-200/80 p-6">
+        <section className="space-y-4">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Egresos asociados</h2>
@@ -939,9 +1214,9 @@ export default function AdminChargeDetailPage() {
               </table>
             </TableContainer>
           )}
-        </Card>
+        </section>
 
-        <Card className="border border-slate-200/80 p-6">
+        <section className="space-y-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Líneas del cargo</h2>
@@ -956,30 +1231,66 @@ export default function AdminChargeDetailPage() {
                 + Agregar línea
               </Button>
             </div>
-            <div
-              className="inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-slate-200/80 p-1"
-              role="group"
-              aria-label="Filtrar por estado"
-            >
-              {(
-                [
-                  ["all", `Todos (${counts.all})`],
-                  ["pending", `Pendientes (${counts.pending})`],
-                  ["partial", `Parciales (${counts.partial})`],
-                  ["paid", `Pagados (${counts.paid})`],
-                ] as const
-              ).map(([key, label]) => (
+            <div className="flex w-full flex-wrap gap-2">
+              <div
+                className="inline-flex max-w-full flex-wrap gap-1"
+                role="group"
+                aria-label="Filtrar por estado de pago"
+              >
+                {(
+                  [
+                    ["all", `Todos (${counts.all})`],
+                    ["pending", `Pendientes (${counts.pending})`],
+                    ["partial", `Parciales (${counts.partial})`],
+                    ["paid", `Pagados (${counts.paid})`],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setFilter(key)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                      filter === key
+                        ? "border-brand bg-brand text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                className="inline-flex max-w-full flex-wrap gap-1"
+                role="group"
+                aria-label="Filtrar por seguimiento"
+              >
                 <button
-                  key={key}
                   type="button"
-                  onClick={() => setFilter(key)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    filter === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  onClick={() => setTrackingFilter("all")}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    trackingFilter === "all"
+                      ? "border-brand bg-brand text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
                   }`}
                 >
-                  {label}
+                  Seguimiento ({trackingCounts.all})
                 </button>
-              ))}
+                {MEMBER_CHARGE_TRACKING_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTrackingFilter(option.value)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                      trackingFilter === option.value
+                        ? "border-brand bg-brand text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
+                    }`}
+                  >
+                    {option.label} ({trackingCounts[option.value]})
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1065,10 +1376,52 @@ export default function AdminChargeDetailPage() {
           ) : filteredRows.length === 0 ? (
             <Alert variant="info">No hay líneas que coincidan con el filtro seleccionado.</Alert>
           ) : (
-            <TableContainer>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-success/20 bg-success/5 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-success">WhatsApp por lote</p>
+                  <p className="mt-0.5 text-xs text-slate-700">
+                    {selectedWhatsAppRows.length > 0
+                      ? `${selectedWhatsAppRows.length} socio(s) seleccionado(s) para contactar.`
+                      : `${whatsAppEligibleRows.length} listos · ${whatsAppNoPhoneRows.length} sin telefono · ${visiblePaidRows.length} al dia.`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="neutral"
+                    onClick={selectVisibleWhatsAppRows}
+                    disabled={whatsAppEligibleRows.length === 0}
+                  >
+                    Seleccionar visibles
+                  </Button>
+                  {selectedWhatsAppIds.length > 0 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="neutral"
+                      onClick={() => setSelectedWhatsAppIds([])}
+                    >
+                      Limpiar
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={openWhatsAppBatch}
+                    disabled={selectedWhatsAppRows.length === 0}
+                  >
+                    Preparar mensajes
+                  </Button>
+                </div>
+              </div>
+
+              <TableContainer>
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50">
                   <tr>
+                    <th className="px-3 py-2 font-semibold text-slate-700" aria-label="Seleccionar para WhatsApp" />
                     <th className="px-3 py-2 font-semibold text-slate-700" aria-hidden />
                     <th className="px-3 py-2 font-semibold text-slate-700">Comprador</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Detalle</th>
@@ -1101,6 +1454,17 @@ export default function AdminChargeDetailPage() {
                     return (
                       <Fragment key={row.id}>
                         <tr className={expanded ? "bg-slate-50/60" : undefined}>
+                          <td className="px-3 py-2 align-top">
+                            {row.member?.phone && canPay && digitsOnly(row.member.phone).length >= 8 ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedWhatsAppIds.includes(row.id)}
+                                onChange={() => toggleWhatsAppSelection(row.id)}
+                                className="h-4 w-4 rounded border-slate-300"
+                                aria-label={`Seleccionar ${row.member.full_name} para WhatsApp`}
+                              />
+                            ) : null}
+                          </td>
                           <td className="px-3 py-2 align-top">
                             <Button
                               type="button"
@@ -1148,39 +1512,71 @@ export default function AdminChargeDetailPage() {
                           <td className="px-3 py-2 tabular-nums text-slate-700">
                             {formatMoney(row.paid_amount)}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2 text-right">
                             <span
-                              className={`inline-block min-w-[5.5rem] rounded-lg px-2.5 py-1 text-right text-base font-bold tabular-nums ${
-                                rem <= 0.001
-                                  ? "bg-success/10 text-success"
-                                  : "bg-warning/10 text-warning ring-1 ring-warning/20"
+                              className={`tabular-nums font-semibold ${
+                                rem <= 0.001 ? "text-slate-500" : "text-danger"
                               }`}
                             >
                               {formatMoney(rem)}
                             </span>
                           </td>
                           <td className="px-3 py-2">
-                            <Badge variant={memberChargeStatusBadgeVariant(row.status)}>
+                            <span
+                              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${lineStatusPillClass(
+                                row.status
+                              )}`}
+                            >
+                              <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" />
                               {memberChargeStatusLabel(row.status)}
-                            </Badge>
+                            </span>
                           </td>
                           <td className="px-3 py-2">
-                            <MemberChargeTrackingSelect
-                              value={row.tracking_status}
-                              disabled={trackingUpdatingId === row.id}
-                              onChange={(value) => void handleTrackingChange(row, value)}
-                            />
+                            <label
+                              className={`relative inline-flex h-7 min-w-[8.5rem] max-w-[10.5rem] cursor-pointer items-center rounded-full border pl-2.5 pr-7 text-[11px] font-semibold shadow-none transition-colors ${
+                                trackingUpdatingId === row.id ? "opacity-60" : ""
+                              } ${trackingPillClass(row.tracking_status)}`}
+                              title={trackingLabel(row.tracking_status)}
+                            >
+                              <span className="mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                              <span className="truncate">{trackingLabel(row.tracking_status)}</span>
+                              <select
+                                value={row.tracking_status}
+                                disabled={trackingUpdatingId === row.id}
+                                onChange={(event) =>
+                                  void handleTrackingChange(
+                                    row,
+                                    event.target.value as MemberChargeTrackingStatus
+                                  )
+                                }
+                                className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full border-0 bg-transparent opacity-0 outline-none disabled:cursor-not-allowed"
+                                aria-label={`Seguimiento de ${chargeLineDisplayName(row)}`}
+                              >
+                                {MEMBER_CHARGE_TRACKING_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                className="pointer-events-none absolute right-2 h-3 w-3 text-current opacity-70"
+                                strokeWidth={2}
+                                aria-hidden
+                              />
+                            </label>
                           </td>
                           <td className="px-3 py-2 align-top">
-                            <div className="flex min-w-[10.5rem] flex-col gap-1.5">
-                              <div className="flex flex-wrap gap-1.5">
+                            <div className="flex min-w-max items-center gap-1.5">
+                              <div className="flex flex-nowrap items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => openPayModal(row)}
                                   disabled={!canPay}
-                                  className="rounded-md bg-success px-2.5 py-1.5 text-center text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-success/25 bg-success/10 text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  title="Registrar pago"
+                                  aria-label="Registrar pago"
                                 >
-                                  Registrar pago
+                                  <Check className="h-4 w-4" />
                                 </button>
                                 {waUrl ? (
                                   <a
@@ -1190,51 +1586,56 @@ export default function AdminChargeDetailPage() {
                                     onClick={() =>
                                       void handleTrackingChange(row, "message_sent", { silent: true })
                                     }
-                                    className="rounded-md border border-success bg-success/10 px-2.5 py-1.5 text-center text-xs font-semibold text-success transition-colors hover:bg-success/15"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                                    title="Abrir WhatsApp"
+                                    aria-label="Abrir WhatsApp"
                                   >
-                                    WhatsApp
+                                    <MessageCircle className="h-4 w-4" />
                                   </a>
                                 ) : canPay && row.member ? (
                                   <span
-                                    className="text-[11px] leading-tight text-slate-500"
+                                    className="max-w-[6.5rem] text-[10px] leading-tight text-slate-400"
                                     title="El socio no tiene teléfono configurado"
                                   >
-                                    Sin teléfono para WhatsApp
+                                    Sin tel.
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                <Button
+                              <div className="flex flex-nowrap items-center gap-1.5">
+                                <button
                                   type="button"
-                                  size="sm"
-                                  variant="neutral"
                                   onClick={() => openEditLine(row)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                  title="Editar"
+                                  aria-label="Editar"
                                 >
-                                  Editar
-                                </Button>
-                                <Button
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
                                   type="button"
-                                  size="sm"
-                                  variant="danger"
                                   onClick={() => void handleDeleteLine(row)}
                                   disabled={deletingLineId === row.id}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-danger/20 bg-danger/10 text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  title={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
+                                  aria-label={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
                                 >
-                                  {deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
-                                </Button>
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                                 {!row.member ? (
-                                  <Button
+                                  <button
                                     type="button"
-                                    size="sm"
-                                    variant="neutral"
                                     onClick={() => {
                                       setAssigningExternalLineId(
                                         assigningExternalLineId === row.id ? null : row.id
                                       );
                                       setExternalAssignMemberId("");
                                     }}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                    title={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
+                                    aria-label={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
                                   >
-                                    {assigningExternalLineId === row.id ? "Cancelar" : "Asignar a socio"}
-                                  </Button>
+                                    <UserPlus className="h-4 w-4" />
+                                  </button>
                                 ) : null}
                               </div>
                               {assigningExternalLineId === row.id ? (
@@ -1267,7 +1668,7 @@ export default function AdminChargeDetailPage() {
 
                         {expanded ? (
                           <tr className="bg-slate-50/90">
-                            <td colSpan={10} className="px-3 py-3 text-sm text-slate-700">
+                            <td colSpan={11} className="px-3 py-3 text-sm text-slate-700">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Historial de pagos
                               </p>
@@ -1300,11 +1701,12 @@ export default function AdminChargeDetailPage() {
                   })}
                 </tbody>
               </table>
-            </TableContainer>
+              </TableContainer>
+            </div>
           )}
-        </Card>
+        </section>
 
-        <Card className="border border-slate-200/80 p-6">
+        <section className="space-y-4">
           {charge.category === "membership" ? (
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Asignación del período</h2>
@@ -1377,7 +1779,7 @@ export default function AdminChargeDetailPage() {
               ) : null}
             </>
           )}
-        </Card>
+        </section>
       </section>
 
       <ChargePaymentModal
@@ -1388,6 +1790,93 @@ export default function AdminChargeDetailPage() {
         pendingAmount={payModalRow ? remainingAmount(payModalRow) : 0}
         onConfirm={submitPayment}
       />
+
+      <AdminModal open={whatsAppBatchOpen} onClose={closeWhatsAppBatch}>
+        <h2 className="text-lg font-semibold text-slate-900">WhatsApp por lote</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Contacto {selectedWhatsAppRows.length === 0 ? 0 : whatsAppBatchIndex + 1} de{" "}
+          {selectedWhatsAppRows.length}. El envio sigue siendo manual.
+        </p>
+
+        {currentWhatsAppBatchRow && currentWhatsAppBatchRow.member ? (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <p className="text-sm font-semibold text-slate-950">
+                {currentWhatsAppBatchRow.member.full_name}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-600">
+                DNI {currentWhatsAppBatchRow.member.dni} · Pendiente{" "}
+                {formatMoney(remainingAmount(currentWhatsAppBatchRow))}
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Mensaje preparado
+              </label>
+              <textarea
+                readOnly
+                value={buildWhatsAppBatchMessage(currentWhatsAppBatchRow)}
+                rows={7}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none"
+              />
+              {copyMessage ? <p className="mt-2 text-xs text-slate-600">{copyMessage}</p> : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="neutral" onClick={() => void copyCurrentWhatsAppMessage()}>
+                  Copiar mensaje
+                </Button>
+                <Button type="button" size="sm" onClick={() => void openCurrentWhatsApp()}>
+                  Abrir WhatsApp
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="neutral"
+                  onClick={() => void markCurrentWhatsAppSent({ next: true })}
+                >
+                  Marcar enviado y seguir
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="neutral"
+                  onClick={() => {
+                    setCopyMessage(null);
+                    setWhatsAppBatchIndex((prev) => Math.max(0, prev - 1));
+                  }}
+                  disabled={whatsAppBatchIndex === 0}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="neutral"
+                  onClick={goToNextWhatsApp}
+                  disabled={whatsAppBatchIndex >= selectedWhatsAppRows.length - 1}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+            No hay contactos seleccionados para preparar.
+          </p>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <Button type="button" size="md" variant="neutral" onClick={closeWhatsAppBatch}>
+            Cerrar
+          </Button>
+        </div>
+      </AdminModal>
 
       <AdminModal open={editOpen} onClose={() => !editSaving && setEditOpen(false)}>
         <h2 className="text-lg font-semibold text-slate-900">Editar cargo</h2>
