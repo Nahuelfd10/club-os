@@ -18,12 +18,12 @@ export function Reveal({ children, className = "", delayMs = 0, style, ...rest }
       return;
     }
 
-    if (typeof IntersectionObserver === "undefined" || typeof requestAnimationFrame !== "function") {
-      const frame = requestAnimationFrame(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      const fallback = window.setTimeout(() => {
         setIsVisible(true);
-      });
+      }, 0);
 
-      return () => cancelAnimationFrame(frame);
+      return () => window.clearTimeout(fallback);
     }
 
     const observer = new IntersectionObserver(
@@ -42,14 +42,16 @@ export function Reveal({ children, className = "", delayMs = 0, style, ...rest }
 
     observer.observe(node);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   return (
     <div
       ref={ref}
       className={`reveal-in ${isVisible ? "is-visible" : ""} ${className}`.trim()}
-      style={{ ...style, transitionDelay: `${delayMs}ms` }}
+      style={{ ...style, transitionDelay: isVisible ? `${delayMs}ms` : "0ms" }}
       {...rest}
     >
       {children}

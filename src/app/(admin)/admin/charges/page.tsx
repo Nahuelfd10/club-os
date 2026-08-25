@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -29,56 +30,18 @@ import {
   formatBillingPeriod,
   getChargeProgressByIds,
   listChargesWithGroup,
+  type ChargeListKind,
   type ChargeProgressSummary,
   type ChargeWithGroup,
-  type CreateChargeDefinitionCategory,
 } from "@/lib/charges";
 import { formatDueDate } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
-import { listAllGroupsForSelect } from "@/lib/groups";
-import { listMembers } from "@/lib/supabase";
-import type { MemberStatus } from "@/types";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
-type ManualChargeCategory = Exclude<CreateChargeDefinitionCategory, "membership">;
-type ChargesTab = "membership" | "manual";
-type ChargeScenario = "simple" | "order";
-type AudienceMode = "all" | "group" | "members";
-type MemberOption = { id: string; full_name: string; dni: string; status: MemberStatus };
+type ChargesTab = "membership" | "lists";
 
-const scenarioCopy: Record<
-  ChargeScenario,
-  { title: string; description: string; example: string }
-> = {
-  simple: {
-    title: "Cobro a socios",
-    description: "Viajes, torneos, inscripciones, matriculas o aportes puntuales.",
-    example: "Ej. Viaje regional o matricula 2026.",
-  },
-  order: {
-    title: "Pedido / indumentaria",
-    description: "Lista variable con talles, cantidades, externos y pagos parciales.",
-    example: "Ej. Camperas 2026 con planilla.",
-  },
-};
-
-function scenarioToFormState(
-  scenario: ChargeScenario,
-  simpleCategory: ManualChargeCategory
-): {
-  category: ManualChargeCategory;
-  auto_assign_lines: boolean;
-} {
-  if (scenario === "order") {
-    return { category: "activity", auto_assign_lines: false };
-  }
-  return { category: simpleCategory, auto_assign_lines: true };
-}
-
-function categoryLabel(category: string | null) {
-  if (category === "membership") return "Cuota mensual";
-  if (category === "activity") return "Cobro / pedido";
-  if (category === "fee") return "Inscripcion / matricula";
-  return category || "-";
+function listKindLabel(kind: ChargeListKind) {
+  return kind === "order" ? "Indumentaria" : "General";
 }
 
 function sortMembership(a: ChargeWithGroup, b: ChargeWithGroup) {
@@ -124,9 +87,9 @@ function collectionProgressTone(paid: number, total: number) {
 }
 
 export default function AdminChargesPage() {
+  const router = useRouter();
+  const routes = useClubRoutes();
   const [charges, setCharges] = useState<ChargeWithGroup[]>([]);
-  const [groupOptions, setGroupOptions] = useState<{ id: string; name: string }[]>([]);
-  const [memberOptions, setMemberOptions] = useState<MemberOption[]>([]);
   const [progressById, setProgressById] = useState<Record<string, ChargeProgressSummary>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -138,44 +101,24 @@ export default function AdminChargesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const [scenario, setScenario] = useState<ChargeScenario>("simple");
+  const [listKind, setListKind] = useState<ChargeListKind>("general");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [alias, setAlias] = useState("");
+  const [supplierName, setSupplierName] = useState("");
   const [amount, setAmount] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [chargeType, setChargeType] = useState<"per_member" | "total">("per_member");
-  const [audience, setAudience] = useState<AudienceMode>("all");
-  const [groupId, setGroupId] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
-  const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [simpleCategory, setSimpleCategory] = useState<ManualChargeCategory>("activity");
 
   const load = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage(null);
     setActionMessage(null);
     try {
-      const [chargeList, groups, members] = await Promise.all([
-        listChargesWithGroup(),
-        listAllGroupsForSelect(),
-        listMembers(),
-      ]);
+      const chargeList = await listChargesWithGroup();
       const progress = await getChargeProgressByIds(chargeList.map((charge) => charge.id));
       setCharges(chargeList);
-      setGroupOptions(groups);
-      setMemberOptions(
-        (members ?? [])
-          .filter((member) => member.status === "active")
-          .map((member) => ({
-            id: member.id,
-            full_name: member.full_name,
-            dni: member.dni,
-            status: member.status,
-          }))
-      );
       setProgressById(progress);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los cobros.");
+      setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar las cuotas y listas.");
     } finally {
       setIsLoading(false);
     }
@@ -189,7 +132,7 @@ export default function AdminChargesPage() {
     () => charges.filter((charge) => charge.category === "membership"),
     [charges]
   );
-  const manualCharges = useMemo(
+  const listCharges = useMemo(
     () => charges.filter((charge) => charge.category !== "membership"),
     [charges]
   );
@@ -242,101 +185,72 @@ export default function AdminChargesPage() {
     return displayedMembership.find((charge) => isSameBillingMonth(charge.billing_period, currentPeriod))?.id ?? null;
   }, [currentPeriod, displayedMembership, selectedYear]);
 
-  const filteredMembers = useMemo(() => {
-    const term = memberSearch.trim().toLowerCase();
-    return memberOptions
-      .filter((member) => {
-        if (!term) return true;
-        return member.full_name.toLowerCase().includes(term) || member.dni.toLowerCase().includes(term);
-      })
-      .slice(0, 18);
-  }, [memberOptions, memberSearch]);
-
-  const selectedMembers = useMemo(() => {
-    const selected = new Set(memberIds);
-    return memberOptions.filter((member) => selected.has(member.id));
-  }, [memberIds, memberOptions]);
-
-  function resetCreate(nextScenario: ChargeScenario = "simple") {
-    setScenario(nextScenario);
+  function resetCreate() {
+    setListKind("general");
     setName("");
     setDescription("");
+    setAlias("");
+    setSupplierName("");
     setAmount("");
-    setDueDate("");
-    setChargeType("per_member");
-    setAudience("all");
-    setGroupId("");
-    setMemberSearch("");
-    setMemberIds([]);
-    setSimpleCategory("activity");
     setCreateOpen(true);
-  }
-
-  function toggleMember(memberId: string) {
-    setMemberIds((prev) =>
-      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
-    );
   }
 
   async function handleCreate() {
     const cleanName = name.trim();
+    const cleanAlias = alias.trim();
+    const cleanSupplier = supplierName.trim();
+    const cleanDescription = [
+      description.trim(),
+      cleanAlias ? `Alias sugerido: ${cleanAlias}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
     const rawAmount = amount.replace(",", ".").trim();
-    const parsedAmount = Number(rawAmount);
+    const parsedAmount = rawAmount ? Number(rawAmount) : 0;
     if (!cleanName) {
-      setActionMessage("El nombre del cobro es obligatorio.");
+      setActionMessage("El nombre de la lista es obligatorio.");
       return;
     }
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setActionMessage("Indica un monto valido mayor a cero.");
-      return;
-    }
-    if (scenario !== "order" && audience === "group" && !groupId) {
-      setActionMessage("Elegi un grupo o cambia el alcance del cobro.");
-      return;
-    }
-    if (scenario !== "order" && audience === "members" && memberIds.length === 0) {
-      setActionMessage("Elegi al menos una persona para este cobro.");
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      setActionMessage("Indica un monto esperado valido o dejalo vacio.");
       return;
     }
 
     setIsCreating(true);
     try {
-      const state = scenarioToFormState(scenario, simpleCategory);
-      await createCharge({
+      const created = await createCharge({
         name: cleanName,
-        description: description.trim() || null,
+        description: cleanDescription || null,
         amount: parsedAmount,
-        type: scenario === "order" ? "per_member" : chargeType,
-        group_id: scenario !== "order" && audience === "group" ? groupId : null,
-        member_ids: scenario !== "order" && audience === "members" ? memberIds : [],
-        due_date: dueDate || null,
-        definition_category: state.category,
-        auto_assign_lines: state.auto_assign_lines,
+        type: "per_member",
+        group_id: null,
+        member_ids: [],
+        due_date: null,
+        definition_category: "activity",
+        list_kind: listKind,
+        supplier_name: cleanSupplier || null,
+        auto_assign_lines: false,
       });
       setCreateOpen(false);
-      setActionMessage(
-        scenario === "order"
-          ? "Pedido creado. Ahora podes cargar lineas o importar una planilla."
-          : "Cobro creado con sus lineas iniciales."
-      );
-      await load();
+      setActionMessage("Lista creada. Ahora podes cargar personas, pegar WhatsApp o importar Excel.");
+      router.push(routes.adminPath(`charges/${created.id}`));
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "No se pudo crear el cobro.");
+      setActionMessage(error instanceof Error ? error.message : "No se pudo crear la lista.");
     } finally {
       setIsCreating(false);
     }
   }
 
   async function handleDelete(charge: ChargeWithGroup) {
-    const ok = window.confirm(`Eliminar el cobro "${charge.name}"?`);
+    const ok = window.confirm(`Eliminar la lista "${charge.name}"?`);
     if (!ok) return;
     setDeletingId(charge.id);
     try {
       await deleteCharge(charge.id);
-      setActionMessage("Cobro eliminado.");
+      setActionMessage("Lista eliminada.");
       await load();
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar el cobro.");
+      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar la lista.");
     } finally {
       setDeletingId(null);
     }
@@ -346,16 +260,16 @@ export default function AdminChargesPage() {
     <section className="space-y-4">
       <PageHeader
         eyebrow="Cobranza"
-        title="Cobros"
-        description="La cuota del club y los cobros manuales usan el mismo motor, pero no necesitan el mismo flujo."
+        title="Cuotas y listas"
+        description="La cuota mensual queda separada de las listas puntuales que antes vivian en planillas o WhatsApp."
         actions={
           <button
             type="button"
-            onClick={() => resetCreate("simple")}
+            onClick={() => resetCreate()}
             className={buttonClassNames({ variant: "primary", size: "md" })}
           >
             <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
-            Nuevo cobro manual
+            Nueva lista de recaudacion
           </button>
         }
       />
@@ -371,18 +285,18 @@ export default function AdminChargesPage() {
                 : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Cuotas del club
+            Cuotas mensuales
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("manual")}
+            onClick={() => setActiveTab("lists")}
             className={`rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${
-              activeTab === "manual"
+              activeTab === "lists"
                 ? "bg-white text-slate-950 shadow-sm"
                 : "text-slate-600 hover:text-slate-950"
             }`}
           >
-            Cobros manuales
+            Listas de recaudacion
           </button>
         </div>
         {activeTab === "membership" ? (
@@ -406,7 +320,7 @@ export default function AdminChargesPage() {
         ) : null}
       </div>
 
-      {isLoading ? <p className="text-sm text-slate-600">Cargando cobros...</p> : null}
+      {isLoading ? <p className="text-sm text-slate-600">Cargando cuotas y listas...</p> : null}
       {!isLoading && errorMessage ? <Alert variant="danger">{errorMessage}</Alert> : null}
       {!isLoading && actionMessage ? <Alert>{actionMessage}</Alert> : null}
 
@@ -439,84 +353,76 @@ export default function AdminChargesPage() {
                 progressById={progressById}
                 deletingId={deletingId}
                 onDelete={handleDelete}
+                adminPath={routes.adminPath}
                 currentChargeId={currentMembershipId}
                 emptyText="No hay cuotas exigibles para este filtro."
                 isMembershipTable
-                title={`Cuotas del club · ${selectedYear}`}
+                title={`Cuotas mensuales · ${selectedYear}`}
               />
             )}
           </section>
       ) : null}
 
-      {!isLoading && !errorMessage && activeTab === "manual" ? (
+      {!isLoading && !errorMessage && activeTab === "lists" ? (
         <section className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => resetCreate("simple")}
-              className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
-            >
-              <p className="text-sm font-semibold text-slate-950">Cobro a socios</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                Cuotas especiales, viajes, torneos, inscripciones o matriculas.
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => resetCreate("order")}
-              className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50"
-            >
-              <p className="text-sm font-semibold text-slate-950">Pedido / indumentaria</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Crea un cobro vacio para cargar lineas variables o importar Excel.</p>
-            </button>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-950">Listas simples, con una variante para indumentaria</p>
+            <p className="mt-1 text-sm text-slate-600">
+              General cubre torneo, seguro, prode, viajes e inscripciones. Indumentaria es para ropa del club:
+              muestra talle/detalle, señas y proveedor con mejor contexto.
+            </p>
           </div>
             <ChargesTable
-              charges={manualCharges}
-              description="Todo lo que no es cuota mensual: viajes, inscripciones, pedidos de indumentaria y listas variables."
+              charges={listCharges}
+              description="Recaudaciones puntuales con personas, pagos parciales, pendientes e importacion desde Excel o WhatsApp."
               progressById={progressById}
               deletingId={deletingId}
               onDelete={handleDelete}
-              emptyText="Todavia no hay cobros manuales."
+              adminPath={routes.adminPath}
+              emptyText="Todavia no hay listas de recaudacion."
               showCategory
-              title="Cobros manuales"
+              title="Listas de recaudacion"
             />
           </section>
       ) : null}
 
       <AdminModal open={createOpen} onClose={() => !isCreating && setCreateOpen(false)} width="2xl">
-        <h2 className="text-lg font-semibold text-white">Nuevo cobro</h2>
+        <h2 className="text-lg font-semibold text-white">Nueva lista de recaudacion</h2>
         <p className="mt-1 text-sm text-slate-300">
-          Elegi el caso real. La cuota mensual se genera sola; aca creas cobros adicionales.
+          Crea un espacio para cargar personas, pagos y pendientes sin abrir una planilla aparte.
         </p>
 
         <div className="mt-5 space-y-5">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/45">1. Tipo de cobro</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/45">1. Categoria</p>
             <div className="grid gap-2 md:grid-cols-2">
-              {(["simple", "order"] as const).map((item) => {
-                const selected = scenario === item;
-                const copy = scenarioCopy[item];
+              {(["general", "order"] as const).map((item) => {
+                const selected = listKind === item;
                 return (
                   <button
                     key={item}
                     type="button"
-                    onClick={() => {
-                      setScenario(item);
-                      if (item === "order") {
-                        setAudience("members");
-                        setMemberIds([]);
-                        setGroupId("");
-                      }
-                    }}
+                    onClick={() => setListKind(item)}
+                    aria-pressed={selected}
                     className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
                       selected
-                        ? "border-white/30 bg-white/10 text-white"
+                        ? "border-white/30 bg-white/10 text-white ring-2 ring-white/15"
                         : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
                     }`}
                   >
-                    <p className="text-sm font-semibold">{copy.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-300">{copy.description}</p>
-                    <p className="mt-2 text-[11px] italic leading-4 text-slate-400">{copy.example}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{listKindLabel(item)}</p>
+                      {selected ? (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-950">
+                          Seleccionada
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">
+                      {item === "order"
+                        ? "Para ropa del club: camperas, camisetas, talles, proveedor y señas."
+                        : "Para cualquier lista de personas que deben pagar algo: torneo, seguro, prode, viaje o inscripcion."}
+                    </p>
                   </button>
                 );
               })}
@@ -529,7 +435,11 @@ export default function AdminChargesPage() {
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder={scenario === "order" ? "Camperas 2026" : "Viaje regional, matricula 2026"}
+                placeholder={
+                  listKind === "order"
+                    ? "Camperas 2026"
+                    : "Torneo + seguro, Prode Mundial o Viaje regional"
+                }
                 className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               />
               <Textarea
@@ -539,160 +449,36 @@ export default function AdminChargesPage() {
                 placeholder="Notas internas opcionales"
                 className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none placeholder:text-slate-400 focus:border-white/20 focus:shadow-none"
               />
-              <div className="grid gap-3 md:grid-cols-2">
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="Monto esperado por persona (opcional)"
+                className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+              />
+              <Input
+                value={alias}
+                onChange={(event) => setAlias(event.target.value)}
+                placeholder="Alias sugerido (opcional)"
+                className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+              />
+              {listKind === "order" ? (
                 <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder={scenario === "order" ? "Monto sugerido por unidad" : "Monto"}
+                  value={supplierName}
+                  onChange={(event) => setSupplierName(event.target.value)}
+                  placeholder="Proveedor (opcional)"
                   className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
                 />
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
-                />
-              </div>
-              {scenario === "simple" ? (
-                <label className="block space-y-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-white/45">
-                    Categoria para reportes
-                  </span>
-                  <Select
-                    value={simpleCategory}
-                    onChange={(event) => setSimpleCategory(event.target.value as ManualChargeCategory)}
-                    className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
-                  >
-                    <option value="activity">Actividad / viaje / torneo / otro</option>
-                    <option value="fee">Inscripcion / matricula</option>
-                  </Select>
-                  <span className="block text-xs leading-5 text-slate-400">
-                    No cambia el flujo de carga; solo ayuda a ordenar listados y reportes.
-                  </span>
-                </label>
               ) : null}
             </div>
           </div>
 
-          {scenario !== "order" ? (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/45">3. A quien se le cobra</p>
-              <div className="space-y-3">
-                <div className="grid gap-2 md:grid-cols-3">
-                  {(
-                    [
-                      ["all", "Todo el club", "Socios activos actuales"],
-                      ["group", "Un grupo", "Usar grupo como atajo"],
-                      ["members", "Personas puntuales", "Elegir nombres a mano"],
-                    ] as const
-                  ).map(([value, label, hint]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setAudience(value);
-                        if (value !== "group") setGroupId("");
-                        if (value !== "members") {
-                          setMemberIds([]);
-                          setMemberSearch("");
-                        }
-                      }}
-                      className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
-                        audience === value
-                          ? "border-white/30 bg-white/10 text-white"
-                          : "border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
-                      }`}
-                    >
-                      <p className="text-sm font-semibold">{label}</p>
-                      <p className="mt-1 text-xs text-slate-400">{hint}</p>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Select
-                    value={chargeType}
-                    onChange={(event) => setChargeType(event.target.value as "per_member" | "total")}
-                    className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
-                  >
-                    <option value="per_member">Por persona</option>
-                    <option value="total">Total a dividir</option>
-                  </Select>
-                  {audience === "group" ? (
-                    <Select
-                      value={groupId}
-                      onChange={(event) => setGroupId(event.target.value)}
-                      className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
-                    >
-                      <option value="">Elegir grupo</option>
-                      {groupOptions.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300">
-                      {audience === "members"
-                        ? `Seleccionados: ${memberIds.length}`
-                        : "Se asigna a todos los socios activos."}
-                    </div>
-                  )}
-                </div>
-
-                {audience === "members" ? (
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                    <Input
-                      value={memberSearch}
-                      onChange={(event) => setMemberSearch(event.target.value)}
-                      placeholder="Buscar por nombre o DNI"
-                      className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
-                    />
-                    {selectedMembers.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {selectedMembers.map((member) => (
-                          <button
-                            key={member.id}
-                            type="button"
-                            onClick={() => toggleMember(member.id)}
-                            className="rounded-full border border-success/25 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
-                          >
-                            {member.full_name} x
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="mt-3 grid max-h-52 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
-                      {filteredMembers.map((member) => {
-                        const selected = memberIds.includes(member.id);
-                        return (
-                          <button
-                            key={member.id}
-                            type="button"
-                            onClick={() => toggleMember(member.id)}
-                            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                              selected
-                                ? "border-success/35 bg-success/12 text-white"
-                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
-                            }`}
-                          >
-                            <span className="block font-semibold">{member.full_name}</span>
-                            <span className="text-slate-400">DNI {member.dni}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300">
-              El pedido se crea vacio. En el detalle vas a cargar personas, externos, talles, cantidades o importar una planilla.
-            </div>
-          )}
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300">
+            La lista se crea vacia. En el detalle vas a cargar personas, nombres externos,
+            importaciones de Excel o texto pegado desde WhatsApp. Si despues necesitas una fecha objetivo,
+            la podes agregar editando la lista.
+          </div>
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-2">
@@ -700,7 +486,7 @@ export default function AdminChargesPage() {
             Cancelar
           </Button>
           <Button type="button" size="md" onClick={() => void handleCreate()} disabled={isCreating}>
-            {isCreating ? "Guardando..." : scenario === "order" ? "Crear pedido" : "Crear cobro"}
+            {isCreating ? "Guardando..." : "Crear lista"}
           </Button>
         </div>
       </AdminModal>
@@ -721,6 +507,7 @@ function ChargesTable({
   emptyText,
   showCategory = false,
   title,
+  adminPath,
 }: {
   allowDelete?: boolean;
   charges: ChargeWithGroup[];
@@ -734,6 +521,7 @@ function ChargesTable({
   emptyText: string;
   showCategory?: boolean;
   title?: string;
+  adminPath: (path?: string) => string;
 }) {
   if (charges.length === 0) {
     return <EmptyState title={emptyText} description="Cuando haya registros, van a aparecer en esta tabla." />;
@@ -762,7 +550,7 @@ function ChargesTable({
             {!isMembershipTable ? <Th>Alcance</Th> : null}
             <Th>Cobranza</Th>
             <Th>Monto</Th>
-            {!isMembershipTable ? <Th>Vencimiento</Th> : null}
+            {!isMembershipTable ? <Th>Fecha objetivo</Th> : null}
             <Th className="text-right">Acciones</Th>
           </TableRow>
         </TableHead>
@@ -772,7 +560,7 @@ function ChargesTable({
             return (
               <TableRow key={charge.id} className="transition-colors hover:bg-slate-50">
                 <Td className="font-medium">
-                  <Link href={`/admin/charges/${charge.id}`} className="text-slate-950 underline-offset-2 hover:underline">
+                  <Link href={adminPath(`charges/${charge.id}`)} className="text-slate-950 underline-offset-2 hover:underline">
                     {charge.name}
                   </Link>
                 </Td>
@@ -788,15 +576,15 @@ function ChargesTable({
                     </span>
                   </Td>
                 ) : null}
-                {showCategory && !isMembershipTable ? <Td className="text-slate-600">{categoryLabel(charge.category)}</Td> : null}
+                {showCategory && !isMembershipTable ? <Td className="text-slate-600">{listKindLabel(charge.list_kind)}</Td> : null}
                 {!isMembershipTable ? (
                   <Td className="text-slate-600">
                     {charge.group ? (
-                      <Link href={`/admin/groups/${charge.group.id}`} className="underline-offset-2 hover:text-slate-950 hover:underline">
+                      <Link href={adminPath(`groups/${charge.group.id}`)} className="underline-offset-2 hover:text-slate-950 hover:underline">
                         {charge.group.name}
                       </Link>
                     ) : (
-                      "Todo el club / manual"
+                      "Lista sin grupo"
                     )}
                   </Td>
                 ) : null}
@@ -821,13 +609,13 @@ function ChargesTable({
                 <Td className="tabular-nums text-slate-950">{formatMoney(charge.amount)}</Td>
                 {!isMembershipTable ? (
                   <Td className="text-slate-600">
-                    {charge.billing_period ? formatBillingPeriod(charge.billing_period) : formatDueDate(charge.due_date)}
+                    {charge.due_date ? formatDueDate(charge.due_date) : <span className="text-slate-400">-</span>}
                   </Td>
                 ) : null}
                 <Td>
                   <div className="flex flex-wrap justify-end gap-2">
                     <Link
-                      href={`/admin/charges/${charge.id}`}
+                      href={adminPath(`charges/${charge.id}`)}
                       className={buttonClassNames({ variant: "neutral", size: "sm" })}
                     >
                       Ver detalle

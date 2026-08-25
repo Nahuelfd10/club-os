@@ -1,3 +1,4 @@
+import { DEFAULT_PAYMENT_METHOD, normalizePaymentMethod, type ClubPaymentMethod } from "@/config/payment-method";
 import { getSupabaseClient } from "@/lib/supabase";
 
 export type ExpenseRow = {
@@ -6,6 +7,9 @@ export type ExpenseRow = {
   description: string;
   category: string | null;
   date: string;
+  spent_at: string;
+  payment_method: ClubPaymentMethod;
+  origin_label: string | null;
   charge_id: string | null;
   created_at: string;
 };
@@ -22,7 +26,10 @@ function normalizeAmount(value: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-type RawExpenseRow = Omit<ExpenseRow, "amount"> & { amount: unknown };
+type RawExpenseRow = Omit<ExpenseRow, "amount" | "payment_method"> & {
+  amount: unknown;
+  payment_method?: string | null;
+};
 
 type RawExpenseWithCharge = RawExpenseRow & {
   charges?: { id: string; name: string } | null;
@@ -32,6 +39,8 @@ function mapRawExpense(row: RawExpenseRow): ExpenseRow {
   return {
     ...row,
     amount: normalizeAmount(row.amount),
+    spent_at: row.spent_at ?? row.created_at,
+    payment_method: normalizePaymentMethod(row.payment_method),
   };
 }
 
@@ -54,6 +63,9 @@ export async function listExpenses(): Promise<ExpenseWithCharge[]> {
       description,
       category,
       date,
+      spent_at,
+      payment_method,
+      origin_label,
       charge_id,
       created_at,
       charges (
@@ -62,7 +74,7 @@ export async function listExpenses(): Promise<ExpenseWithCharge[]> {
       )
     `
     )
-    .order("date", { ascending: false })
+    .order("spent_at", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -77,6 +89,9 @@ export async function createExpense(payload: {
   amount: number;
   category?: string | null;
   date: string;
+  spent_at?: string | null;
+  payment_method?: ClubPaymentMethod;
+  origin_label?: string | null;
   charge_id?: string | null;
 }) {
   const supabase = getSupabaseClient();
@@ -85,6 +100,9 @@ export async function createExpense(payload: {
     amount: payload.amount,
     category: payload.category?.trim() ? payload.category.trim() : null,
     date: payload.date,
+    spent_at: payload.spent_at ?? new Date().toISOString(),
+    payment_method: payload.payment_method ?? DEFAULT_PAYMENT_METHOD,
+    origin_label: payload.origin_label?.trim() || "Club / caja",
     charge_id: payload.charge_id ?? null,
   });
 
@@ -100,6 +118,8 @@ export async function updateExpense(
     amount: number;
     category?: string | null;
     date: string;
+    payment_method?: ClubPaymentMethod;
+    origin_label?: string | null;
     charge_id?: string | null;
   }
 ) {
@@ -111,6 +131,8 @@ export async function updateExpense(
       amount: payload.amount,
       category: payload.category?.trim() ? payload.category.trim() : null,
       date: payload.date,
+      payment_method: payload.payment_method ?? DEFAULT_PAYMENT_METHOD,
+      origin_label: payload.origin_label?.trim() || "Club / caja",
       charge_id: payload.charge_id ?? null,
     })
     .eq("id", expenseId);
@@ -132,9 +154,9 @@ export async function listExpensesByChargeId(chargeId: string): Promise<ExpenseR
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("expenses")
-    .select("id, amount, description, category, date, charge_id, created_at")
+    .select("id, amount, description, category, date, spent_at, payment_method, origin_label, charge_id, created_at")
     .eq("charge_id", chargeId)
-    .order("date", { ascending: false })
+    .order("spent_at", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -143,4 +165,3 @@ export async function listExpensesByChargeId(chargeId: string): Promise<ExpenseR
 
   return ((data ?? []) as unknown as RawExpenseRow[]).map(mapRawExpense);
 }
-

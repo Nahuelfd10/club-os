@@ -8,8 +8,18 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import { ChargePaymentModal } from "@/components/admin/charge-payment-modal";
 import { ImportChargeLines } from "@/components/admin/import-charge-lines";
-import { paymentMethodLabel } from "@/config/payment-method";
-import { Alert, Badge, Button, Input, PageHeader, Select, TableContainer, Textarea } from "@/components/ui";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  paymentMethodLabel,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
+import { Alert, Badge, Button, Input, PageHeader, SegmentedControl, Select, TableContainer, Textarea } from "@/components/ui";
+import {
+  createChargeExtraContribution,
+  listChargeExtraContributions,
+  type ChargeExtraContributionRow,
+} from "@/lib/charge-contributions";
 import {
   addChargeLine,
   assignChargeToMissingMembers,
@@ -30,6 +40,7 @@ import {
   chargeLineDisplayName,
   MEMBER_CHARGE_TRACKING_OPTIONS,
   type ChargeDetail,
+  type ChargeListKind,
   type ChargePaymentRow,
   type MemberChargeForChargeRow,
   type MemberChargeTrackingStatus,
@@ -42,6 +53,7 @@ import {
 import { formatDueDate, formatPaidAt } from "@/lib/datetime";
 import { formatMoney } from "@/lib/formatters";
 import { createExpense, deleteExpense, listExpensesByChargeId, updateExpense, type ExpenseRow } from "@/lib/expenses";
+import { useClubRoutes } from "@/lib/use-club-routes";
 import {
   buildChargeDebtWhatsAppLink,
   buildChargeDebtWhatsAppMessage,
@@ -51,6 +63,7 @@ import type { MemberStatus } from "@/types";
 
 type FilterKey = "all" | "pending" | "partial" | "paid";
 type TrackingFilterKey = "all" | MemberChargeTrackingStatus;
+type SegmentTone = "default" | "muted" | "accent" | "success";
 
 function chargeCategoryLabel(category: string | null): string {
   if (category === "membership") return "Cuota mensual";
@@ -61,6 +74,24 @@ function chargeCategoryLabel(category: string | null): string {
 
 function chargeScopeLabel(charge: ChargeDetail): string {
   return charge.group?.name ?? "Todo el club - activos";
+}
+
+function listKindLabel(kind: ChargeListKind): string {
+  return kind === "order" ? "Indumentaria" : "General";
+}
+
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function lineStatusPillClass(status: MemberChargeForChargeRow["status"]): string {
@@ -99,8 +130,25 @@ function trackingLabel(status: MemberChargeTrackingStatus): string {
   return MEMBER_CHARGE_TRACKING_OPTIONS.find((option) => option.value === status)?.label ?? "Sin contactar";
 }
 
+function trackingSegmentTone(status: MemberChargeTrackingStatus): SegmentTone {
+  if (status === "not_contacted") {
+    return "muted";
+  }
+
+  if (status === "closed") {
+    return "success";
+  }
+
+  if (status === "promised" || status === "partial_payment") {
+    return "accent";
+  }
+
+  return "default";
+}
+
 export default function AdminChargeDetailPage() {
   const params = useParams<{ id: string }>();
+  const routes = useClubRoutes();
   const chargeId = params?.id ?? "";
 
   const [charge, setCharge] = useState<ChargeDetail | null>(null);
@@ -127,10 +175,22 @@ export default function AdminChargeDetailPage() {
 
   const [expandedMcId, setExpandedMcId] = useState<string | null>(null);
   const [historyByMc, setHistoryByMc] = useState<Record<string, ChargePaymentRow[]>>({});
+  const [chargePayments, setChargePayments] = useState<ChargePaymentRow[]>([]);
+  const [extraContributions, setExtraContributions] = useState<ChargeExtraContributionRow[]>([]);
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
   const [trackingUpdatingId, setTrackingUpdatingId] = useState<string | null>(null);
 
   const [payModalRow, setPayModalRow] = useState<MemberChargeForChargeRow | null>(null);
+  const [contributionModalOpen, setContributionModalOpen] = useState(false);
+  const [contributionRow, setContributionRow] = useState<MemberChargeForChargeRow | null>(null);
+  const [contributionSource, setContributionSource] = useState<"line" | "member" | "club" | "external">("line");
+  const [contributionMemberId, setContributionMemberId] = useState("");
+  const [contributionExternalName, setContributionExternalName] = useState("");
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [contributionDate, setContributionDate] = useState(() => new Date().toISOString().slice(0, 16));
+  const [contributionMethod, setContributionMethod] = useState<"transfer" | "cash" | "mercadopago">("transfer");
+  const [contributionNote, setContributionNote] = useState("");
+  const [contributionSaving, setContributionSaving] = useState(false);
   const [selectedWhatsAppIds, setSelectedWhatsAppIds] = useState<string[]>([]);
   const [whatsAppBatchOpen, setWhatsAppBatchOpen] = useState(false);
   const [whatsAppBatchIndex, setWhatsAppBatchIndex] = useState(0);
@@ -141,12 +201,13 @@ export default function AdminChargeDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
+  const [editSupplierName, setEditSupplierName] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   const [assigningMissing, setAssigningMissing] = useState(false);
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
 
-  // Líneas (member_charges) — agregar/editar/eliminar manualmente.
+  // Lineas (member_charges): agregar/editar/eliminar manualmente.
   type MemberOption = { id: string; full_name: string; dni: string; status: MemberStatus };
   const [allMembers, setAllMembers] = useState<MemberOption[]>([]);
   const [lineModalOpen, setLineModalOpen] = useState(false);
@@ -160,7 +221,7 @@ export default function AdminChargeDetailPage() {
   const [lineSaving, setLineSaving] = useState(false);
   const [lineFormError, setLineFormError] = useState<string | null>(null);
   const [deletingLineId, setDeletingLineId] = useState<string | null>(null);
-  // Pop-up para reasignar línea externa a socio (un select por fila externa).
+  // Pop-up para reasignar linea externa a socio (un select por fila externa).
   const [assigningExternalLineId, setAssigningExternalLineId] = useState<string | null>(null);
   const [externalAssignMemberId, setExternalAssignMemberId] = useState("");
 
@@ -170,12 +231,14 @@ export default function AdminChargeDetailPage() {
   const [expenseCategory, setExpenseCategory] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseMethod, setExpenseMethod] = useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
+  const [expenseOrigin, setExpenseOrigin] = useState("Club / caja");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [expenseDeletingId, setExpenseDeletingId] = useState<string | null>(null);
 
   const formatExpenseDate = (value: string) => {
     if (!value) {
-      return "—";
+      return "-";
     }
     return new Date(`${value}T12:00:00`).toLocaleDateString("es-AR");
   };
@@ -196,6 +259,8 @@ export default function AdminChargeDetailPage() {
         setHasPayments(null);
         setFinancials(null);
         setExpenses([]);
+        setChargePayments([]);
+        setExtraContributions([]);
         return;
       }
 
@@ -221,6 +286,11 @@ export default function AdminChargeDetailPage() {
       setRows(memberCharges);
       setMissingMembers(missing);
       setFinancials(fin);
+      const paymentLists = await Promise.all(
+        memberCharges.map((row) => getChargePaymentsByMemberChargeId(row.id))
+      );
+      setChargePayments(paymentLists.flat());
+      setExtraContributions(membershipCharge ? [] : await listChargeExtraContributions(chargeId));
 
       setExpensesLoading(true);
       try {
@@ -279,6 +349,88 @@ export default function AdminChargeDetailPage() {
     [filteredRows]
   );
 
+  const extraContributionsTotal = useMemo(
+    () => extraContributions.reduce((sum, item) => sum + item.amount, 0),
+    [extraContributions]
+  );
+
+  const contributionByLine = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of extraContributions) {
+      if (!item.member_charge_id) continue;
+      map.set(item.member_charge_id, (map.get(item.member_charge_id) ?? 0) + item.amount);
+    }
+    return map;
+  }, [extraContributions]);
+
+  const rowById = useMemo(() => {
+    const map = new Map<string, MemberChargeForChargeRow>();
+    for (const row of rows) {
+      map.set(row.id, row);
+    }
+    return map;
+  }, [rows]);
+
+  const memberNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const member of allMembers) {
+      map.set(member.id, member.full_name);
+    }
+    return map;
+  }, [allMembers]);
+
+  const listMovements = useMemo(() => {
+    const payments = chargePayments.map((payment) => {
+      const row = rowById.get(payment.member_charge_id);
+      return {
+        id: `payment-${payment.id}`,
+        date: payment.paid_at,
+        createdAt: payment.created_at,
+        type: "Pago" as const,
+        person: row ? chargeLineDisplayName(row) : "Linea eliminada",
+        amount: payment.amount,
+        method: payment.payment_method,
+        note: row ? "Aplicado al saldo" : "",
+      };
+    });
+
+    const contributions = extraContributions.map((item) => {
+      const row = item.member_charge_id ? rowById.get(item.member_charge_id) : null;
+      return {
+        id: `extra-${item.id}`,
+        date: item.contributed_at,
+        createdAt: item.created_at,
+        type: "Aporte extra" as const,
+        person:
+          row
+            ? chargeLineDisplayName(row)
+            : item.member_id
+              ? memberNameById.get(item.member_id) ?? "Socio"
+              : item.contributor_name ?? "Aporte externo",
+        amount: item.amount,
+        method: item.payment_method,
+        note: item.note ?? "",
+      };
+    });
+
+    const expenseMovements = expenses.map((expense) => ({
+      id: `expense-${expense.id}`,
+      date: expense.spent_at,
+      createdAt: expense.created_at,
+      type: "Egreso" as const,
+      person: expense.origin_label?.trim() || "Club / caja",
+      amount: expense.amount,
+      method: expense.payment_method,
+      note: [expense.description, expense.category].filter(Boolean).join(" - "),
+    }));
+
+    return [...payments, ...contributions, ...expenseMovements].sort((a, b) => {
+      const byMovementDate = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (byMovementDate !== 0) return byMovementDate;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [chargePayments, expenses, extraContributions, memberNameById, rowById]);
+
   const selectedWhatsAppRows = useMemo(() => {
     const selected = new Set(selectedWhatsAppIds);
     return rows.filter((row) => selected.has(row.id) && row.member?.phone && remainingAmount(row) > 0.001);
@@ -308,14 +460,56 @@ export default function AdminChargeDetailPage() {
     return map;
   }, [rows]);
 
+  const dailyCollection = useMemo(() => {
+    const paymentsWithDates = chargePayments
+      .map((payment) => ({
+        ...payment,
+        date: new Date(payment.paid_at),
+      }))
+      .filter((payment) => !Number.isNaN(payment.date.getTime()))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const referenceDate =
+      paymentsWithDates.at(-1)?.date ??
+      (charge?.billing_period ? new Date(`${charge.billing_period}T12:00:00`) : new Date());
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const totals = new Map<string, number>();
+
+    for (const payment of paymentsWithDates) {
+      if (payment.date.getFullYear() !== year || payment.date.getMonth() !== month) {
+        continue;
+      }
+      const key = dateKey(payment.date);
+      totals.set(key, (totals.get(key) ?? 0) + payment.amount);
+    }
+
+    const days = Array.from({ length: daysInMonth }, (_, index) => {
+      const date = new Date(year, month, index + 1, 12);
+      const amount = totals.get(dateKey(date)) ?? 0;
+      return {
+        day: index + 1,
+        amount,
+      };
+    });
+    const maxAmount = Math.max(...days.map((day) => day.amount), 0);
+
+    return {
+      days,
+      maxAmount,
+      label: monthLabel(referenceDate),
+    };
+  }, [charge?.billing_period, chargePayments]);
+
   useEffect(() => {
     const available = new Set(whatsAppEligibleRows.map((row) => row.id));
     setSelectedWhatsAppIds((prev) => prev.filter((id) => available.has(id)));
   }, [whatsAppEligibleRows]);
 
   /**
-   * Detecta nombres externos que se repiten (ej. "Diame" en 7 líneas de
-   * Camperas) para sugerir bulk-assign. Sólo agrupa cuando hay 2+ líneas
+   * Detecta nombres externos que se repiten (ej. "Diame" en 7 lineas de
+   * Camperas) para sugerir bulk-assign. Solo agrupa cuando hay 2+ lineas
    * con el mismo external_name normalizado y todas siguen siendo externas.
    */
   const externalNameGroups = useMemo(() => {
@@ -367,8 +561,8 @@ export default function AdminChargeDetailPage() {
     setBulkAssignMemberId("");
     setActionMessage(
       errCount === 0
-        ? `Reasigné ${okCount} línea(s) al socio.`
-        : `Reasigné ${okCount} línea(s); ${errCount} con error.`
+        ? `Reasigne ${okCount} linea(s) al socio.`
+        : `Reasigne ${okCount} linea(s); ${errCount} con error.`
     );
     await loadAll();
   };
@@ -403,6 +597,79 @@ export default function AdminChargeDetailPage() {
 
   const closePayModal = () => {
     setPayModalRow(null);
+  };
+
+  const openContributionModal = (row?: MemberChargeForChargeRow) => {
+    setContributionRow(row ?? null);
+    setContributionSource(row ? "line" : "club");
+    setContributionMemberId(row?.member_id ?? "");
+    setContributionExternalName(row ? chargeLineDisplayName(row) : "");
+    setContributionAmount("");
+    setContributionDate(new Date().toISOString().slice(0, 16));
+    setContributionMethod("transfer");
+    setContributionNote(row ? `Aporte extra de ${chargeLineDisplayName(row)}` : "");
+    setContributionModalOpen(true);
+  };
+
+  const closeContributionModal = () => {
+    if (!contributionSaving) {
+      setContributionModalOpen(false);
+    }
+  };
+
+  const submitContribution = async () => {
+    if (!charge) return;
+    const amount = Number(contributionAmount.replace(",", ".").trim());
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setActionMessage("Indica un monto valido para el aporte extra.");
+      return;
+    }
+
+    const sourceName =
+      contributionSource === "club"
+        ? "Club"
+        : contributionSource === "line" && contributionRow
+          ? chargeLineDisplayName(contributionRow)
+          : contributionExternalName.trim();
+
+    if (contributionSource === "external" && !sourceName) {
+      setActionMessage("Indica quien hizo el aporte.");
+      return;
+    }
+    if (contributionSource === "member" && !contributionMemberId) {
+      setActionMessage("Elegi el socio que hizo el aporte.");
+      return;
+    }
+
+    setContributionSaving(true);
+    try {
+      await createChargeExtraContribution({
+        charge_id: charge.id,
+        member_charge_id: contributionSource === "line" ? contributionRow?.id ?? null : null,
+        member_id:
+          contributionSource === "line"
+            ? contributionRow?.member_id ?? null
+            : contributionSource === "member"
+              ? contributionMemberId || null
+              : null,
+        contributor_name:
+          contributionSource === "member"
+            ? null
+            : sourceName,
+        amount,
+        contributed_at: contributionDate ? new Date(contributionDate).toISOString() : new Date().toISOString(),
+        payment_method: contributionMethod,
+        note: contributionNote,
+      });
+      setContributionModalOpen(false);
+      setActionMessage("Aporte extra registrado.");
+      await loadAll();
+    } catch (error) {
+      console.error(error);
+      setActionMessage(error instanceof Error ? error.message : "No se pudo registrar el aporte extra.");
+    } finally {
+      setContributionSaving(false);
+    }
   };
 
   const submitPayment = async (payload: {
@@ -562,6 +829,8 @@ export default function AdminChargeDetailPage() {
     setExpenseCategory("");
     setExpenseAmount("");
     setExpenseDate(new Date().toISOString().slice(0, 10));
+    setExpenseMethod(DEFAULT_PAYMENT_METHOD);
+    setExpenseOrigin("Club / caja");
     setExpenseModalOpen(true);
   };
 
@@ -571,6 +840,8 @@ export default function AdminChargeDetailPage() {
     setExpenseCategory(expense.category ?? "");
     setExpenseAmount(String(expense.amount ?? ""));
     setExpenseDate(expense.date ?? new Date().toISOString().slice(0, 10));
+    setExpenseMethod(expense.payment_method ?? DEFAULT_PAYMENT_METHOD);
+    setExpenseOrigin(expense.origin_label?.trim() || "Club / caja");
     setExpenseModalOpen(true);
   };
 
@@ -587,13 +858,13 @@ export default function AdminChargeDetailPage() {
     }
     const description = expenseDesc.trim();
     if (!description) {
-      setActionMessage("La descripción del egreso es obligatoria.");
+      setActionMessage("La descripcion del egreso es obligatoria.");
       return;
     }
     const raw = expenseAmount.replace(",", ".").trim();
     const amount = Number(raw);
     if (raw === "" || Number.isNaN(amount)) {
-      setActionMessage("Indicá un monto válido para el egreso.");
+      setActionMessage("Indica un monto valido para el egreso.");
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -610,6 +881,8 @@ export default function AdminChargeDetailPage() {
           amount,
           category: expenseCategory.trim() || null,
           date,
+          payment_method: expenseMethod,
+          origin_label: expenseOrigin,
           charge_id: charge.id,
         });
         setActionMessage("Egreso actualizado.");
@@ -619,6 +892,9 @@ export default function AdminChargeDetailPage() {
           amount,
           category: expenseCategory.trim() || null,
           date,
+          spent_at: new Date().toISOString(),
+          payment_method: expenseMethod,
+          origin_label: expenseOrigin,
           charge_id: charge.id,
         });
         setActionMessage("Egreso registrado.");
@@ -634,7 +910,7 @@ export default function AdminChargeDetailPage() {
   };
 
   const removeExpense = async (expense: ExpenseRow) => {
-    const ok = window.confirm(`¿Eliminar el egreso "${expense.description}"?`);
+    const ok = window.confirm(`Eliminar el egreso "${expense.description}"?`);
     if (!ok) {
       return;
     }
@@ -659,10 +935,11 @@ export default function AdminChargeDetailPage() {
     setEditDescription(charge.description ?? "");
     setEditAmount(String(charge.amount));
     setEditDueDate(charge.due_date ?? "");
+    setEditSupplierName(charge.supplier_name ?? "");
     setEditOpen(true);
   };
 
-  // ----- Líneas (member_charges) -----
+  // ----- Lineas (member_charges) -----
   const resetLineForm = () => {
     setLineEditingId(null);
     setLineMode("member");
@@ -715,16 +992,16 @@ export default function AdminChargeDetailPage() {
     const rawAmount = lineAmount.replace(",", ".").trim();
     const amountNum = Number(rawAmount);
     if (rawAmount === "" || !Number.isFinite(amountNum) || amountNum <= 0) {
-      setLineFormError("Indicá un monto mayor a cero.");
+      setLineFormError("Indica un monto mayor a cero.");
       return;
     }
 
     if (lineMode === "member" && !lineMemberId) {
-      setLineFormError("Elegí un socio o cambiá el modo a 'Externo'.");
+      setLineFormError("Elegi un socio o cambia el modo a 'Externo'.");
       return;
     }
     if (lineMode === "external" && !lineExternalName.trim()) {
-      setLineFormError("Indicá el nombre del comprador externo.");
+      setLineFormError("Indica el nombre del comprador externo.");
       return;
     }
 
@@ -740,16 +1017,16 @@ export default function AdminChargeDetailPage() {
       };
       if (lineEditingId) {
         await updateChargeLine(lineEditingId, payload);
-        setActionMessage("Línea actualizada.");
+        setActionMessage("Linea actualizada.");
       } else {
         await addChargeLine(charge.id, payload);
-        setActionMessage("Línea agregada.");
+        setActionMessage("Linea agregada.");
       }
       setLineModalOpen(false);
       resetLineForm();
       await loadAll();
     } catch (error) {
-      setLineFormError(error instanceof Error ? error.message : "No se pudo guardar la línea.");
+      setLineFormError(error instanceof Error ? error.message : "No se pudo guardar la linea.");
     } finally {
       setLineSaving(false);
     }
@@ -760,18 +1037,18 @@ export default function AdminChargeDetailPage() {
     const hasPaid = (row.paid_amount ?? 0) > 0;
     const ok = window.confirm(
       hasPaid
-        ? `La línea "${label}" tiene ${formatMoney(row.paid_amount)} cobrado. Si la borrás, también se eliminan los pagos asociados. ¿Continuar?`
-        : `¿Eliminar la línea "${label}"?`
+        ? `La linea "${label}" tiene ${formatMoney(row.paid_amount)} cobrado. Si la borras, tambien se eliminan los pagos asociados. Continuar?`
+        : `Eliminar la linea "${label}"?`
     );
     if (!ok) return;
     setDeletingLineId(row.id);
     setActionMessage(null);
     try {
       await deleteChargeLine(row.id);
-      setActionMessage("Línea eliminada.");
+      setActionMessage("Linea eliminada.");
       await loadAll();
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar la línea.");
+      setActionMessage(error instanceof Error ? error.message : "No se pudo eliminar la linea.");
     } finally {
       setDeletingLineId(null);
     }
@@ -784,12 +1061,12 @@ export default function AdminChargeDetailPage() {
     setActionMessage(null);
     try {
       await assignLineToMember(lineId, externalAssignMemberId);
-      setActionMessage("Línea reasignada al socio.");
+      setActionMessage("Linea reasignada al socio.");
       setAssigningExternalLineId(null);
       setExternalAssignMemberId("");
       await loadAll();
     } catch (error) {
-      setActionMessage(error instanceof Error ? error.message : "No se pudo reasignar la línea.");
+      setActionMessage(error instanceof Error ? error.message : "No se pudo reasignar la linea.");
     }
   };
 
@@ -805,7 +1082,7 @@ export default function AdminChargeDetailPage() {
     const raw = editAmount.replace(",", ".").trim();
     const amount = Number(raw);
     if (raw === "" || Number.isNaN(amount)) {
-      setActionMessage("Indicá un monto válido.");
+      setActionMessage("Indica un monto valido.");
       return;
     }
     setEditSaving(true);
@@ -815,6 +1092,8 @@ export default function AdminChargeDetailPage() {
         description: editDescription.trim() || null,
         amount,
         due_date: editDueDate.trim() || null,
+        list_kind: charge.list_kind,
+        supplier_name: editSupplierName.trim() || null,
       });
       setEditOpen(false);
       setActionMessage("Cargo actualizado.");
@@ -874,7 +1153,7 @@ export default function AdminChargeDetailPage() {
           ? String((error as { code?: string }).code)
           : "";
       if (code === "23505") {
-        setActionMessage("Ese socio ya tenía asignado este cargo.");
+        setActionMessage("Ese socio ya tenia asignado este cargo.");
         await loadAll();
       } else {
         setActionMessage(
@@ -900,38 +1179,48 @@ export default function AdminChargeDetailPage() {
     return (
       <section className="space-y-6">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-          <p className="text-slate-700">{errorMessage ?? "No se encontró el cargo."}</p>
+          <p className="text-slate-700">{errorMessage ?? "No se encontro el cargo."}</p>
           <Link
-            href="/admin/charges"
+            href={routes.adminPath("charges")}
             className="mt-3 inline-block text-sm font-medium text-slate-600 hover:text-slate-900"
           >
-            Volver a cargos
+            Volver a cuotas y listas
           </Link>
         </div>
       </section>
     );
   }
 
+  const isMembershipCharge = charge.category === "membership";
+  const isOrderList = !isMembershipCharge && charge.list_kind === "order";
+  const tableColSpan = isMembershipCharge ? 10 : 11;
+
   return (
     <>
       <section className="space-y-6">
         <Link
-          href="/admin/charges"
+          href={routes.adminPath("charges")}
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-          Volver a cobros
+          Volver a cuotas y listas
         </Link>
 
         <PageHeader
-          eyebrow={`Cobranza${charge.category === "membership" ? " · Cuota mensual" : ""}`}
+          eyebrow={`Cobranza${
+            isMembershipCharge && charge.billing_period
+              ? ` - ${formatBillingPeriod(charge.billing_period)}`
+              : isMembershipCharge
+                ? " - Cuota mensual"
+                : ""
+          }`}
           title={charge.name}
           description={
-            charge.description?.trim()
+            isMembershipCharge
+              ? `Cuota mensual generada automaticamente para ${rows.length} socio(s).`
+              : charge.description?.trim()
               ? charge.description
-              : charge.category === "membership"
-                ? "Generada automaticamente. Aplica al padron activo del club."
-                : "Cobro manual del club."
+              : "Lista de recaudacion del club."
           }
           actions={
             <>
@@ -945,53 +1234,51 @@ export default function AdminChargeDetailPage() {
               >
                 Editar
               </Button>
-              <Button type="button" size="md" onClick={openCreateExpense}>
-                Registrar egreso
-              </Button>
+              {!isMembershipCharge ? (
+                <Button type="button" size="md" onClick={openCreateExpense}>
+                  Registrar egreso
+                </Button>
+              ) : null}
             </>
           }
         />
 
-        <section className="rounded-2xl border border-slate-200 bg-white/70 px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand">Resumen del cargo</p>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-                {charge.category === "membership"
-                  ? `Cuota mensual del club generada automaticamente para ${rows.length} socios activos.`
-                  : `${rows.length} linea(s) asociadas a este cobro.`}
-                {charge.due_date ? ` Vencimiento estimado el dia ${formatDueDate(charge.due_date)}.` : ""}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                  Grupo <span className="ml-1 text-slate-950">{chargeScopeLabel(charge)}</span>
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                  Categoria <span className="ml-1 text-slate-950">{chargeCategoryLabel(charge.category)}</span>
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                  Tipo <span className="ml-1 text-slate-950">{charge.type === "total" ? "Total a dividir" : "Por persona"}</span>
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                  Monto <span className="ml-1 text-slate-950">{formatMoney(charge.amount)}</span>
-                </span>
-                {charge.category === "membership" ? (
-                  <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
-                    Mes facturado{" "}
-                    <span className="ml-1 capitalize text-slate-950">
-                      {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "-"}
-                    </span>
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            {hasPayments ? (
-              <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
-                Ya tiene pagos - no editable
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            Grupo <span className="ml-1 text-slate-950">{chargeScopeLabel(charge)}</span>
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            Categoria{" "}
+            <span className="ml-1 text-slate-950">
+              {isMembershipCharge ? chargeCategoryLabel(charge.category) : listKindLabel(charge.list_kind)}
+            </span>
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            Monto <span className="ml-1 text-slate-950">{formatMoney(charge.amount)}</span>
+          </span>
+          {charge.category === "membership" ? (
+            <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+              Mes facturado{" "}
+              <span className="ml-1 capitalize text-slate-950">
+                {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "-"}
               </span>
-            ) : null}
-          </div>
-        </section>
+            </span>
+          ) : (
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+              Tipo <span className="ml-1 text-slate-950">{charge.type === "total" ? "Total a dividir" : "Por persona"}</span>
+            </span>
+          )}
+          {hasPayments ? (
+            <span className="rounded-full border border-warning/25 bg-warning/10 px-3 py-1 text-xs font-semibold text-warning">
+              Ya tiene pagos - no editable
+            </span>
+          ) : null}
+          {isOrderList && charge.supplier_name ? (
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+              Proveedor <span className="ml-1 text-slate-950">{charge.supplier_name}</span>
+            </span>
+          ) : null}
+        </div>
 
         <header className="hidden">
           <div className="min-w-0 flex-1">
@@ -999,7 +1286,7 @@ export default function AdminChargeDetailPage() {
               {charge.name}
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              {charge.description?.trim() ? charge.description : "Sin descripción"}
+              {charge.description?.trim() ? charge.description : "Sin descripcion"}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -1010,14 +1297,14 @@ export default function AdminChargeDetailPage() {
               </span>
               {charge.category ? (
                 <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-900">
-                  Categoría:{" "}
+                  Categoria:{" "}
                   <span className="font-mono">
                     {charge.category === "membership"
                       ? "Cuota mensual"
                       : charge.category === "activity"
                         ? "Actividad"
                         : charge.category === "fee"
-                          ? "Inscripción / otro"
+                          ? "Inscripcion / otro"
                           : charge.category}
                   </span>
                 </span>
@@ -1036,13 +1323,13 @@ export default function AdminChargeDetailPage() {
                   <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-900">
                     Mes facturado:{" "}
                     <span className="font-mono capitalize text-indigo-950">
-                      {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "—"}
+                      {charge.billing_period ? formatBillingPeriod(charge.billing_period) : "-"}
                     </span>
                   </span>
                 </>
               ) : (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  Vence: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
+                  Fecha objetivo: <span className="text-slate-900">{formatDueDate(charge.due_date)}</span>
                 </span>
               )}
             </div>
@@ -1077,26 +1364,38 @@ export default function AdminChargeDetailPage() {
 
         <section>
           {(() => {
-            const totalExpected = financials?.total_expected ?? rows.reduce((sum, r) => sum + r.amount, 0);
-            const totalCollected = financials?.total_collected ?? rows.reduce((sum, r) => sum + r.paid_amount, 0);
-            const totalExpenses = financials?.total_expenses ?? expenses.reduce((sum, e) => sum + e.amount, 0);
-            const difference = totalCollected - totalExpenses;
+            const totalExpected = isMembershipCharge
+              ? charge.amount * rows.length
+              : rows.reduce((sum, r) => sum + r.amount, 0);
+            const lineCollected = rows.reduce((sum, r) => sum + r.paid_amount, 0);
+            const totalCollected = lineCollected + (isMembershipCharge ? 0 : extraContributionsTotal);
+            const totalExpenses = isMembershipCharge
+              ? 0
+              : financials?.total_expenses ?? expenses.reduce((sum, e) => sum + e.amount, 0);
+            const pendingTotal = Math.max(0, totalExpected - totalCollected);
+            const difference = isMembershipCharge ? pendingTotal : totalCollected - totalExpenses;
             const pct = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
             const status =
               Math.abs(totalExpenses - totalCollected) < 0.01
                 ? { label: "Cubierto", variant: "success" as const }
                 : totalExpenses > totalCollected
-                  ? { label: "Déficit", variant: "danger" as const }
+                  ? { label: "Deficit", variant: "danger" as const }
                   : { label: "Sobrante", variant: "slate" as const };
+
+            const financialStatus = isMembershipCharge
+              ? pendingTotal <= 0.01
+                ? { label: "Cuota completa", variant: "success" as const }
+                : { label: `${formatMoney(pendingTotal)} pendiente`, variant: "warning" as const }
+              : status;
 
             return (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-lg font-semibold text-slate-900">Resumen financiero</h2>
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                  <Badge variant={financialStatus.variant}>{financialStatus.label}</Badge>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className={`mt-4 grid gap-3 sm:grid-cols-2 ${isMembershipCharge ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Total esperado
@@ -1112,26 +1411,35 @@ export default function AdminChargeDetailPage() {
                     <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
                       {formatMoney(totalCollected)}
                     </p>
+                    {!isMembershipCharge && extraContributionsTotal > 0 ? (
+                      <p className="mt-1 text-xs font-semibold text-success">
+                        Incluye {formatMoney(extraContributionsTotal)} en aportes extra
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  {!isMembershipCharge ? (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Egresado
                     </p>
                     <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
                       {formatMoney(totalExpenses)}
                     </p>
-                  </div>
+                    </div>
+                  ) : null}
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Diferencia
+                      {isMembershipCharge ? "Pendiente" : "Diferencia"}
                     </p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{formatMoney(difference)}</p>
+                    <p className={`mt-1 text-2xl font-bold tabular-nums ${isMembershipCharge && pendingTotal > 0.01 ? "text-danger" : "text-slate-900"}`}>
+                      {formatMoney(difference)}
+                    </p>
                   </div>
                 </div>
 
                 <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">Progreso de recaudación</p>
+                    <p className="text-sm font-semibold text-slate-900">Progreso de recaudacion</p>
                     <p className="text-sm font-semibold tabular-nums text-slate-700">{pct}%</p>
                   </div>
                   <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -1143,20 +1451,150 @@ export default function AdminChargeDetailPage() {
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
                     <span>{formatMoney(totalCollected)} cobrados</span>
-                    <span>{formatMoney(Math.max(0, totalExpected - totalCollected))} restantes</span>
+                    <span>{formatMoney(pendingTotal)} restantes</span>
                   </div>
                 </div>
+
+                {isMembershipCharge ? (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Recaudacion diaria</p>
+                        <p className="mt-0.5 text-xs capitalize text-slate-500">
+                          Pagos registrados en {dailyCollection.label}
+                        </p>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-500">
+                        {chargePayments.length} pago(s)
+                      </p>
+                    </div>
+                    <div className="mt-4 flex h-32 items-end gap-1 overflow-x-auto border-b border-slate-200 pb-2">
+                      {dailyCollection.days.map((day) => {
+                        const height =
+                          dailyCollection.maxAmount > 0
+                            ? Math.max(8, Math.round((day.amount / dailyCollection.maxAmount) * 112))
+                            : 4;
+                        return (
+                          <div
+                            key={day.day}
+                            className="flex min-w-5 flex-1 flex-col items-center justify-end"
+                            title={`Dia ${day.day}: ${formatMoney(day.amount)}`}
+                          >
+                            <div
+                              className={`w-full max-w-6 rounded-t-sm transition-colors ${
+                                day.amount > 0 ? "bg-success" : "bg-slate-200"
+                              }`}
+                              style={{ height }}
+                              aria-hidden
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex justify-between text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <span>Dia 1</span>
+                      <span>Dia {dailyCollection.days.length}</span>
+                    </div>
+                  </div>
+                ) : null}
               </>
             );
           })()}
         </section>
 
+        {!isMembershipCharge ? (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Aportes extra y movimientos</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {extraContributions.length} aporte(s) extra - {listMovements.length} movimiento(s) en la lista.
+                </p>
+              </div>
+              <Button type="button" size="md" variant="neutral" onClick={() => openContributionModal()}>
+                Registrar aporte extra
+              </Button>
+            </div>
+
+            {extraContributions.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-xl border border-success/20 bg-success/5 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-success">Aportes extra</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
+                    {formatMoney(extraContributionsTotal)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pagos de lineas</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">
+                    {formatMoney(rows.reduce((sum, row) => sum + row.paid_amount, 0))}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {listMovements.length > 0 ? (
+              <TableContainer>
+                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold text-slate-700">Fecha</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700">Tipo</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700">Origen</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-700">Monto</th>
+                      <th className="px-3 py-2 font-semibold text-slate-700">Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {listMovements.map((movement) => (
+                      <tr key={movement.id} className="transition-colors hover:bg-slate-50">
+                        <td className="px-3 py-2 text-slate-600">{formatPaidAt(movement.date)}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                              movement.type === "Egreso"
+                                ? "border-danger/20 bg-danger/10 text-danger"
+                                : movement.type === "Aporte extra"
+                                  ? "border-success/20 bg-success/10 text-success"
+                                  : "border-slate-200 bg-slate-50 text-slate-700"
+                            }`}
+                          >
+                            {movement.type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{movement.person}</td>
+                        <td
+                          className={`px-3 py-2 text-right font-semibold tabular-nums ${
+                            movement.type === "Egreso" ? "text-danger" : "text-slate-900"
+                          }`}
+                        >
+                          {movement.type === "Egreso" ? "-" : "+"}
+                          {formatMoney(movement.amount)}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {movement.method ? paymentMethodLabel(movement.method) : movement.note || "-"}
+                          {movement.method && movement.note ? ` - ${movement.note}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TableContainer>
+            ) : (
+              <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+                Todavia no hay movimientos registrados en esta lista.
+              </p>
+            )}
+          </section>
+        ) : null}
+
+        {!isMembershipCharge ? (
         <section className="space-y-4">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Egresos asociados</h2>
               <p className="mt-1 text-sm text-slate-600">
-                {expensesLoading ? "Cargando..." : `${expenses.length} egreso(s) asociado(s) a este cargo.`}
+                {expensesLoading ? "Cargando..." : `${expenses.length} egreso(s) asociado(s) a esta lista.`}
               </p>
             </div>
             <Button type="button" size="md" onClick={openCreateExpense}>
@@ -1168,15 +1606,17 @@ export default function AdminChargeDetailPage() {
             <p className="text-sm text-slate-600">Cargando egresos...</p>
           ) : expenses.length === 0 ? (
             <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
-              No hay egresos asociados a este cargo.
+              No hay egresos asociados a esta lista.
             </p>
           ) : (
             <TableContainer>
               <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Descripción</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Descripcion</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Origen</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Monto</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">Metodo</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Fecha</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
                   </tr>
@@ -1185,7 +1625,9 @@ export default function AdminChargeDetailPage() {
                   {expenses.map((e) => (
                     <tr key={e.id} className="transition-colors hover:bg-slate-50">
                       <td className="px-3 py-2 font-medium text-slate-900">{e.description}</td>
+                      <td className="px-3 py-2 text-slate-700">{e.origin_label?.trim() || "Club / caja"}</td>
                       <td className="px-3 py-2 tabular-nums text-slate-900">{formatMoney(e.amount)}</td>
+                      <td className="px-3 py-2 text-slate-700">{paymentMethodLabel(e.payment_method)}</td>
                       <td className="px-3 py-2 text-slate-700">{formatExpenseDate(e.date)}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-2">
@@ -1215,87 +1657,63 @@ export default function AdminChargeDetailPage() {
             </TableContainer>
           )}
         </section>
+        ) : null}
 
         <section className="space-y-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Líneas del cargo</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                {isMembershipCharge ? "Socios de la cuota" : "Personas / pedidos de esta lista"}
+              </h2>
               <p className="mt-1 text-sm text-slate-600">
-                {rows.length} línea(s) · Pendientes {counts.pending} · Parciales {counts.partial} ·
+                {rows.length} {isMembershipCharge ? "socio(s)" : "persona(s)"} - Pendientes {counts.pending} - Parciales {counts.partial} -
                 Pagadas {counts.paid}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <ImportChargeLines chargeId={charge.id} onImported={() => void loadAll()} />
-              <Button type="button" size="sm" onClick={openAddLine}>
-                + Agregar línea
-              </Button>
-            </div>
+            {!isMembershipCharge ? (
+              <div className="flex flex-wrap gap-2">
+                <ImportChargeLines chargeId={charge.id} expectedAmount={charge.amount} listKind={charge.list_kind} onImported={() => void loadAll()} />
+                <Button type="button" size="sm" onClick={openAddLine}>
+                  + Agregar persona
+                </Button>
+              </div>
+            ) : null}
             <div className="flex w-full flex-wrap gap-2">
-              <div
-                className="inline-flex max-w-full flex-wrap gap-1"
-                role="group"
-                aria-label="Filtrar por estado de pago"
-              >
-                {(
+              <SegmentedControl
+                label="Pago"
+                value={filter}
+                onChange={setFilter}
+                ariaLabel="Filtrar por estado de pago"
+                options={(
                   [
-                    ["all", `Todos (${counts.all})`],
-                    ["pending", `Pendientes (${counts.pending})`],
-                    ["partial", `Parciales (${counts.partial})`],
-                    ["paid", `Pagados (${counts.paid})`],
+                    { value: "all", label: `Todos (${counts.all})` },
+                    { value: "pending", label: `Pendientes (${counts.pending})`, tone: "accent" },
+                    { value: "partial", label: `Parciales (${counts.partial})`, tone: "accent" },
+                    { value: "paid", label: `Pagados (${counts.paid})`, tone: "success" },
                   ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setFilter(key)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                      filter === key
-                        ? "border-brand bg-brand text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div
-                className="inline-flex max-w-full flex-wrap gap-1"
-                role="group"
-                aria-label="Filtrar por seguimiento"
-              >
-                <button
-                  type="button"
-                  onClick={() => setTrackingFilter("all")}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                    trackingFilter === "all"
-                      ? "border-brand bg-brand text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
-                  }`}
-                >
-                  Seguimiento ({trackingCounts.all})
-                </button>
-                {MEMBER_CHARGE_TRACKING_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setTrackingFilter(option.value)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                      trackingFilter === option.value
-                        ? "border-brand bg-brand text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
-                    }`}
-                  >
-                    {option.label} ({trackingCounts[option.value]})
-                  </button>
-                ))}
-              </div>
+                ).filter((option) => option.value === "all" || counts[option.value] > 0 || filter === option.value)}
+              />
+              <SegmentedControl
+                label="Seguimiento"
+                value={trackingFilter}
+                onChange={setTrackingFilter}
+                ariaLabel="Filtrar por seguimiento"
+                options={[
+                  { value: "all", label: `Todos (${trackingCounts.all})` },
+                  ...MEMBER_CHARGE_TRACKING_OPTIONS.filter(
+                    (option) => trackingCounts[option.value] > 0 || trackingFilter === option.value
+                  ).map((option) => ({
+                    value: option.value,
+                    label: `${option.label} (${trackingCounts[option.value]})`,
+                    tone: trackingSegmentTone(option.value),
+                  })),
+                ]}
+              />
             </div>
           </div>
 
           {/* Sugerencia de bulk assign cuando hay nombres externos repetidos */}
-          {externalNameGroups.length > 0 ? (
+          {!isMembershipCharge && externalNameGroups.length > 0 ? (
             <div className="mb-3 space-y-2">
               {externalNameGroups.map((group) => (
                 <div
@@ -1304,9 +1722,9 @@ export default function AdminChargeDetailPage() {
                 >
                   <div className="min-w-0">
                     <p>
-                      <span aria-hidden>💡</span> Hay{" "}
-                      <strong>{group.rows.length} líneas con nombre &ldquo;{group.displayName}&rdquo;</strong>,
-                      todas externas. ¿Asignarlas todas al mismo socio?
+                      Hay{" "}
+                      <strong>{group.rows.length} lineas con nombre &ldquo;{group.displayName}&rdquo;</strong>,
+                      todas externas. Asignarlas todas al mismo socio?
                     </p>
                     {bulkAssignName === group.displayName ? (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1315,10 +1733,10 @@ export default function AdminChargeDetailPage() {
                           onChange={(e) => setBulkAssignMemberId(e.target.value)}
                           className="rounded-md border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 shadow-none focus:shadow-none"
                         >
-                          <option value="">Elegí un socio…</option>
+                          <option value="">Elegi un socio...</option>
                           {allMembers.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.full_name} · {m.dni}
+                              {m.full_name} - {m.dni}
                             </option>
                           ))}
                         </Select>
@@ -1360,21 +1778,40 @@ export default function AdminChargeDetailPage() {
           {rows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-8 text-center">
               <p className="text-base font-semibold text-slate-900">
-                Este cobro todavía no tiene líneas
+                {isMembershipCharge
+                  ? "Esta cuota todavia no tiene socios asignados"
+                  : "Esta lista todavia no tiene personas cargadas"}
               </p>
               <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-                Cargá las líneas a mano (una por una) o importá una planilla con las columnas
-                Cantidad, Jugador, Talle, Pago, Debe.
+                {isMembershipCharge
+                  ? "La cuota mensual se asigna desde el padron activo del club."
+                  : isOrderList
+                    ? "Arranca cargando compradores, talles, cantidades y señas. El proveedor queda como referencia de la lista."
+                    : "Arranca cargando personas desde WhatsApp, Excel o una fila manual. Despues revisa los pagos y prepara el seguimiento desde esta misma pantalla."}
               </p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <ImportChargeLines chargeId={charge.id} onImported={() => void loadAll()} />
-                <Button type="button" size="md" onClick={openAddLine}>
-                  + Agregar línea
-                </Button>
-              </div>
+              {!isMembershipCharge ? (
+                <div className="mt-5 space-y-4">
+                  <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-2 text-left">
+                    {(isOrderList
+                      ? ["Importar la planilla de talles", "Registrar señas o pagos parciales", "Vincular egresos al proveedor"]
+                      : ["Pegar una lista de WhatsApp", "Importar una planilla simple", "Registrar pagos y preparar seguimiento"]
+                    ).map((tip) => (
+                      <div key={tip} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
+                        {tip}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <ImportChargeLines chargeId={charge.id} expectedAmount={charge.amount} listKind={charge.list_kind} onImported={() => void loadAll()} />
+                    <Button type="button" size="md" onClick={openAddLine}>
+                      + Agregar persona
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : filteredRows.length === 0 ? (
-            <Alert variant="info">No hay líneas que coincidan con el filtro seleccionado.</Alert>
+            <Alert variant="info">No hay lineas que coincidan con el filtro seleccionado.</Alert>
           ) : (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-success/20 bg-success/5 px-4 py-3">
@@ -1383,7 +1820,7 @@ export default function AdminChargeDetailPage() {
                   <p className="mt-0.5 text-xs text-slate-700">
                     {selectedWhatsAppRows.length > 0
                       ? `${selectedWhatsAppRows.length} socio(s) seleccionado(s) para contactar.`
-                      : `${whatsAppEligibleRows.length} listos · ${whatsAppNoPhoneRows.length} sin telefono · ${visiblePaidRows.length} al dia.`}
+                      : `${whatsAppEligibleRows.length} listos - ${whatsAppNoPhoneRows.length} sin telefono - ${visiblePaidRows.length} al dia.`}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1423,12 +1860,14 @@ export default function AdminChargeDetailPage() {
                   <tr>
                     <th className="px-3 py-2 font-semibold text-slate-700" aria-label="Seleccionar para WhatsApp" />
                     <th className="px-3 py-2 font-semibold text-slate-700" aria-hidden />
-                    <th className="px-3 py-2 font-semibold text-slate-700">Comprador</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Detalle</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">{isOrderList ? "Persona / comprador" : "Persona"}</th>
+                    {!isMembershipCharge ? (
+                      <th className="px-3 py-2 font-semibold text-slate-700">{isOrderList ? "Talle / detalle" : "Detalle"}</th>
+                    ) : null}
                     <th className="px-3 py-2 font-semibold text-slate-700">Cant.</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Total</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Pagado</th>
-                    <th className="px-3 py-2 font-semibold text-slate-700">Restante</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">{isOrderList ? "Seña / pagado" : "Pagado"}</th>
+                    <th className="px-3 py-2 font-semibold text-slate-700">{isOrderList ? "Pendiente" : "Restante"}</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Estado</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Seguimiento</th>
                     <th className="px-3 py-2 font-semibold text-slate-700">Acciones</th>
@@ -1440,6 +1879,7 @@ export default function AdminChargeDetailPage() {
                     const canPay = rem > 0.001;
                     const expanded = expandedMcId === row.id;
                     const history = historyByMc[row.id];
+                    const rowExtra = contributionByLine.get(row.id) ?? 0;
                     const waUrl =
                       canPay && row.member?.phone
                         ? buildChargeDebtWhatsAppLink({
@@ -1480,13 +1920,13 @@ export default function AdminChargeDetailPage() {
                             {row.member ? (
                               <>
                                 <Link
-                                  href={`/admin/socios/${row.member.id}`}
+                                  href={routes.adminPath(`socios/${row.member.id}`)}
                                   className="font-medium text-slate-900 underline-offset-2 hover:underline"
                                 >
                                   {row.member.full_name}
                                 </Link>
                                 <p className="text-xs text-slate-500">
-                                  DNI {row.member.dni} · {row.member.status === "active" ? "Activo" : row.member.status === "inactive" ? "Baja" : "Pendiente"}
+                                  DNI {row.member.dni} - {row.member.status === "active" ? "Activo" : row.member.status === "inactive" ? "Baja" : "Pendiente"}
                                 </p>
                               </>
                             ) : (
@@ -1502,15 +1942,20 @@ export default function AdminChargeDetailPage() {
                               </>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-sm text-slate-700">
-                            {row.description?.trim() || <span className="text-slate-400">—</span>}
-                          </td>
+                          {!isMembershipCharge ? (
+                            <td className="px-3 py-2 text-sm text-slate-700">
+                              {row.description?.trim() || <span className="text-slate-400">-</span>}
+                            </td>
+                          ) : null}
                           <td className="px-3 py-2 tabular-nums text-slate-700">{row.quantity}</td>
                           <td className="px-3 py-2 tabular-nums text-slate-900">
                             {formatMoney(row.amount)}
                           </td>
                           <td className="px-3 py-2 tabular-nums text-slate-700">
                             {formatMoney(row.paid_amount)}
+                            {rowExtra > 0 ? (
+                              <p className="mt-0.5 text-xs font-semibold text-success">+{formatMoney(rowExtra)} extra</p>
+                            ) : null}
                           </td>
                           <td className="px-3 py-2 text-right">
                             <span
@@ -1578,6 +2023,15 @@ export default function AdminChargeDetailPage() {
                                 >
                                   <Check className="h-4 w-4" />
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openContributionModal(row)}
+                                  className="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-success/20 bg-white px-2 text-xs font-bold text-success transition-colors hover:bg-success/10"
+                                  title="Registrar aporte extra"
+                                  aria-label="Registrar aporte extra"
+                                >
+                                  +$
+                                </button>
                                 {waUrl ? (
                                   <a
                                     href={waUrl}
@@ -1595,49 +2049,51 @@ export default function AdminChargeDetailPage() {
                                 ) : canPay && row.member ? (
                                   <span
                                     className="max-w-[6.5rem] text-[10px] leading-tight text-slate-400"
-                                    title="El socio no tiene teléfono configurado"
+                                    title="El socio no tiene telefono configurado"
                                   >
                                     Sin tel.
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="flex flex-nowrap items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditLine(row)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                                  title="Editar"
-                                  aria-label="Editar"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleDeleteLine(row)}
-                                  disabled={deletingLineId === row.id}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-danger/20 bg-danger/10 text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                  title={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
-                                  aria-label={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                                {!row.member ? (
+                              {!isMembershipCharge ? (
+                                <div className="flex flex-nowrap items-center gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setAssigningExternalLineId(
-                                        assigningExternalLineId === row.id ? null : row.id
-                                      );
-                                      setExternalAssignMemberId("");
-                                    }}
+                                    onClick={() => openEditLine(row)}
                                     className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                                    title={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
-                                    aria-label={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
+                                    title="Editar"
+                                    aria-label="Editar"
                                   >
-                                    <UserPlus className="h-4 w-4" />
+                                    <Pencil className="h-4 w-4" />
                                   </button>
-                                ) : null}
-                              </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDeleteLine(row)}
+                                    disabled={deletingLineId === row.id}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-danger/20 bg-danger/10 text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                    title={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
+                                    aria-label={deletingLineId === row.id ? "Eliminando..." : "Eliminar"}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                  {!row.member ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAssigningExternalLineId(
+                                          assigningExternalLineId === row.id ? null : row.id
+                                        );
+                                        setExternalAssignMemberId("");
+                                      }}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                      title={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
+                                      aria-label={assigningExternalLineId === row.id ? "Cancelar asignacion" : "Asignar a socio"}
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               {assigningExternalLineId === row.id ? (
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                   <Select
@@ -1645,10 +2101,10 @@ export default function AdminChargeDetailPage() {
                                     onChange={(e) => setExternalAssignMemberId(e.target.value)}
                                     className="rounded-md border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 shadow-none focus:shadow-none"
                                   >
-                                    <option value="">Elegí un socio…</option>
+                                    <option value="">Elegi un socio...</option>
                                     {allMembers.map((m) => (
                                       <option key={m.id} value={m.id}>
-                                        {m.full_name} · {m.dni}
+                                        {m.full_name} - {m.dni}
                                       </option>
                                     ))}
                                   </Select>
@@ -1668,7 +2124,7 @@ export default function AdminChargeDetailPage() {
 
                         {expanded ? (
                           <tr className="bg-slate-50/90">
-                            <td colSpan={11} className="px-3 py-3 text-sm text-slate-700">
+                            <td colSpan={tableColSpan} className="px-3 py-3 text-sm text-slate-700">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 Historial de pagos
                               </p>
@@ -1691,7 +2147,7 @@ export default function AdminChargeDetailPage() {
                                   ))}
                                 </ul>
                               ) : (
-                                <p className="text-slate-600">Todavía no hay pagos registrados para este cargo.</p>
+                                <p className="text-slate-600">Todavia no hay pagos registrados para este cargo.</p>
                               )}
                             </td>
                           </tr>
@@ -1709,13 +2165,13 @@ export default function AdminChargeDetailPage() {
         <section className="space-y-4">
           {charge.category === "membership" ? (
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Asignación del período</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Asignacion del periodo</h2>
               <p className="mt-1 text-sm text-slate-600">
-                La cuota mensual se genera como una foto del período. Solo incluye a los socios activos al momento de
-                la generación automática.
+                La cuota mensual se genera como una foto del periodo. Solo incluye a los socios activos al momento de
+                la generacion automatica.
               </p>
               <p className="mt-3 text-sm text-slate-600">
-                Si un socio se activa después, empieza a deber desde el próximo mes y no se agrega retroactivamente a
+                Si un socio se activa despues, empieza a deber desde el proximo mes y no se agrega retroactivamente a
                 esta cuota.
               </p>
             </div>
@@ -1729,7 +2185,7 @@ export default function AdminChargeDetailPage() {
                       ? "No hay miembros faltantes."
                       : charge.group
                         ? `${missingMembers.length} miembro(s) activos del grupo no tienen este cargo.`
-                        : `${missingMembers.length} socio(s) activo(s) aún no tienen este cargo asignado.`}
+                        : `${missingMembers.length} socio(s) activo(s) aun no tienen este cargo asignado.`}
                   </p>
                 </div>
                 <Button
@@ -1753,7 +2209,7 @@ export default function AdminChargeDetailPage() {
                       <div className="min-w-0">
                         <p className="font-semibold text-slate-900">{m.full_name}</p>
                         <p className="text-xs text-slate-500">
-                          DNI {m.dni} · {m.status === "active" ? "Activo" : m.status === "inactive" ? "Baja" : "Pendiente"}
+                          DNI {m.dni} - {m.status === "active" ? "Activo" : m.status === "inactive" ? "Baja" : "Pendiente"}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1767,7 +2223,7 @@ export default function AdminChargeDetailPage() {
                           {assigningMemberId === m.id ? "Asignando..." : "Asignar"}
                         </Button>
                         <Link
-                          href={`/admin/socios/${m.id}`}
+                          href={routes.adminPath(`socios/${m.id}`)}
                           className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-100"
                         >
                           Ver socio
@@ -1805,7 +2261,7 @@ export default function AdminChargeDetailPage() {
                 {currentWhatsAppBatchRow.member.full_name}
               </p>
               <p className="mt-0.5 text-xs text-slate-600">
-                DNI {currentWhatsAppBatchRow.member.dni} · Pendiente{" "}
+                DNI {currentWhatsAppBatchRow.member.dni} - Pendiente{" "}
                 {formatMoney(remainingAmount(currentWhatsAppBatchRow))}
               </p>
             </div>
@@ -1879,9 +2335,11 @@ export default function AdminChargeDetailPage() {
       </AdminModal>
 
       <AdminModal open={editOpen} onClose={() => !editSaving && setEditOpen(false)}>
-        <h2 className="text-lg font-semibold text-slate-900">Editar cargo</h2>
+        <h2 className="text-lg font-semibold text-slate-900">{isMembershipCharge ? "Editar cuota" : "Editar lista"}</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Editás el cargo base. Las líneas ya asignadas a socios no se modifican.
+          {isMembershipCharge
+            ? "Editas la cuota base. Las lineas ya asignadas a socios no se modifican."
+            : "Editas los datos base de la lista. Las personas ya cargadas no se modifican."}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -1898,7 +2356,7 @@ export default function AdminChargeDetailPage() {
           </div>
           <div>
             <label htmlFor="edit-charge-desc" className="mb-1 block text-sm font-medium text-slate-700">
-              Descripción
+              Descripcion
             </label>
             <Textarea
               id="edit-charge-desc"
@@ -1933,15 +2391,15 @@ export default function AdminChargeDetailPage() {
               }
               return (
                 <p className="mt-1 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
-                  Este cargo ya tiene {rows.length} socio(s) asignado(s). Cambiar el monto NO actualiza
-                  las líneas existentes (sólo afecta a futuras asignaciones de socios faltantes).
+                  Esta {isMembershipCharge ? "cuota" : "lista"} ya tiene {rows.length} persona(s) asignada(s). Cambiar el monto NO actualiza
+                  las lineas existentes.
                 </p>
               );
             })()}
           </div>
           <div>
             <label htmlFor="edit-charge-due" className="mb-1 block text-sm font-medium text-slate-700">
-              Fecha de vencimiento
+              Fecha objetivo
             </label>
             <Input
               id="edit-charge-due"
@@ -1950,7 +2408,24 @@ export default function AdminChargeDetailPage() {
               onChange={(e) => setEditDueDate(e.target.value)}
               className="text-sm"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Opcional. Sirve como referencia interna, no como vencimiento estricto.
+            </p>
           </div>
+          {isOrderList ? (
+            <div>
+              <label htmlFor="edit-charge-supplier" className="mb-1 block text-sm font-medium text-slate-700">
+                Proveedor
+              </label>
+              <Input
+                id="edit-charge-supplier"
+                value={editSupplierName}
+                onChange={(e) => setEditSupplierName(e.target.value)}
+                placeholder="Ej. proveedor de camperas"
+                className="text-sm"
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-2">
@@ -1965,12 +2440,12 @@ export default function AdminChargeDetailPage() {
 
       <AdminModal open={lineModalOpen} onClose={closeLineModal}>
         <h2 className="text-lg font-semibold text-slate-900">
-          {lineEditingId ? "Editar línea" : "Agregar línea"}
+          {lineEditingId ? "Editar persona / pedido" : "Agregar persona / pedido"}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
           {lineEditingId
-            ? "Modificá los datos de esta línea. Los pagos asociados (si los hay) no se tocan."
-            : "Sumá una línea a este cargo. Si el comprador no es socio del club, usá el modo 'Externo' y reasignalo después."}
+            ? "Modifica los datos de esta persona o pedido. Los pagos asociados, si los hay, no se tocan."
+            : "Suma una persona o pedido a esta lista. Si no es socio del club, usa el modo Externo y reasignalo despues."}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -2009,10 +2484,10 @@ export default function AdminChargeDetailPage() {
                 onChange={(e) => setLineMemberId(e.target.value)}
                 className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
               >
-                <option value="">Elegí un socio…</option>
+                <option value="">Elegi un socio...</option>
                 {allMembers.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.full_name} · DNI {m.dni}
+                    {m.full_name} - DNI {m.dni}
                   </option>
                 ))}
               </Select>
@@ -2020,7 +2495,7 @@ export default function AdminChargeDetailPage() {
           ) : (
             <div>
               <label htmlFor="line-external" className="mb-1 block text-sm font-medium text-slate-700">
-                Nombre del comprador <span className="text-danger">*</span>
+                {isOrderList ? "Nombre del comprador" : "Nombre"} <span className="text-danger">*</span>
               </label>
               <Input
                 id="line-external"
@@ -2034,13 +2509,13 @@ export default function AdminChargeDetailPage() {
 
           <div>
             <label htmlFor="line-description" className="mb-1 block text-sm font-medium text-slate-700">
-              Detalle / talle
+              {isOrderList ? "Talle / detalle" : "Detalle"}
             </label>
             <Input
               id="line-description"
               value={lineDescription}
               onChange={(e) => setLineDescription(e.target.value)}
-              placeholder="Ej. XXL, M, Talle único"
+              placeholder={isOrderList ? "Ej. XXL, M, Talle unico" : "Ej. Inscripcion, seguro, nota"}
               className="text-sm"
             />
           </div>
@@ -2061,7 +2536,7 @@ export default function AdminChargeDetailPage() {
             </div>
             <div>
               <label htmlFor="line-amount" className="mb-1 block text-sm font-medium text-slate-700">
-                Total de la línea <span className="text-danger">*</span>
+                Total a pagar <span className="text-danger">*</span>
               </label>
               <Input
                 id="line-amount"
@@ -2087,7 +2562,165 @@ export default function AdminChargeDetailPage() {
             Cancelar
           </Button>
           <Button type="button" size="md" onClick={() => void handleSaveLine()} disabled={lineSaving}>
-            {lineSaving ? "Guardando..." : lineEditingId ? "Guardar cambios" : "Agregar línea"}
+            {lineSaving ? "Guardando..." : lineEditingId ? "Guardar cambios" : "Agregar persona"}
+          </Button>
+        </div>
+      </AdminModal>
+
+      <AdminModal open={contributionModalOpen} onClose={closeContributionModal}>
+        <h2 className="text-lg font-semibold text-slate-900">Registrar aporte extra</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Sirve para dinero que entra a la lista por encima del saldo de una persona o como cobertura del club.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <p className="mb-1 text-sm font-medium text-slate-700">Origen del aporte</p>
+            <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setContributionSource("line")}
+                disabled={!contributionRow}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  contributionSource === "line" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Persona de la lista
+              </button>
+              <button
+                type="button"
+                onClick={() => setContributionSource("member")}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  contributionSource === "member" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Socio
+              </button>
+              <button
+                type="button"
+                onClick={() => setContributionSource("club")}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  contributionSource === "club" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Club
+              </button>
+              <button
+                type="button"
+                onClick={() => setContributionSource("external")}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  contributionSource === "external" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Externo
+              </button>
+            </div>
+          </div>
+
+          {contributionSource === "line" ? (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+              {contributionRow ? chargeLineDisplayName(contributionRow) : "Elegido desde una fila de la lista"}
+            </p>
+          ) : contributionSource === "member" ? (
+            <div>
+              <label htmlFor="extra-member" className="mb-1 block text-sm font-medium text-slate-700">
+                Socio
+              </label>
+              <Select
+                id="extra-member"
+                value={contributionMemberId}
+                onChange={(e) => setContributionMemberId(e.target.value)}
+                className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
+              >
+                <option value="">Elegi un socio...</option>
+                {allMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name} - DNI {m.dni}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : contributionSource === "external" ? (
+            <div>
+              <label htmlFor="extra-external" className="mb-1 block text-sm font-medium text-slate-700">
+                Nombre
+              </label>
+              <Input
+                id="extra-external"
+                value={contributionExternalName}
+                onChange={(e) => setContributionExternalName(e.target.value)}
+                placeholder="Ej. Sponsor, familiar, colaborador"
+                className="text-sm"
+              />
+            </div>
+          ) : (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">Club</p>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="extra-amount" className="mb-1 block text-sm font-medium text-slate-700">
+                Monto <span className="text-danger">*</span>
+              </label>
+              <Input
+                id="extra-amount"
+                value={contributionAmount}
+                onChange={(e) => setContributionAmount(e.target.value)}
+                inputMode="decimal"
+                placeholder="Ej. 8000"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="extra-method" className="mb-1 block text-sm font-medium text-slate-700">
+                Metodo
+              </label>
+              <Select
+                id="extra-method"
+                value={contributionMethod}
+                onChange={(e) => setContributionMethod(e.target.value as "transfer" | "cash" | "mercadopago")}
+                className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
+              >
+                <option value="transfer">Transferencia</option>
+                <option value="cash">Efectivo</option>
+                <option value="mercadopago">MercadoPago</option>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="extra-date" className="mb-1 block text-sm font-medium text-slate-700">
+              Fecha y hora
+            </label>
+            <Input
+              id="extra-date"
+              type="datetime-local"
+              value={contributionDate}
+              onChange={(e) => setContributionDate(e.target.value)}
+              className="text-sm"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="extra-note" className="mb-1 block text-sm font-medium text-slate-700">
+              Nota
+            </label>
+            <Textarea
+              id="extra-note"
+              value={contributionNote}
+              onChange={(e) => setContributionNote(e.target.value)}
+              rows={2}
+              className="rounded-lg border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-none focus:border-slate-500 focus:shadow-none"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <Button type="button" variant="neutral" size="md" onClick={closeContributionModal} disabled={contributionSaving}>
+            Cancelar
+          </Button>
+          <Button type="button" size="md" onClick={() => void submitContribution()} disabled={contributionSaving}>
+            {contributionSaving ? "Guardando..." : "Registrar aporte"}
           </Button>
         </div>
       </AdminModal>
@@ -2097,13 +2730,13 @@ export default function AdminChargeDetailPage() {
           {editingExpense ? "Editar egreso" : "Registrar egreso"}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Este egreso quedará asociado al cargo <span className="font-semibold text-slate-900">{charge.name}</span>.
+          Este egreso quedara asociado al cargo <span className="font-semibold text-slate-900">{charge.name}</span>.
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
             <label htmlFor="charge-exp-desc" className="mb-1 block text-sm font-medium text-slate-700">
-              Descripción <span className="text-danger">*</span>
+              Descripcion <span className="text-danger">*</span>
             </label>
             <Input
               id="charge-exp-desc"
@@ -2117,7 +2750,7 @@ export default function AdminChargeDetailPage() {
 
           <div>
             <label htmlFor="charge-exp-cat" className="mb-1 block text-sm font-medium text-slate-700">
-              Categoría
+              Categoria
             </label>
             <Input
               id="charge-exp-cat"
@@ -2142,6 +2775,38 @@ export default function AdminChargeDetailPage() {
               placeholder="0"
               className="text-sm"
             />
+          </div>
+
+          <div>
+            <label htmlFor="charge-exp-origin" className="mb-1 block text-sm font-medium text-slate-700">
+              Origen del egreso
+            </label>
+            <Input
+              id="charge-exp-origin"
+              value={expenseOrigin}
+              onChange={(e) => setExpenseOrigin(e.target.value)}
+              placeholder="Ej. Club / caja, proveedor, socio"
+              className="text-sm"
+              autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="charge-exp-method" className="mb-1 block text-sm font-medium text-slate-700">
+              Metodo de pago
+            </label>
+            <Select
+              id="charge-exp-method"
+              value={expenseMethod}
+              onChange={(e) => setExpenseMethod(e.target.value as ClubPaymentMethod)}
+              className="text-sm"
+            >
+              {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <div>

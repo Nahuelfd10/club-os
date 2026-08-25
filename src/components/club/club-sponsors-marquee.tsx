@@ -1,4 +1,5 @@
 import type { PublicSponsor } from "@/lib/sponsors";
+import Image from "next/image";
 
 type ClubSponsorsMarqueeProps = {
   sponsors: PublicSponsor[];
@@ -14,13 +15,15 @@ export function ClubSponsorsMarquee({ sponsors }: ClubSponsorsMarqueeProps) {
       <div className="club-sponsors-track">
         {repeated.map((sponsor, index) => {
           const key = `${sponsor.id}-${index}`;
-          // eslint-disable-next-line @next/next/no-img-element
           const logo = (
-            <img
+            <Image
               src={sponsor.logo_url}
               alt={sponsor.name}
+              width={160}
+              height={48}
               loading="lazy"
               className="h-12 w-auto object-contain"
+              unoptimized
             />
           );
 

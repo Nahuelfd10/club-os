@@ -5,13 +5,14 @@ import { ArrowUpRight, ShieldCheck, Sparkles } from "lucide-react";
 import { ClubLogo } from "@/components/club-logo";
 import { buttonClassNames } from "@/components/ui";
 import { getActiveClubConfig } from "@/config/active-club";
+import { clubPath } from "@/lib/routes";
 
 const navItems = [
-  { href: "/club#identidad", label: "Identidad" },
-  { href: "/club#equipos", label: "Equipos" },
-  { href: "/club#unete", label: "Unete" },
-  { href: "/club#sponsors", label: "Sponsors" },
-  { href: "/club#proyectos", label: "Proyectos" },
+  { href: `${clubPath()}#identidad`, label: "Identidad" },
+  { href: `${clubPath()}#equipos`, label: "Equipos" },
+  { href: `${clubPath()}#unete`, label: "Unete" },
+  { href: `${clubPath()}#sponsors`, label: "Sponsors" },
+  { href: `${clubPath()}#proyectos`, label: "Proyectos" },
 ];
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -41,7 +42,7 @@ export default async function ClubPublicLayout({
     <div className="club-page-shell min-h-screen">
       <div className="sticky top-0 z-30 px-4 pt-4 sm:px-6">
         <header className="mx-auto flex w-full max-w-[100rem] items-center justify-between gap-4 rounded-[1.75rem] border border-white/10 bg-slate-950/72 px-4 py-3 shadow-[0_22px_60px_-36px_rgba(2,8,23,0.95)] backdrop-blur-xl sm:px-6">
-          <Link href="/club" className="flex min-w-0 items-center gap-3">
+          <Link href={clubPath()} className="flex min-w-0 items-center gap-3">
             <ClubLogo
               src={config.logo}
               alt={`Logo de ${config.name}`}
@@ -77,7 +78,7 @@ export default async function ClubPublicLayout({
               Club OS
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "md" })}>
+            <Link href={clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "md" })}>
               Hacete socio
             </Link>
           </div>

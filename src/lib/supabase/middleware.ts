@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase";
  * Refresca la sesión de Supabase en cada request y permite a las rutas
  * protegidas decidir si redirigir al login según el estado de auth.
  *
- * Devuelve `{ response, user }`:
+ * Devuelve `{ response, user, supabase }`:
  *   - `response`: NextResponse mutable con cookies actualizadas (debe
  *     retornarse o servir como base para una redirección).
  *   - `user`: usuario activo o null.
@@ -21,7 +21,7 @@ export async function updateSupabaseSession(request: NextRequest) {
   if (!url || !anonKey) {
     // Sin envs no podemos validar la sesión; devolvemos la response tal cual
     // y dejamos que el código aguas abajo decida.
-    return { response, user: null };
+    return { response, user: null, supabase: null };
   }
 
   const supabase = createServerClient<Database>(url, anonKey, {
@@ -45,5 +45,5 @@ export async function updateSupabaseSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  return { response, user, supabase };
 }

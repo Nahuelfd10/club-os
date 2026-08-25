@@ -11,6 +11,7 @@ import { buttonClassNames } from "@/components/ui";
 import { getActiveClubConfig } from "@/config/active-club";
 import { getPublicClubStats } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/formatters";
+import { clubPath } from "@/lib/routes";
 import { listPublicSponsors } from "@/lib/sponsors";
 
 const valueCards = [
@@ -48,7 +49,7 @@ export default async function ClubHomePage() {
                   simple de sumarse como socio.
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "xl" })}>
+                  <Link href={clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "xl" })}>
                     Hacete socio
                     <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
@@ -113,12 +114,14 @@ export default async function ClubHomePage() {
               </span>
             </div>
             <div className="mt-7 grid gap-4 md:grid-cols-3">
-              {clubTeams.map((team) => (
-                <article key={team.name} className="rounded-3xl border border-white/10 bg-black/18 p-5">
-                  <p className="club-eyebrow text-orange-300/80">{team.name}</p>
-                  <h3 className="mt-3 text-xl font-semibold text-white">{team.schedule}</h3>
-                  <p className="mt-3 text-sm leading-6 text-white/64">{team.description}</p>
-                </article>
+              {clubTeams.map((team, index) => (
+                <Reveal key={team.name} delayMs={80 + index * 80}>
+                  <article className="h-full rounded-3xl border border-white/10 bg-black/18 p-5">
+                    <p className="club-eyebrow text-orange-300/80">{team.name}</p>
+                    <h3 className="mt-3 text-xl font-semibold text-white">{team.schedule}</h3>
+                    <p className="mt-3 text-sm leading-6 text-white/64">{team.description}</p>
+                  </article>
+                </Reveal>
               ))}
             </div>
           </section>
@@ -130,12 +133,14 @@ export default async function ClubHomePage() {
               <p className="club-eyebrow text-sky-300/70">Agenda</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">Proximas fechas</h2>
               <div className="mt-6 grid gap-3">
-                {clubEvents.map((event) => (
-                  <div key={event.title} className="rounded-2xl border border-white/10 bg-black/18 p-4">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-300">{event.date}</p>
-                    <h3 className="mt-2 text-sm font-semibold text-white">{event.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-white/62">{event.description}</p>
-                  </div>
+                {clubEvents.map((event, index) => (
+                  <Reveal key={event.title} delayMs={70 + index * 70}>
+                    <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-300">{event.date}</p>
+                      <h3 className="mt-2 text-sm font-semibold text-white">{event.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-white/62">{event.description}</p>
+                    </div>
+                  </Reveal>
                 ))}
               </div>
             </article>
@@ -147,18 +152,24 @@ export default async function ClubHomePage() {
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">{featuredProject.title}</h2>
               <p className="mt-4 text-sm leading-6 text-white/66">{featuredProject.description}</p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <ProjectStat label="Objetivo" value={formatMoney(featuredProject.goal)} />
-                <ProjectStat label="Recaudado" value={formatMoney(featuredProject.current)} />
-                <ProjectStat label="Avance" value={`${Math.round((featuredProject.current / featuredProject.goal) * 100)}%`} />
+                <Reveal delayMs={90}>
+                  <ProjectStat label="Objetivo" value={formatMoney(featuredProject.goal)} />
+                </Reveal>
+                <Reveal delayMs={160}>
+                  <ProjectStat label="Recaudado" value={formatMoney(featuredProject.current)} />
+                </Reveal>
+                <Reveal delayMs={230}>
+                  <ProjectStat label="Avance" value={`${Math.round((featuredProject.current / featuredProject.goal) * 100)}%`} />
+                </Reveal>
               </div>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Link href={`/club/proyectos/${featuredProject.slug}`} className={buttonClassNames({ variant: "accent", size: "lg" })}>
+                <Link href={clubPath(`proyectos/${featuredProject.slug}`)} className={buttonClassNames({ variant: "accent", size: "lg" })}>
                   Ver proyecto
                 </Link>
                 {otherProjects.slice(0, 2).map((project) => (
                   <Link
                     key={project.slug}
-                    href={`/club/proyectos/${project.slug}`}
+                    href={clubPath(`proyectos/${project.slug}`)}
                     className="inline-flex items-center rounded-xl border border-white/10 bg-white/6 px-4 py-2 text-sm font-semibold text-white/72 transition hover:bg-white/10 hover:text-white"
                   >
                     {project.title}
@@ -194,7 +205,7 @@ export default async function ClubHomePage() {
               Completa el formulario de alta y el club recibe tu solicitud en el panel para revisarla sin perder datos.
             </p>
             <div className="mt-7">
-              <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "xl" })}>
+              <Link href={clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "xl" })}>
                 Hacete socio
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>

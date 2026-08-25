@@ -33,6 +33,7 @@ import {
   type GroupRow,
 } from "@/lib/groups";
 import { listMembers } from "@/lib/supabase";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 type MemberOption = {
   id: string;
@@ -55,6 +56,7 @@ function formatChargeDueDate(iso: string | null): string {
 
 export default function AdminGroupDetailPage() {
   const params = useParams<{ id: string }>();
+  const routes = useClubRoutes();
   const groupId = params?.id ?? "";
 
   const [group, setGroup] = useState<GroupRow | null>(null);
@@ -244,7 +246,7 @@ export default function AdminGroupDetailPage() {
           {errorMessage ?? "No se encontro el grupo."}
         </p>
         <Link
-          href="/admin/groups"
+          href={routes.adminPath("groups")}
           className="inline-block text-sm font-medium text-slate-600 hover:text-slate-900"
         >
           Volver a grupos
@@ -256,7 +258,7 @@ export default function AdminGroupDetailPage() {
   return (
     <section className="space-y-6">
       <Link
-        href="/admin/groups"
+        href={routes.adminPath("groups")}
         className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
@@ -320,7 +322,7 @@ export default function AdminGroupDetailPage() {
                   <TableRow key={row.linkId} className="hover:bg-slate-50">
                     <Td>
                       <Link
-                        href={`/admin/socios/${row.member.id}`}
+                        href={routes.adminPath(`socios/${row.member.id}`)}
                         className="font-medium text-slate-900 underline-offset-2 hover:underline"
                       >
                         {row.member.full_name}

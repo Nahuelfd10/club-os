@@ -8,14 +8,17 @@ import { ClubLogo } from "@/components/club-logo";
 import { Button, FormField, Input, buttonClassNames } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
-import { DuplicateMemberDniError, insertMember } from "@/lib/supabase";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 type MemberForm = {
   full_name: string;
   email: string;
   dni: string;
   address: string;
+  city: string;
   phone: string;
+  password: string;
+  password_confirm: string;
 };
 
 const initialForm: MemberForm = {
@@ -23,7 +26,10 @@ const initialForm: MemberForm = {
   email: "",
   dni: "",
   address: "",
+  city: "",
   phone: "",
+  password: "",
+  password_confirm: "",
 };
 
 const perks = [
@@ -35,6 +41,7 @@ const perks = [
 
 export default function ClubRegistroPage() {
   const { config } = useActiveClubConfig();
+  const routes = useClubRoutes();
   const [form, setForm] = useState<MemberForm>(initialForm);
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -48,26 +55,44 @@ export default function ClubRegistroPage() {
     setErrorMessage(null);
     setIsLoading(true);
 
+    if (form.password.length < 8) {
+      setErrorMessage("La contraseña debe tener al menos 8 caracteres.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (form.password !== form.password_confirm) {
+      setErrorMessage("Las contraseñas no coinciden.");
+      setIsLoading(false);
+      return;
+    }
+
     const payload = {
-      ...form,
-      email: form.email.trim() || undefined,
+      full_name: form.full_name,
+      dni: form.dni,
+      address: form.address,
+      email: form.email.trim(),
+      city: form.city.trim() || undefined,
       phone: form.phone || undefined,
-      status: "pending" as const,
+      password: form.password,
+      slug: routes.slug,
     };
 
     try {
-      await insertMember(payload);
+      const response = await fetch("/api/auth/member-register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(result?.error || "No se pudo guardar el registro.");
+      }
       setSent(true);
       setForm(initialForm);
     } catch (error) {
-      if (error instanceof DuplicateMemberDniError) {
-        setErrorMessage(
-          `Ya hay un socio registrado con el DNI ${error.dni}. Si crees que es un error, contacta al club.`
-        );
-      } else {
-        const message = error instanceof Error ? error.message : "No se pudo guardar el registro.";
-        setErrorMessage(message);
-      }
+      const message = error instanceof Error ? error.message : "No se pudo guardar el registro.";
+      setErrorMessage(message);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +103,7 @@ export default function ClubRegistroPage() {
       <div className="mx-auto grid w-full max-w-[68rem] gap-8 lg:grid-cols-[0.9fr_1fr] lg:items-start">
         <section className="text-white">
           <Link
-            href="/club"
+            href={routes.clubPath()}
             className={buttonClassNames({
               variant: "ghost",
               size: "sm",
@@ -136,7 +161,7 @@ export default function ClubRegistroPage() {
             <p className="club-eyebrow text-slate-400">Paso 1 de 1 · Tus datos</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Quien se suma al club?</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Por ahora pedimos solo lo necesario para crear la solicitud. El pago se coordina despues de la revision.
+              El DNI y la contraseña te permiten entrar al portal. El email queda para recuperar el acceso.
             </p>
           </div>
 
@@ -175,27 +200,70 @@ export default function ClubRegistroPage() {
               </FormField>
             </div>
 
-            <FormField htmlFor="email" label="Email (opcional)">
+            <FormField htmlFor="email" label="Email">
               <Input
                 id="email"
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                required
                 disabled={isLoading}
                 placeholder="nombre@correo.com"
               />
             </FormField>
 
-            <FormField htmlFor="address" label="Domicilio">
-              <Input
-                id="address"
-                value={form.address}
-                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-                required
-                disabled={isLoading}
-                placeholder="Calle, numero, localidad"
-              />
-            </FormField>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField htmlFor="address" label="Domicilio">
+                <Input
+                  id="address"
+                  value={form.address}
+                  onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+                  required
+                  disabled={isLoading}
+                  placeholder="Calle y numero"
+                />
+              </FormField>
+
+              <FormField htmlFor="city" label="Localidad">
+                <Input
+                  id="city"
+                  value={form.city}
+                  onChange={(event) => setForm((prev) => ({ ...prev, city: event.target.value }))}
+                  disabled={isLoading}
+                  placeholder="Ej. Necochea"
+                />
+              </FormField>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField htmlFor="password" label="Contraseña">
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.password}
+                  onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                  required
+                  minLength={8}
+                  disabled={isLoading}
+                  placeholder="Minimo 8 caracteres"
+                />
+              </FormField>
+
+              <FormField htmlFor="password_confirm" label="Repetir contraseña">
+                <Input
+                  id="password_confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.password_confirm}
+                  onChange={(event) => setForm((prev) => ({ ...prev, password_confirm: event.target.value }))}
+                  required
+                  minLength={8}
+                  disabled={isLoading}
+                  placeholder="La misma contraseña"
+                />
+              </FormField>
+            </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start gap-3">
@@ -213,9 +281,23 @@ export default function ClubRegistroPage() {
           </form>
 
           {sent ? (
-            <p className="mt-5 rounded-2xl bg-success/10 px-4 py-3 text-sm font-medium text-success">
-              Solicitud enviada correctamente. El club la vera en su bandeja de socios pendientes.
-            </p>
+            <div className="mt-5 rounded-2xl border border-success/20 bg-success/10 p-4">
+              <p className="text-sm font-semibold text-success">Solicitud enviada correctamente.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Ya podes ingresar al portal con tu DNI y contraseña. El club va a revisar tu alta antes de activar la
+                información de cuotas y pagos.
+              </p>
+              <Link
+                href={routes.clubPath("login")}
+                className={buttonClassNames({
+                  variant: "primary",
+                  size: "md",
+                  className: "mt-4 w-full justify-center sm:w-auto",
+                })}
+              >
+                Ingresar al portal
+              </Link>
+            </div>
           ) : null}
           {errorMessage ? (
             <p className="mt-5 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger">

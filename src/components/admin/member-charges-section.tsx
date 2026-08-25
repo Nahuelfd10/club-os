@@ -28,6 +28,7 @@ import {
   buildChargeDebtWhatsAppLink,
   buildTotalChargesDebtWhatsAppLink,
 } from "@/lib/whatsapp-reminder";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 type StatusFilter = "all" | MemberChargeStatus;
 
@@ -55,6 +56,7 @@ export function MemberChargesSection({
   charges: chargesFromParent,
   onChargesRefresh,
 }: Props) {
+  const routes = useClubRoutes();
   const [rows, setRows] = useState<MemberChargeWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(() => chargesFromParent === undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -413,7 +415,7 @@ export function MemberChargesSection({
                         <td className="px-3 py-2 text-slate-600">
                           {row.charge.group ? (
                             <Link
-                              href={`/admin/groups/${row.charge.group.id}`}
+                              href={routes.adminPath(`groups/${row.charge.group.id}`)}
                               className="underline-offset-2 hover:text-slate-950 hover:underline"
                             >
                               {row.charge.group.name}

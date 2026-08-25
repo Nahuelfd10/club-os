@@ -24,6 +24,7 @@ import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { listMemberChargeBalancesSplit, type MemberChargeBalancesSplit } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
 import { listMembers, updateMemberStatus } from "@/lib/supabase";
+import { useClubRoutes } from "@/lib/use-club-routes";
 import type { MemberStatus } from "@/types";
 
 type MemberRow = {
@@ -73,6 +74,7 @@ function csvEscape(value: string | number) {
 
 export default function SociosPage() {
   const router = useRouter();
+  const routes = useClubRoutes();
   const { isConfigLoading } = useActiveClubConfig();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [balanceByMemberId, setBalanceByMemberId] = useState<Map<string, MemberChargeBalancesSplit>>(new Map());
@@ -237,7 +239,7 @@ export default function SociosPage() {
               <Download className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               Exportar
             </button>
-            <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "md" })}>
+            <Link href={routes.clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "md" })}>
               <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
               Añadir socio
             </Link>
@@ -265,7 +267,7 @@ export default function SociosPage() {
           title="Todavía no hay socios registrados."
           description="Podés dar de alta un socio desde el registro público."
           actions={
-            <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "md" })}>
+            <Link href={routes.clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "md" })}>
               <Plus className="h-4 w-4" strokeWidth={1.9} aria-hidden />
               Añadir socio
             </Link>
@@ -423,7 +425,7 @@ export default function SociosPage() {
                         return (
                           <tr
                             key={member.id}
-                            onClick={() => router.push(`/admin/socios/${member.id}`)}
+                            onClick={() => router.push(routes.adminPath(`socios/${member.id}`))}
                             className="cursor-pointer transition-colors hover:bg-slate-50"
                           >
                             <Td>
@@ -461,7 +463,7 @@ export default function SociosPage() {
                             <Td className="text-slate-700">{registerDate(member.created_at)}</Td>
                             <Td className="text-right">
                               <Link
-                                href={`/admin/socios/${member.id}`}
+                                href={routes.adminPath(`socios/${member.id}`)}
                                 onClick={(event) => event.stopPropagation()}
                                 className={buttonClassNames({
                                   variant: memDebt || othDebt ? "primary" : "neutral",
@@ -499,7 +501,7 @@ export default function SociosPage() {
                     {filteredSolicitudes.map((member) => (
                       <tr
                         key={member.id}
-                        onClick={() => router.push(`/admin/socios/${member.id}`)}
+                        onClick={() => router.push(routes.adminPath(`socios/${member.id}`))}
                         className="cursor-pointer transition-colors hover:bg-slate-50"
                       >
                         <Td>
@@ -551,7 +553,7 @@ export default function SociosPage() {
                     {filteredBajas.map((member) => (
                       <tr
                         key={member.id}
-                        onClick={() => router.push(`/admin/socios/${member.id}`)}
+                        onClick={() => router.push(routes.adminPath(`socios/${member.id}`))}
                         className="cursor-pointer transition-colors hover:bg-slate-50"
                       >
                         <Td>
@@ -569,7 +571,7 @@ export default function SociosPage() {
                         <Td className="text-slate-700">{registerDate(member.created_at)}</Td>
                         <Td className="text-right">
                           <Link
-                            href={`/admin/socios/${member.id}`}
+                            href={routes.adminPath(`socios/${member.id}`)}
                             onClick={(event) => event.stopPropagation()}
                             className={buttonClassNames({ variant: "neutral", size: "sm" })}
                           >

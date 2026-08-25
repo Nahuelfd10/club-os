@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import { ClubOsLogo } from "@/components/clubos-logo";
 import { buttonClassNames } from "@/components/ui";
+import { adminPath, clubPath } from "@/lib/routes";
 
 export default async function PublicLayout({
   children,
@@ -33,13 +34,13 @@ export default async function PublicLayout({
 
           <div className="flex items-center gap-2">
             <Link
-              href="/club"
+              href={clubPath()}
               className={buttonClassNames({ variant: "ghost", size: "md", className: "hidden border-white/10 text-white hover:bg-white/10 hover:text-white sm:inline-flex" })}
             >
               Ver club
               <ArrowUpRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/admin" className={buttonClassNames({ variant: "primary", size: "md" })}>
+            <Link href={adminPath()} className={buttonClassNames({ variant: "primary", size: "md" })}>
               Entrar al panel
             </Link>
           </div>

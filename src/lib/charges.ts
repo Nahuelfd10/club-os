@@ -6,6 +6,8 @@ import {
 import { getSupabaseClient } from "@/lib/supabase";
 import type { MemberChargeTrackingStatus, MemberStatus } from "@/types";
 
+export type ChargeListKind = "general" | "order";
+
 export type ChargeRow = {
   id: string;
   name: string;
@@ -16,6 +18,8 @@ export type ChargeRow = {
   group_id: string | null;
   due_date: string | null;
   billing_period: string | null;
+  list_kind: ChargeListKind;
+  supplier_name: string | null;
   created_at: string;
 };
 
@@ -110,6 +114,10 @@ export function toMemberChargeFlat(mc: MemberChargeWithDetails): MemberChargeFla
 
 export function isMembershipCategory(category: string | null | undefined): boolean {
   return category === "membership";
+}
+
+function normalizeListKind(value: unknown): ChargeListKind {
+  return value === "order" ? "order" : "general";
 }
 
 export function formatBillingPeriod(dateString: string): string {
@@ -342,6 +350,8 @@ export async function listChargePaymentsWithContext(): Promise<ChargePaymentWith
     const retry =
       (first.error as { code?: string }).code === "PGRST200" ||
       msg.includes("charge_definitions") ||
+      msg.includes("list_kind") ||
+      msg.includes("supplier_name") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase
@@ -603,6 +613,8 @@ const CHARGE_SELECT_WITH_GROUP = `
   group_id,
   due_date,
   billing_period,
+  list_kind,
+  supplier_name,
   created_at,
   charge_definitions (
     id,
@@ -614,8 +626,10 @@ const CHARGE_SELECT_WITH_GROUP = `
   )
 `;
 
-type RawChargeWithGroup = Omit<ChargeRow, "amount" | "category"> & {
+type RawChargeWithGroup = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name"> & {
   amount: unknown;
+  list_kind?: string | null;
+  supplier_name?: string | null;
   charge_definitions?: { id: string; category: string | null } | null;
   groups: { id: string; name: string } | null;
 };
@@ -633,6 +647,8 @@ function mapRawToChargeWithGroup(row: RawChargeWithGroup): ChargeWithGroup {
     ...rest,
     group_id: rest.group_id ?? null,
     billing_period: billing,
+    list_kind: normalizeListKind(rest.list_kind),
+    supplier_name: rest.supplier_name?.trim() || null,
     amount: normalizeAmount(rest.amount),
     group,
     category,
@@ -655,7 +671,7 @@ const CHARGE_SELECT_WITH_GROUP_LEGACY = `
   )
 `;
 
-type RawChargeWithGroupLegacy = Omit<ChargeRow, "amount" | "category"> & {
+type RawChargeWithGroupLegacy = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name"> & {
   amount: unknown;
   groups: { id: string; name: string } | null;
 };
@@ -670,6 +686,8 @@ function mapRawToChargeWithGroupLegacy(row: RawChargeWithGroupLegacy): ChargeWit
     ...rest,
     group_id: rest.group_id ?? null,
     billing_period: billing,
+    list_kind: "general",
+    supplier_name: null,
     amount: normalizeAmount(rest.amount),
     group,
     category: null,
@@ -709,6 +727,8 @@ export async function listChargesWithGroup(): Promise<ChargeWithGroup[]> {
     const retry =
       (first.error as { code?: string }).code === "PGRST200" ||
       msg.includes("charge_definitions") ||
+      msg.includes("list_kind") ||
+      msg.includes("supplier_name") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase.from("charges").select(CHARGE_SELECT_WITH_GROUP_LEGACY);
@@ -820,6 +840,8 @@ export async function getChargeById(chargeId: string): Promise<ChargeDetail | nu
     const retry =
       (first.error as { code?: string }).code === "PGRST200" ||
       msg.includes("charge_definitions") ||
+      msg.includes("list_kind") ||
+      msg.includes("supplier_name") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase
@@ -854,9 +876,17 @@ export async function chargeHasPayments(chargeId: string): Promise<boolean> {
 
 export async function updateCharge(
   chargeId: string,
-  payload: { name: string; description?: string | null; amount: number; due_date?: string | null }
+  payload: {
+    name: string;
+    description?: string | null;
+    amount: number;
+    due_date?: string | null;
+    list_kind?: ChargeListKind;
+    supplier_name?: string | null;
+  }
 ) {
   const supabase = getSupabaseClient();
+  const listKind = payload.list_kind ? normalizeListKind(payload.list_kind) : undefined;
   const { error } = await supabase
     .from("charges")
     .update({
@@ -864,6 +894,7 @@ export async function updateCharge(
       description: payload.description?.trim() ? payload.description.trim() : null,
       amount: payload.amount,
       due_date: payload.due_date?.trim() ? payload.due_date.trim() : null,
+      ...(listKind ? { list_kind: listKind, supplier_name: listKind === "order" ? payload.supplier_name?.trim() || null : null } : {}),
     })
     .eq("id", chargeId);
 
@@ -1410,6 +1441,8 @@ export async function createCharge(payload: {
   member_ids?: string[];
   due_date?: string | null;
   definition_category: CreateChargeDefinitionCategory;
+  list_kind?: ChargeListKind;
+  supplier_name?: string | null;
   /**
    * Si es `false`, el cargo se crea sin generar líneas en `member_charges`.
    * Útil para pedidos heterogéneos (camperas, indumentaria) donde el admin
@@ -1424,13 +1457,23 @@ export async function createCharge(payload: {
   const groupId = payload.group_id?.trim() ? payload.group_id.trim() : null;
   const startDate = payload.due_date?.trim() || new Date().toISOString().slice(0, 10);
   const scopeType = groupId ? "group" : "all_members";
+  const listKind = normalizeListKind(payload.list_kind);
+  const supplierName = listKind === "order" ? payload.supplier_name?.trim() || null : null;
+  const amount = roundMoney(payload.amount);
+  if (!Number.isFinite(amount) || amount < 0 || (payload.auto_assign_lines !== false && amount <= 0)) {
+    throw new Error(
+      payload.auto_assign_lines === false
+        ? "El monto esperado debe ser cero o mayor."
+        : "El monto del cobro debe ser mayor a cero."
+    );
+  }
 
   const { data: defRow, error: defErr } = await supabase
     .from("charge_definitions")
     .insert({
       name: payload.name.trim(),
       description: payload.description?.trim() ? payload.description.trim() : null,
-      amount: payload.amount,
+      amount,
       type: "one_time",
       recurrence: null,
       start_date: startDate,
@@ -1454,9 +1497,11 @@ export async function createCharge(payload: {
     .insert({
       name: payload.name.trim(),
       description: payload.description?.trim() ? payload.description.trim() : null,
-      amount: payload.amount,
+      amount,
       type: payload.type,
       group_id: groupId,
+      list_kind: listKind,
+      supplier_name: supplierName,
       charge_definition_id: definitionId,
       due_date: payload.due_date?.trim() ? payload.due_date.trim() : null,
     })
@@ -1541,8 +1586,8 @@ export async function createCharge(payload: {
   if (memberIds.length > 0) {
     const perMemberAmount =
       payload.type === "total"
-        ? roundMoney(payload.amount / memberIds.length)
-        : payload.amount;
+        ? roundMoney(amount / memberIds.length)
+        : amount;
 
     const memberChargeRows = memberIds.map((member_id) => ({
       member_id,

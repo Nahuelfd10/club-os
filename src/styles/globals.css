@@ -423,8 +423,8 @@ select:focus,
   opacity: 0;
   transform: translateY(30px) scale(0.985);
   transition:
-    opacity 700ms ease,
-    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 760ms ease,
+    transform 760ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 
@@ -627,6 +627,837 @@ select:focus,
   animation-delay: 0.32s;
 }
 
+.clubos-story {
+  position: relative;
+  overflow: clip;
+  scroll-margin-top: 7rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(56, 189, 248, 0.18), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(249, 115, 22, 0.14), transparent 26%),
+    linear-gradient(145deg, rgba(8, 13, 24, 0.96), rgba(15, 23, 42, 0.92) 58%, rgba(3, 7, 18, 0.96));
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  box-shadow: 0 36px 90px -52px rgba(2, 8, 23, 0.95);
+}
+
+.clubos-story::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 84%);
+  opacity: 0.32;
+}
+
+.clubos-story-club {
+  background:
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--club-accent) 20%, transparent), transparent 30%),
+    radial-gradient(circle at 84% 8%, color-mix(in srgb, var(--club-primary) 28%, transparent), transparent 32%),
+    linear-gradient(145deg, rgba(8, 13, 24, 0.95), rgba(18, 27, 48, 0.92) 58%, rgba(3, 7, 18, 0.96));
+}
+
+.clubos-story-heading {
+  position: relative;
+  max-width: 44rem;
+}
+
+.clubos-story-heading h2 {
+  margin-top: 0.8rem;
+  color: #fff;
+  font-size: clamp(2rem, 4vw, 4.3rem);
+  font-weight: 700;
+  line-height: 0.98;
+}
+
+.clubos-story-heading p:last-child {
+  margin-top: 1rem;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.clubos-story-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(21rem, 1.08fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  margin-top: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+}
+
+.clubos-story-steps {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.clubos-story-step {
+  min-height: 14rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 1.25rem;
+  color: rgba(255, 255, 255, 0.62);
+  transition:
+    border-color 260ms ease,
+    background-color 260ms ease,
+    transform 260ms ease,
+    color 260ms ease;
+}
+
+.clubos-story-step.is-active {
+  border-color: rgba(56, 189, 248, 0.34);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  transform: translateY(-2px);
+}
+
+.clubos-story-index {
+  display: inline-flex;
+  margin-bottom: 1rem;
+  color: rgba(125, 211, 252, 0.72);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.clubos-story-step h3 {
+  margin-top: 0.55rem;
+  color: #fff;
+  font-size: clamp(1.35rem, 2.1vw, 2rem);
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.clubos-story-step p:not(.club-eyebrow) {
+  margin-top: 0.8rem;
+  color: inherit;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.clubos-story-step > span:last-child {
+  display: inline-flex;
+  margin-top: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.45rem 0.75rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.clubos-story-stage {
+  position: sticky;
+  top: 7.25rem;
+  min-height: 34rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(20, 184, 166, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+  padding: 2rem;
+  overflow: hidden;
+}
+
+.clubos-story-stage::before {
+  content: "";
+  position: absolute;
+  inset: 18% 14% auto;
+  height: 10rem;
+  border-radius: 9999px;
+  background: rgba(20, 184, 166, 0.16);
+  filter: blur(36px);
+  animation: clubos-object-aura 5s ease-in-out infinite;
+}
+
+.clubos-story-device {
+  position: relative;
+  min-height: 25rem;
+  width: min(100%, 26rem);
+  display: grid;
+  place-items: center;
+}
+
+.clubos-story-caption {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: inline-grid;
+  gap: 0.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  background: rgba(2, 6, 23, 0.58);
+  padding: 0.75rem 0.9rem;
+  backdrop-filter: blur(16px);
+}
+
+.clubos-story-caption span {
+  color: rgba(125, 211, 252, 0.78);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clubos-story-caption strong {
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.clubos-object {
+  position: relative;
+  width: 16rem;
+  min-height: 24rem;
+  color: #fff;
+  animation: clubos-object-enter 520ms cubic-bezier(0.22, 1, 0.36, 1), clubos-object-float 6s ease-in-out infinite;
+}
+
+.clubos-object-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: -1rem;
+  width: 11rem;
+  height: 1.15rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.34);
+  filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.clubos-totem {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+}
+
+.clubos-totem-head {
+  position: relative;
+  z-index: 2;
+  width: 9rem;
+  height: 1.2rem;
+  border-radius: 9999px 9999px 0 0;
+  background: linear-gradient(180deg, #f8fafc, #cbd5e1);
+}
+
+.clubos-totem-head span {
+  position: absolute;
+  left: 50%;
+  top: 0.35rem;
+  width: 1.8rem;
+  height: 0.38rem;
+  border-radius: 9999px;
+  background: #020617;
+  transform: translateX(-50%);
+}
+
+.clubos-totem-screen {
+  position: relative;
+  z-index: 2;
+  width: 10rem;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 1.1rem;
+  background: linear-gradient(180deg, #f8fafc, #cbd5e1);
+  padding: 0.75rem;
+  box-shadow:
+    0 22px 50px -32px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.52) inset;
+}
+
+.clubos-screen-top,
+.clubos-totem-actions,
+.clubos-ticket,
+.clubos-member-fee,
+.clubos-ledger-message {
+  display: flex;
+  align-items: center;
+}
+
+.clubos-screen-top {
+  gap: 0.45rem;
+  border-radius: 0.6rem;
+  background: #061523;
+  padding: 0.5rem;
+  color: #67e8f9;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.clubos-screen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.clubos-screen-grid span {
+  height: 2rem;
+  border-radius: 0.4rem;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.clubos-screen-grid span:nth-child(2),
+.clubos-screen-grid span:nth-child(4) {
+  background: color-mix(in srgb, var(--club-primary) 70%, #14b8a6);
+  animation: clubos-status-blink 2.7s ease-in-out infinite;
+}
+
+.clubos-qr-card {
+  display: grid;
+  place-items: center;
+  margin-top: 0.55rem;
+  height: 4.7rem;
+  border-radius: 0.7rem;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.82) 45%, transparent 45% 55%, rgba(255, 255, 255, 0.82) 55%),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.82) 45%, transparent 45% 55%, rgba(255, 255, 255, 0.82) 55%),
+    #061523;
+  background-size: 1rem 1rem;
+  color: #2dd4bf;
+}
+
+.clubos-totem-actions {
+  z-index: 2;
+  gap: 0.45rem;
+  width: 8.8rem;
+  border-radius: 0 0 0.9rem 0.9rem;
+  background: #dbeafe;
+  padding: 0.55rem;
+}
+
+.clubos-totem-actions span {
+  height: 0.72rem;
+  flex: 1;
+  border-radius: 9999px;
+  background: #64748b;
+}
+
+.clubos-totem-actions span:last-child {
+  background: #06b6d4;
+  animation: clubos-status-blink 2.3s ease-in-out infinite;
+}
+
+.clubos-ticket {
+  position: absolute;
+  z-index: 4;
+  right: -2.1rem;
+  top: 11.2rem;
+  gap: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.55rem 0.7rem;
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 18px 34px -26px rgba(0, 0, 0, 0.7);
+  animation: clubos-ticket-pop 3.2s ease-in-out infinite;
+}
+
+.clubos-totem-pole {
+  z-index: 1;
+  width: 1.25rem;
+  height: 5.4rem;
+  background: linear-gradient(180deg, #172033, #020617);
+}
+
+.clubos-member-card {
+  min-height: 21rem;
+  width: 19rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.65rem;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 255, 255, 0.2), transparent 28%),
+    linear-gradient(145deg, color-mix(in srgb, var(--club-primary) 62%, #0f172a), #0f172a 62%, color-mix(in srgb, var(--club-accent) 42%, #111827));
+  padding: 1.25rem;
+  box-shadow: 0 34px 70px -42px rgba(0, 0, 0, 0.9);
+}
+
+.clubos-member-glow {
+  position: absolute;
+  inset: 1rem;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.clubos-member-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.clubos-member-top span,
+.clubos-ledger-header span {
+  display: block;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clubos-member-top strong,
+.clubos-ledger-header strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.clubos-member-avatar {
+  display: grid;
+  place-items: center;
+  width: 5.25rem;
+  height: 5.25rem;
+  margin-top: 2.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1.4rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.clubos-member-lines {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1.6rem;
+}
+
+.clubos-member-lines span {
+  height: 0.65rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.clubos-member-lines span:nth-child(2) {
+  width: 72%;
+}
+
+.clubos-member-lines span:nth-child(3) {
+  width: 52%;
+  background: rgba(125, 211, 252, 0.68);
+}
+
+.clubos-member-fee {
+  gap: 0.5rem;
+  margin-top: 1.4rem;
+  border-radius: 9999px;
+  background: rgba(2, 6, 23, 0.36);
+  padding: 0.75rem 0.9rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.clubos-ledger {
+  width: 20rem;
+  min-height: 22rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.65rem;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.94), rgba(148, 163, 184, 0.96));
+  padding: 1rem;
+  color: #0f172a;
+  box-shadow: 0 34px 70px -42px rgba(0, 0, 0, 0.9);
+}
+
+.clubos-ledger-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 1rem;
+  background: #07111f;
+  padding: 1rem;
+  color: #67e8f9;
+}
+
+.clubos-ledger-bars {
+  display: flex;
+  align-items: end;
+  gap: 0.55rem;
+  height: 8.5rem;
+  margin-top: 1rem;
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.12);
+  padding: 1rem;
+}
+
+.clubos-ledger-bars span {
+  width: 100%;
+  height: var(--bar-height);
+  border-radius: 9999px 9999px 0.25rem 0.25rem;
+  background: linear-gradient(180deg, #22d3ee, #2563eb 58%, #f97316);
+  animation: clubos-ledger-bar 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--bar-delay, 0ms);
+}
+
+.clubos-ledger-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.clubos-ledger-list span {
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 0.65rem 0.8rem;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.clubos-ledger-message {
+  position: absolute;
+  right: -1.4rem;
+  bottom: 2.6rem;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  background: #16a34a;
+  padding: 0.7rem 0.9rem;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 18px 30px -22px rgba(0, 0, 0, 0.7);
+  animation: clubos-ticket-pop 3.6s ease-in-out infinite;
+}
+
+.clubos-flow-visual {
+  position: relative;
+  width: min(100%, 24rem);
+  min-height: 24rem;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  animation: clubos-object-enter 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.clubos-profile-card,
+.clubos-calendar-card,
+.clubos-proof-card,
+.clubos-status-board {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 18.5rem);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045)),
+    rgba(2, 6, 23, 0.66);
+  padding: 1.15rem;
+  box-shadow: 0 34px 80px -46px rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(18px);
+}
+
+.clubos-profile-card::before,
+.clubos-calendar-card::before,
+.clubos-proof-card::before,
+.clubos-status-board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(125, 211, 252, 0.16), transparent 42%, rgba(249, 115, 22, 0.12));
+  opacity: 0.72;
+}
+
+.clubos-profile-head,
+.clubos-calendar-top,
+.clubos-status-header,
+.clubos-validation-panel,
+.clubos-message-chip,
+.clubos-charge-slip {
+  display: flex;
+  align-items: center;
+}
+
+.clubos-profile-head {
+  position: relative;
+  z-index: 2;
+  gap: 0.85rem;
+}
+
+.clubos-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 4.1rem;
+  height: 4.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--club-primary) 42%, #0f172a);
+  color: #bae6fd;
+}
+
+.clubos-profile-head span,
+.clubos-calendar-top span,
+.clubos-charge-slip span,
+.clubos-validation-panel span,
+.clubos-status-header span,
+.clubos-message-chip span {
+  display: block;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.clubos-profile-head strong,
+.clubos-charge-slip strong,
+.clubos-validation-panel strong,
+.clubos-status-header strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.clubos-profile-lines {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1.4rem;
+}
+
+.clubos-profile-lines span {
+  height: 0.72rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.clubos-profile-lines span:nth-child(2) {
+  width: 76%;
+}
+
+.clubos-profile-lines span:nth-child(3) {
+  width: 58%;
+}
+
+.clubos-profile-tags {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.clubos-profile-tags span {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.45rem 0.65rem;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.clubos-calendar-card {
+  transform: translate(-1.4rem, -1.1rem);
+}
+
+.clubos-calendar-top {
+  position: relative;
+  z-index: 2;
+  justify-content: space-between;
+  border-radius: 1rem;
+  background: rgba(2, 6, 23, 0.48);
+  padding: 0.8rem;
+  color: #7dd3fc;
+}
+
+.clubos-calendar-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.clubos-calendar-grid span {
+  aspect-ratio: 1;
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.clubos-calendar-grid span.is-due {
+  background: #f97316;
+  box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.14);
+  animation: clubos-status-blink 2.4s ease-in-out infinite;
+}
+
+.clubos-charge-slip {
+  position: absolute;
+  z-index: 4;
+  right: 1.2rem;
+  bottom: 5.6rem;
+  gap: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1.05rem;
+  background: rgba(15, 23, 42, 0.92);
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 22px 45px -30px rgba(0, 0, 0, 0.9);
+  animation: clubos-ticket-pop 3.4s ease-in-out infinite;
+}
+
+.clubos-proof-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.clubos-proof-file {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 7rem;
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, transparent 0 78%, rgba(255, 255, 255, 0.24) 78%),
+    rgba(255, 255, 255, 0.1);
+  color: #67e8f9;
+}
+
+.clubos-proof-lines {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.clubos-proof-lines span {
+  height: 0.72rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.clubos-proof-lines span:nth-child(1) {
+  width: 80%;
+}
+
+.clubos-proof-lines span:nth-child(2) {
+  width: 62%;
+}
+
+.clubos-validation-panel {
+  position: absolute;
+  z-index: 4;
+  right: 0.4rem;
+  bottom: 4.7rem;
+  gap: 0.55rem;
+  border-radius: 9999px;
+  background: #16a34a;
+  padding: 0.75rem 0.95rem;
+  box-shadow: 0 22px 44px -30px rgba(0, 0, 0, 0.9);
+  animation: clubos-ticket-pop 3.4s ease-in-out infinite;
+}
+
+.clubos-validation-panel span {
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.clubos-validation-panel strong {
+  margin-top: 0;
+  font-size: 0.86rem;
+}
+
+.clubos-status-board {
+  width: min(100%, 20rem);
+}
+
+.clubos-status-header {
+  position: relative;
+  z-index: 2;
+  gap: 0.8rem;
+  color: #86efac;
+}
+
+.clubos-status-rows {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.3rem;
+}
+
+.clubos-status-rows div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.72rem 0.85rem;
+  animation: clubos-row-confirm 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+.clubos-status-rows span {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.clubos-status-rows strong {
+  color: #fff;
+  font-size: 0.88rem;
+}
+
+.clubos-message-chip {
+  position: absolute;
+  z-index: 4;
+  left: 0.6rem;
+  bottom: 4.8rem;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  background: rgba(2, 6, 23, 0.84);
+  padding: 0.7rem 0.9rem;
+  box-shadow: 0 22px 44px -30px rgba(0, 0, 0, 0.9);
+}
+
+.clubos-message-chip span {
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.clubos-flow-rail {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 1.1rem;
+  display: flex;
+  gap: 0.5rem;
+  transform: translateX(-50%);
+}
+
+.clubos-flow-rail span {
+  width: 2.4rem;
+  height: 0.34rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.clubos-flow-rail span.is-active {
+  background: linear-gradient(90deg, #38bdf8, #22c55e);
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.28);
+}
+
 @keyframes clubos-flow-node-seq {
   0% {
     transform: translateY(0);
@@ -731,5 +1562,196 @@ select:focus,
   40% {
     transform: translateY(-3px);
     opacity: 1;
+  }
+}
+
+@keyframes clubos-object-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes clubos-object-float {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+@keyframes clubos-object-aura {
+  0%, 100% {
+    opacity: 0.54;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes clubos-status-blink {
+  0%, 100% {
+    opacity: 0.72;
+    box-shadow: none;
+  }
+  48% {
+    opacity: 1;
+    box-shadow: 0 0 18px rgba(45, 212, 191, 0.52);
+  }
+}
+
+@keyframes clubos-ticket-pop {
+  0%, 18%, 100% {
+    opacity: 0.78;
+    transform: translateY(4px) scale(0.98);
+  }
+  32%, 76% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes clubos-ledger-bar {
+  0% {
+    transform: scaleY(0.24);
+    opacity: 0.34;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes clubos-row-confirm {
+  0% {
+    opacity: 0.28;
+    transform: translateX(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.logo-grid rect {
+  transition: all 0.25s ease;
+}
+
+.logo-grid:hover rect {
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.6));
+}
+
+.logo-grid rect.accent {
+  transform-origin: center;
+}
+
+.logo-grid:hover rect.accent {
+  animation: clubos-pulse 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.8));
+}
+
+@keyframes clubos-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+@media (max-width: 900px) {
+  .clubos-story-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clubos-story-stage {
+    position: relative;
+    top: auto;
+    min-height: 29rem;
+    order: -1;
+  }
+
+  .clubos-story-step {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .clubos-story {
+    border-radius: 1.35rem;
+    padding: 1rem;
+  }
+
+  .clubos-story-stage {
+    min-height: 25rem;
+    padding: 1rem;
+  }
+
+  .clubos-story-device {
+    min-height: 22rem;
+    transform: scale(0.86);
+  }
+
+  .clubos-story-caption {
+    left: 1rem;
+    right: 1rem;
+    bottom: 0.85rem;
+  }
+
+  .clubos-flow-visual {
+    width: 21rem;
+  }
+
+  .clubos-calendar-card {
+    transform: none;
+  }
+
+  .clubos-ticket,
+  .clubos-ledger-message,
+  .clubos-charge-slip,
+  .clubos-validation-panel,
+  .clubos-message-chip {
+    right: -0.8rem;
+  }
+
+  .clubos-message-chip {
+    left: -0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clubos-story-stage::before,
+  .clubos-object,
+  .clubos-screen-grid span,
+  .clubos-totem-actions span,
+  .clubos-ticket,
+  .clubos-ledger-bars span,
+  .clubos-ledger-message {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    translate: none !important;
+    opacity: 1 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clubos-flow-visual,
+  .clubos-calendar-grid span.is-due,
+  .clubos-charge-slip,
+  .clubos-validation-panel,
+  .clubos-status-rows div {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

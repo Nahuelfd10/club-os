@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ArrowRight, CreditCard, LayoutDashboard, MessageSquareMore, UsersRound } from "lucide-react";
 
 import { ClubOsMiniDashboard } from "@/components/marketing/clubos-mini-dashboard";
-import { ClubOsSystemFlow } from "@/components/marketing/clubos-system-flow";
+import { ClubOsProductStory } from "@/components/marketing/clubos-product-story";
 import { Reveal } from "@/components/marketing/reveal";
 import { WhatsAppReminderPreview } from "@/components/marketing/whatsapp-reminder-preview";
 import { buttonClassNames } from "@/components/ui";
+import { adminPath, clubPath } from "@/lib/routes";
 
 const pillars = [
   {
@@ -45,7 +46,7 @@ export default function Home() {
               claros: quien debe, cuanto pago, cuanto falta y que accion sigue.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/club" className={buttonClassNames({ variant: "primary", size: "xl" })}>
+              <Link href={clubPath()} className={buttonClassNames({ variant: "primary", size: "xl" })}>
                 Ver demo del club
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
@@ -64,7 +65,9 @@ export default function Home() {
         </section>
 
         <Reveal delayMs={80}>
-          <ClubOsMiniDashboard />
+          <div id="beneficios">
+            <ClubOsMiniDashboard />
+          </div>
         </Reveal>
 
         <section id="producto" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -89,7 +92,7 @@ export default function Home() {
         </Reveal>
 
         <Reveal delayMs={110}>
-          <ClubOsSystemFlow />
+          <ClubOsProductStory />
         </Reveal>
 
         <section className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
@@ -129,11 +132,11 @@ export default function Home() {
               La landing muestra valor. El panel hace el trabajo. La cuota mensual marca el primer habito.
             </p>
             <div className="mt-7 flex flex-wrap justify-center gap-3">
-              <Link href="/club/registro" className={buttonClassNames({ variant: "accent", size: "xl" })}>
+              <Link href={clubPath("registro")} className={buttonClassNames({ variant: "accent", size: "xl" })}>
                 Ver alta de socio
               </Link>
               <Link
-                href="/admin"
+                href={adminPath()}
                 className={buttonClassNames({
                   variant: "ghost",
                   size: "xl",

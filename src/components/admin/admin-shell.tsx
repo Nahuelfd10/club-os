@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Receipt,
+  ReceiptText,
   Settings,
   Users,
   UsersRound,
@@ -19,42 +20,58 @@ import { usePathname, useRouter } from "next/navigation";
 import { ClubLogo } from "@/components/club-logo";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
+import type { AuthzProfile } from "@/lib/authz";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
+import { useClubRoutes } from "@/lib/use-club-routes";
 import { Button, buttonClassNames } from "@/components/ui";
 
 type AdminShellProps = {
   children: React.ReactNode;
+  profile: AuthzProfile;
+  userEmail: string | null;
 };
 
 type NavItem = {
-  href: string;
+  path: string;
   label: string;
   icon: LucideIcon;
 };
 
 const navItems: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/socios", label: "Socios", icon: Users },
-  { href: "/admin/charges", label: "Cobros", icon: Receipt },
-  { href: "/admin/expenses", label: "Caja", icon: ArrowDownCircle },
-  { href: "/admin/groups", label: "Grupos", icon: UsersRound },
-  { href: "/admin/settings", label: "Ajustes", icon: Settings },
+  { path: "", label: "Dashboard", icon: LayoutDashboard },
+  { path: "socios", label: "Socios", icon: Users },
+  { path: "charges", label: "Cuotas y listas", icon: Receipt },
+  { path: "payments", label: "Pagos enviados", icon: ReceiptText },
+  { path: "expenses", label: "Caja", icon: ArrowDownCircle },
+  { path: "groups", label: "Grupos", icon: UsersRound },
+  { path: "settings", label: "Ajustes", icon: Settings },
 ];
 
 const isNavItemActive = (pathname: string, href: string) => {
-  if (href === "/admin") {
+  if (href.endsWith("/admin")) {
     return pathname === href;
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
 };
 
-export function AdminShell({ children }: AdminShellProps) {
+const roleLabels: Record<AuthzProfile["role"], string> = {
+  club_admin: "Administrador",
+  treasurer: "Tesoreria",
+  secretary: "Secretaria",
+  viewer: "Solo lectura",
+  member: "Socio",
+};
+
+export function AdminShell({ children, profile, userEmail }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const routes = useClubRoutes();
   const { config, isConfigLoading } = useActiveClubConfig();
   const monthlyFeeLabel = formatMoney(config.monthly_fee);
   const paymentAliasLabel = config.payment_alias || "Alias pendiente";
+  const hasMemberPortal = Boolean(profile.member_id);
+  const roleLabel = roleLabels[profile.role] ?? profile.role;
 
   const handleLogout = async () => {
     try {
@@ -66,7 +83,7 @@ export function AdminShell({ children }: AdminShellProps) {
       // detecte el estado sin cookies y redirija.
       console.error("Error cerrando sesión", error);
     } finally {
-      router.replace("/admin/login");
+      router.replace(routes.clubPath("admin/login"));
       router.refresh();
     }
   };
@@ -94,13 +111,14 @@ export function AdminShell({ children }: AdminShellProps) {
           <nav className="mt-5 flex flex-1 flex-col gap-1">
             <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Gestion</p>
             {navItems.map((item) => {
-              const isActive = isNavItemActive(pathname, item.href);
+              const href = routes.adminPath(item.path);
+              const isActive = isNavItemActive(pathname, href);
               const Icon = item.icon;
 
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={item.path || "dashboard"}
+                  href={href}
                   className={`relative inline-flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                     isActive
                       ? "bg-nav-active/14 text-white ring-1 ring-nav-active/25"
@@ -116,6 +134,17 @@ export function AdminShell({ children }: AdminShellProps) {
           </nav>
 
           <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.04] p-4">
+            <div className="mb-4 rounded-xl border border-white/8 bg-black/18 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/42">Sesion activa</p>
+              <p className="mt-2 truncate text-sm font-semibold text-white">{userEmail ?? "Usuario del club"}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+                <span className="rounded-full bg-nav-active/14 px-2 py-1 text-nav-active">{roleLabel}</span>
+                <span className="rounded-full bg-emerald-400/12 px-2 py-1 text-emerald-300">
+                  {profile.status === "active" ? "Activo" : profile.status}
+                </span>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-emerald-400/12 p-2 text-emerald-300">
                 <BadgeCheck className="h-4 w-4" aria-hidden />
@@ -141,8 +170,22 @@ export function AdminShell({ children }: AdminShellProps) {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
+              {hasMemberPortal ? (
+                <Link
+                  href={routes.clubPath("socio")}
+                  className={buttonClassNames({
+                    variant: "ghost",
+                    size: "sm",
+                    fullWidth: true,
+                    className: "border border-white/10 text-white hover:bg-white/10 hover:text-white",
+                  })}
+                >
+                  <Users className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                  Mi perfil
+                </Link>
+              ) : null}
               <Link
-                href="/club"
+                href={routes.clubPath()}
                 className={buttonClassNames({
                   variant: "ghost",
                   size: "sm",
@@ -184,11 +227,14 @@ export function AdminShell({ children }: AdminShellProps) {
                   <p className="truncate text-sm font-semibold text-slate-950">
                     {isConfigLoading ? "Cargando..." : config.name}
                   </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {userEmail ?? "Usuario del club"} - {roleLabel}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Link
-                  href="/club"
+                  href={routes.clubPath()}
                   className={buttonClassNames({
                     variant: "ghost",
                     size: "sm",
@@ -197,6 +243,18 @@ export function AdminShell({ children }: AdminShellProps) {
                 >
                   Ver sitio
                 </Link>
+                {hasMemberPortal ? (
+                  <Link
+                    href={routes.clubPath("socio")}
+                    className={buttonClassNames({
+                      variant: "ghost",
+                      size: "sm",
+                      className: "border border-slate-200 text-slate-700 hover:bg-slate-100",
+                    })}
+                  >
+                    Mi perfil
+                  </Link>
+                ) : null}
                 <Button type="button" variant="ghost" size="md" onClick={() => void handleLogout()} className="border border-slate-200 text-slate-700 hover:bg-slate-100">
                   Salir
                 </Button>
@@ -205,13 +263,14 @@ export function AdminShell({ children }: AdminShellProps) {
 
             <nav className="flex flex-wrap gap-2">
               {navItems.map((item) => {
-                const isActive = isNavItemActive(pathname, item.href);
+                const href = routes.adminPath(item.path);
+                const isActive = isNavItemActive(pathname, href);
                 const Icon = item.icon;
 
                 return (
                   <Link
-                    key={item.href}
-                    href={item.href}
+                    key={item.path || "dashboard"}
+                    href={href}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-all ${
                       isActive
                         ? "bg-slate-950 text-white"

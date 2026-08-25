@@ -27,9 +27,11 @@ import {
   listGroupsWithMemberCount,
   type GroupWithMemberCount,
 } from "@/lib/groups";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 export default function AdminGroupsPage() {
   const router = useRouter();
+  const routes = useClubRoutes();
   const [groups, setGroups] = useState<GroupWithMemberCount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export default function AdminGroupsPage() {
       setCreateDescription("");
       setActionMessage("Grupo creado correctamente.");
       await loadGroups();
-      router.push(`/admin/groups/${created.id}`);
+      router.push(routes.adminPath(`groups/${created.id}`));
     } catch (error) {
       console.error(error);
       setActionMessage(
@@ -180,7 +182,7 @@ export default function AdminGroupsPage() {
                 {groups.map((group) => (
                   <TableRow
                     key={group.id}
-                    onClick={() => router.push(`/admin/groups/${group.id}`)}
+                    onClick={() => router.push(routes.adminPath(`groups/${group.id}`))}
                     className="cursor-pointer transition-colors hover:bg-slate-50"
                   >
                     <Td className="font-medium text-slate-950">{group.name}</Td>
@@ -193,7 +195,7 @@ export default function AdminGroupsPage() {
                     <Td>
                       <div className="flex flex-wrap gap-2">
                         <Link
-                          href={`/admin/groups/${group.id}`}
+                          href={routes.adminPath(`groups/${group.id}`)}
                           onClick={(event) => event.stopPropagation()}
                           className={buttonClassNames({ variant: "neutral", size: "sm" })}
                         >

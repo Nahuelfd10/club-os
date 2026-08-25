@@ -4,6 +4,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 - [Contexto de la aplicación (funcionalidades, rutas, Supabase, pendientes)](docs/CONTEXTO_APLICACION.md)
 
+- [Checklist de onboarding para clubes piloto](docs/PILOT_ONBOARDING_CHECKLIST.md)
+
+## Requisitos locales
+
+- Node.js 20.9.0 o superior. Next.js 16.2.1 no compila con Node 18.
+- Variables de entorno en `.env.local` para Supabase y Resend.
+
 ## Getting Started
 
 First, run the development server:

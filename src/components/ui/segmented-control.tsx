@@ -1,6 +1,6 @@
 "use client";
 
-type SegmentTone = "default" | "accent" | "success";
+type SegmentTone = "default" | "muted" | "accent" | "success";
 
 type SegmentOption<T extends string> = {
   value: T;
@@ -18,6 +18,9 @@ type SegmentedControlProps<T extends string> = {
 };
 
 function activeClassForTone(tone: SegmentTone = "default") {
+  if (tone === "muted") {
+    return "bg-slate-200 text-slate-900 shadow-sm";
+  }
   if (tone === "accent") {
     return "bg-accent text-white";
   }
@@ -54,7 +57,7 @@ export function SegmentedControl<T extends string>({
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-nav-active/30 ${
                 active ? activeClassForTone(option.tone) : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
               }`}
             >

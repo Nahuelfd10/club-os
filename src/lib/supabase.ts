@@ -2,7 +2,14 @@ import { createBrowserClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ClubPaymentMethod } from "@/config/payment-method";
-import type { Member, MemberChargeTrackingStatus, MemberStatus } from "@/types";
+import type {
+  ClubUserRole,
+  Member,
+  MemberChargeTrackingStatus,
+  MemberStatus,
+  PaymentSubmissionStatus,
+  UserProfileStatus,
+} from "@/types";
 
 export type Database = {
   public: {
@@ -14,6 +21,7 @@ export type Database = {
           email: string | null;
           dni: string;
           address: string;
+          city: string | null;
           phone: string | null;
           status: MemberStatus;
           created_at: string;
@@ -24,6 +32,7 @@ export type Database = {
           email?: string | null;
           dni: string;
           address: string;
+          city?: string | null;
           phone?: string | null;
           status?: MemberStatus;
           created_at?: string;
@@ -33,6 +42,7 @@ export type Database = {
           email?: string | null;
           dni?: string;
           address?: string;
+          city?: string | null;
           phone?: string | null;
           status?: MemberStatus;
         };
@@ -172,6 +182,8 @@ export type Database = {
           charge_definition_id: string | null;
           due_date: string | null;
           billing_period: string | null;
+          list_kind: "general" | "order";
+          supplier_name: string | null;
           generated_at: string | null;
           created_at: string;
         };
@@ -185,6 +197,8 @@ export type Database = {
           charge_definition_id?: string | null;
           due_date?: string | null;
           billing_period?: string | null;
+          list_kind?: "general" | "order";
+          supplier_name?: string | null;
           generated_at?: string | null;
           created_at?: string;
         };
@@ -197,6 +211,8 @@ export type Database = {
           charge_definition_id?: string | null;
           due_date?: string | null;
           billing_period?: string | null;
+          list_kind?: "general" | "order";
+          supplier_name?: string | null;
           generated_at?: string | null;
         };
         Relationships: [];
@@ -254,6 +270,43 @@ export type Database = {
         };
         Relationships: [];
       };
+      charge_extra_contributions: {
+        Row: {
+          id: string;
+          charge_id: string;
+          member_charge_id: string | null;
+          member_id: string | null;
+          contributor_name: string | null;
+          amount: number;
+          contributed_at: string;
+          payment_method: ClubPaymentMethod;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          charge_id: string;
+          member_charge_id?: string | null;
+          member_id?: string | null;
+          contributor_name?: string | null;
+          amount: number;
+          contributed_at?: string;
+          payment_method?: ClubPaymentMethod;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          charge_id?: string;
+          member_charge_id?: string | null;
+          member_id?: string | null;
+          contributor_name?: string | null;
+          amount?: number;
+          contributed_at?: string;
+          payment_method?: ClubPaymentMethod;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
       charge_payments: {
         Row: {
           id: string;
@@ -285,6 +338,9 @@ export type Database = {
           description: string;
           category: string | null;
           date: string;
+          spent_at: string;
+          payment_method: ClubPaymentMethod;
+          origin_label: string | null;
           charge_id: string | null;
           created_at: string;
         };
@@ -294,6 +350,9 @@ export type Database = {
           description: string;
           category?: string | null;
           date?: string;
+          spent_at?: string;
+          payment_method?: ClubPaymentMethod;
+          origin_label?: string | null;
           charge_id?: string | null;
           created_at?: string;
         };
@@ -302,6 +361,9 @@ export type Database = {
           description?: string;
           category?: string | null;
           date?: string;
+          spent_at?: string;
+          payment_method?: ClubPaymentMethod;
+          origin_label?: string | null;
           charge_id?: string | null;
         };
         Relationships: [];
@@ -330,6 +392,78 @@ export type Database = {
           logo_url?: string;
           logo_path?: string;
           url?: string | null;
+        };
+        Relationships: [];
+      };
+      user_profiles: {
+        Row: {
+          id: string;
+          auth_user_id: string;
+          role: ClubUserRole;
+          member_id: string | null;
+          status: UserProfileStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          auth_user_id: string;
+          role?: ClubUserRole;
+          member_id?: string | null;
+          status?: UserProfileStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          role?: ClubUserRole;
+          member_id?: string | null;
+          status?: UserProfileStatus;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      payment_submissions: {
+        Row: {
+          id: string;
+          member_id: string;
+          member_charge_id: string | null;
+          amount: number;
+          payment_method: ClubPaymentMethod;
+          paid_at: string;
+          proof_url: string;
+          notes: string | null;
+          status: PaymentSubmissionStatus;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          rejection_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          member_id: string;
+          member_charge_id?: string | null;
+          amount: number;
+          payment_method?: ClubPaymentMethod;
+          paid_at?: string;
+          proof_url: string;
+          notes?: string | null;
+          status?: PaymentSubmissionStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          rejection_reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          member_charge_id?: string | null;
+          amount?: number;
+          payment_method?: ClubPaymentMethod;
+          paid_at?: string;
+          proof_url?: string;
+          notes?: string | null;
+          status?: PaymentSubmissionStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          rejection_reason?: string | null;
         };
         Relationships: [];
       };
@@ -397,6 +531,30 @@ export type Database = {
           active_members: number;
         }[];
       };
+      current_user_member_id: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
+      is_internal_club_user: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      can_manage_payments: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      approve_payment_submission: {
+        Args: { p_submission_id: string };
+        Returns: void;
+      };
+      reject_payment_submission: {
+        Args: { p_submission_id: string; p_rejection_reason: string };
+        Returns: void;
+      };
+      claim_member_profile_by_email: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
       public_active_sponsors: {
         Args: Record<string, never>;
         Returns: {
@@ -417,6 +575,7 @@ type NewMemberInput = {
   email?: string;
   dni: string;
   address: string;
+  city?: string;
   phone?: string;
   status: "pending";
 };
@@ -425,10 +584,13 @@ type UpdateMemberInput = {
   full_name: string;
   email?: string;
   address: string;
+  city?: string;
   phone?: string;
 };
 
 export type ClubSettings = Database["public"]["Tables"]["club_settings"]["Row"];
+export type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"];
+export type PaymentSubmission = Database["public"]["Tables"]["payment_submissions"]["Row"];
 
 type UpdateClubSettingsInput = Omit<ClubSettings, "id">;
 
@@ -469,6 +631,43 @@ export function getSupabaseClient(): SupabaseClient<Database> {
       : createClient<Database>(supabaseUrl, supabaseAnonKey);
 
   return cachedClient;
+}
+
+export function isInternalClubRole(role: ClubUserRole | null | undefined) {
+  return role === "club_admin" || role === "treasurer" || role === "secretary" || role === "viewer";
+}
+
+export function canManagePaymentsRole(role: ClubUserRole | null | undefined) {
+  return role === "club_admin" || role === "treasurer";
+}
+
+export async function getCurrentUserProfile() {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .select("id, auth_user_id, role, member_id, status, created_at, updated_at")
+    .eq("auth_user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as UserProfile | null;
 }
 
 /**
@@ -525,7 +724,7 @@ export async function getMemberById(id: string) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, full_name, email, dni, address, phone, status, created_at")
+    .select("id, full_name, email, dni, address, city, phone, status, created_at")
     .eq("id", id)
     .maybeSingle();
 

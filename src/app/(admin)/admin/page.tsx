@@ -4,6 +4,7 @@ import { ArrowRight, CreditCard, Send, UserPlus } from "lucide-react";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { getDashboardStats } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/formatters";
+import { adminPath } from "@/lib/routes";
 
 export default async function AdminDashboardPage() {
   const stats = await getDashboardStats();
@@ -22,7 +23,7 @@ export default async function AdminDashboardPage() {
 
   const tasks = [
     {
-      href: "/admin/socios",
+      href: adminPath("socios"),
       title: `${stats.pendingMembers} solicitudes esperando aprobacion`,
       description: "Llegaron desde la landing del club y necesitan revision.",
       tone: "warning",
@@ -30,7 +31,7 @@ export default async function AdminDashboardPage() {
       show: stats.pendingMembers > 0,
     },
     {
-      href: "/admin/charges",
+      href: adminPath("charges"),
       title: `${stats.membersWithDebt} socios con saldo pendiente`,
       description: `${formatMoney(stats.totalDebt)} abiertos entre cuota mensual y otros cobros.`,
       tone: "info",
@@ -38,9 +39,9 @@ export default async function AdminDashboardPage() {
       show: stats.membersWithDebt > 0,
     },
     {
-      href: "/admin/charges",
+      href: adminPath("charges"),
       title: "Preparar recordatorios del mes",
-      description: "Mensajes de WhatsApp manuales listos desde el detalle de cada cobro.",
+      description: "Mensajes de WhatsApp manuales listos desde el detalle de cada lista.",
       tone: "success",
       icon: Send,
       show: true,
@@ -114,7 +115,7 @@ export default async function AdminDashboardPage() {
             </p>
             <p className="mt-2 text-sm leading-6 text-white/62">Resultado entre pagos registrados y egresos del mes.</p>
             <div className="mt-5 grid gap-3">
-              <MetricLine label="Cobros" value={formatMoney(stats.monthlyCashIn)} tone="income" />
+              <MetricLine label="Ingresos" value={formatMoney(stats.monthlyCashIn)} tone="income" />
               <MetricLine label="Egresos" value={formatMoney(stats.monthlyExpenses)} tone="expense" />
               <MetricLine
                 label="vs. mes anterior"
@@ -139,7 +140,7 @@ export default async function AdminDashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="club-eyebrow text-primary/70">Tendencia mensual</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950">Cobros ultimos 6 meses</h2>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950">Ingresos ultimos 6 meses</h2>
             </div>
             <Badge variant={stats.incomeChangePercent >= 0 ? "success" : "warning"}>
               {stats.incomeChangePercent >= 0 ? "+" : "-"}
@@ -178,7 +179,7 @@ export default async function AdminDashboardPage() {
               <p className="club-eyebrow text-primary/70">Atencion</p>
               <h2 className="mt-2 text-lg font-semibold text-slate-950">Mayores saldos</h2>
             </div>
-            <Link href="/admin/socios" className="text-sm font-semibold text-primary hover:underline">
+            <Link href={adminPath("socios")} className="text-sm font-semibold text-primary hover:underline">
               Ver socios
             </Link>
           </div>
@@ -192,7 +193,7 @@ export default async function AdminDashboardPage() {
               stats.topDebtMembers.map((debtor) => (
                 <Link
                   key={debtor.memberId}
-                  href={`/admin/socios/${debtor.memberId}`}
+                  href={adminPath(`socios/${debtor.memberId}`)}
                   className="grid grid-cols-[2.25rem_1fr_auto] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 transition hover:bg-slate-50"
                 >
                   <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">

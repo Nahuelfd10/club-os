@@ -7,6 +7,7 @@ import { clubProjects, getClubProjectBySlug } from "@/app/club/content";
 import { ProjectContributionPanel } from "@/components/club/project-contribution-panel";
 import { buttonClassNames, cardClassNames } from "@/components/ui";
 import { formatMoney } from "@/lib/formatters";
+import { clubPath } from "@/lib/routes";
 
 type ProjectDetailPageProps = {
   params: Promise<{
@@ -35,7 +36,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
         <section className={cardClassNames({ variant: "hero", className: "overflow-hidden rounded-[2rem] p-7 sm:p-10 lg:p-12" })}>
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div>
-              <Link href="/club#proyectos" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-950">
+              <Link href={`${clubPath()}#proyectos`} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-950">
                 <ArrowLeft className="h-4 w-4" aria-hidden />
                 Volver a proyectos
               </Link>
@@ -146,7 +147,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-600">{item.shortDescription}</p>
                       <div className="mt-4">
-                        <Link href={`/club/proyectos/${item.slug}`} className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80">
+                        <Link href={clubPath(`proyectos/${item.slug}`)} className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary/80">
                           Ver proyecto
                           <ArrowRight className="h-4 w-4" aria-hidden />
                         </Link>
@@ -159,7 +160,7 @@ export default async function ProjectDetailPage({ params }: ProjectDetailPagePro
               <div className="mt-6 rounded-[1.4rem] bg-slate-950 px-5 py-5 text-white">
                 <p className="text-sm font-semibold">¿Querés formar parte del club además de colaborar?</p>
                 <div className="mt-4">
-                  <Link href="/club/registro" className={buttonClassNames({ variant: "primary", size: "lg" })}>
+                  <Link href={clubPath("registro")} className={buttonClassNames({ variant: "primary", size: "lg" })}>
                     Hacete socio
                   </Link>
                 </div>

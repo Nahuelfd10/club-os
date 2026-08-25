@@ -11,12 +11,14 @@ import {
   removeMemberFromGroup,
   type MemberGroupRow,
 } from "@/lib/groups";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 type Props = {
   memberId: string;
 };
 
 export function MemberGroupsSection({ memberId }: Props) {
+  const routes = useClubRoutes();
   const [rows, setRows] = useState<MemberGroupRow[]>([]);
   const [allGroups, setAllGroups] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -218,7 +220,7 @@ export function MemberGroupsSection({ memberId }: Props) {
             >
               <div className="min-w-0">
                 <Link
-                  href={`/admin/groups/${row.group.id}`}
+                  href={routes.adminPath(`groups/${row.group.id}`)}
                   className="font-semibold text-slate-950 underline-offset-2 hover:underline"
                 >
                   {row.group.name}

@@ -1,4 +1,5 @@
 import { Shield } from "lucide-react";
+import Image from "next/image";
 
 type ClubLogoProps = {
   /** URL del logo; vacío o sin definir muestra el escudo por defecto. */
@@ -24,12 +25,14 @@ export function ClubLogo({ src, alt, className = "" }: ClubLogoProps) {
   }
 
   return (
-    <img
+    <Image
       src={url}
       alt={alt}
+      width={160}
+      height={160}
       className={`object-contain ${className}`.trim()}
       loading="lazy"
-      decoding="async"
+      unoptimized
     />
   );
 }

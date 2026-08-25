@@ -9,6 +9,7 @@ import {
   MapPin,
   Phone,
   Send,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -27,12 +28,14 @@ import {
 } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
 import { getMemberById, updateMember, updateMemberStatus } from "@/lib/supabase";
+import { useClubRoutes } from "@/lib/use-club-routes";
 import type { Member } from "@/types";
 
 type EditForm = {
   full_name: string;
   email: string;
   address: string;
+  city: string;
   phone: string;
 };
 
@@ -78,6 +81,7 @@ export default function MemberDetailPage() {
   const params = useParams<{ id: string }>();
   const memberId = params?.id ?? "";
   const { config, isConfigLoading } = useActiveClubConfig();
+  const routes = useClubRoutes();
 
   const [member, setMember] = useState<Member | null>(null);
   const [memberCharges, setMemberCharges] = useState<MemberChargeWithDetails[] | null>(null);
@@ -85,12 +89,14 @@ export default function MemberDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [financeTab, setFinanceTab] = useState<FinanceTab>("membership");
   const [form, setForm] = useState<EditForm>({
     full_name: "",
     email: "",
     address: "",
+    city: "",
     phone: "",
   });
 
@@ -113,6 +119,7 @@ export default function MemberDetailPage() {
           full_name: memberData.full_name,
           email: memberData.email ?? "",
           address: memberData.address,
+          city: memberData.city ?? "",
           phone: memberData.phone ?? "",
         });
       }
@@ -202,6 +209,7 @@ export default function MemberDetailPage() {
         full_name: form.full_name,
         email: form.email || undefined,
         address: form.address,
+        city: form.city || undefined,
         phone: form.phone || undefined,
       });
       setIsEditing(false);
@@ -235,6 +243,39 @@ export default function MemberDetailPage() {
     }
   };
 
+  const handleInvitePortal = async () => {
+    if (!member) return;
+    if (!member.email) {
+      setActionMessage("Carga un email antes de enviar el acceso al portal.");
+      return;
+    }
+
+    setIsInviting(true);
+    setActionMessage(null);
+    try {
+      const response = await fetch("/api/member-portal/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          member_id: member.id,
+          email: member.email,
+          slug: routes.slug,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo enviar el acceso.");
+      }
+      setActionMessage(
+        "Acceso enviado. Si el socio no encuentra el mail, podes reenviarlo desde este mismo boton."
+      );
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "No se pudo enviar el acceso.");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="space-y-6">
@@ -251,7 +292,7 @@ export default function MemberDetailPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-slate-600">No se encontro el socio solicitado.</p>
           <Link
-            href="/admin/socios"
+            href={routes.adminPath("socios")}
             className="mt-3 inline-block text-sm font-medium text-slate-600 hover:text-slate-950"
           >
             Volver a socios
@@ -265,7 +306,7 @@ export default function MemberDetailPage() {
     <section className="space-y-5">
       <div>
         <Link
-          href="/admin/socios"
+          href={routes.adminPath("socios")}
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950"
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={1.8} aria-hidden />
@@ -300,6 +341,16 @@ export default function MemberDetailPage() {
             >
               <Send className="h-4 w-4" strokeWidth={1.8} aria-hidden />
               Recordatorio
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleInvitePortal()}
+              disabled={isInviting || !member.email}
+              title={member.email ? undefined : "Carga un email para enviar el acceso."}
+              className={buttonClassNames({ variant: "neutral", size: "md" })}
+            >
+              <UserPlus className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+              {isInviting ? "Enviando..." : "Enviar / reenviar acceso"}
             </button>
             {member.status === "active" ? (
               <button
@@ -366,10 +417,11 @@ export default function MemberDetailPage() {
         </div>
 
         {!isEditing ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <ContactCard icon="email" label="Email" value={member.email || "-"} />
             <ContactCard icon="phone" label="Telefono" value={member.phone || "-"} />
             <ContactCard icon="location" label="Direccion" value={member.address} />
+            <ContactCard icon="location" label="Localidad" value={member.city || "-"} />
             <ContactCard icon="id" label="DNI" value={member.dni} />
           </div>
         ) : (
@@ -395,6 +447,12 @@ export default function MemberDetailPage() {
                 onChange={(value) => setForm((prev) => ({ ...prev, address: value }))}
               />
               <EditInput
+                id="city"
+                label="Localidad"
+                value={form.city}
+                onChange={(value) => setForm((prev) => ({ ...prev, city: value }))}
+              />
+              <EditInput
                 id="phone"
                 label="Telefono"
                 value={form.phone}
@@ -418,6 +476,7 @@ export default function MemberDetailPage() {
                       full_name: member.full_name,
                       email: member.email ?? "",
                       address: member.address,
+                      city: member.city ?? "",
                       phone: member.phone ?? "",
                     });
                   }}

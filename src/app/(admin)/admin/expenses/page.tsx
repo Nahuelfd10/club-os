@@ -21,7 +21,12 @@ import {
   Th,
   buttonClassNames,
 } from "@/components/ui";
-import { paymentMethodLabel } from "@/config/payment-method";
+import {
+  CLUB_PAYMENT_METHOD_OPTIONS,
+  DEFAULT_PAYMENT_METHOD,
+  paymentMethodLabel,
+  type ClubPaymentMethod,
+} from "@/config/payment-method";
 import {
   formatBillingPeriod,
   listChargePaymentsWithContext,
@@ -37,6 +42,7 @@ import {
   type ExpenseWithCharge,
 } from "@/lib/expenses";
 import { formatMoney } from "@/lib/formatters";
+import { useClubRoutes } from "@/lib/use-club-routes";
 
 const todayISODate = () => new Date().toISOString().slice(0, 10);
 const currentMonthKey = () => new Date().toISOString().slice(0, 7);
@@ -98,6 +104,7 @@ function paymentDetail(payment: ChargePaymentWithContext): string {
 }
 
 export default function AdminExpensesPage() {
+  const routes = useClubRoutes();
   const [expenses, setExpenses] = useState<ExpenseWithCharge[]>([]);
   const [payments, setPayments] = useState<ChargePaymentWithContext[]>([]);
   const [chargeOptions, setChargeOptions] = useState<ChargeOption[]>([]);
@@ -113,6 +120,8 @@ export default function AdminExpensesPage() {
   const [formCategory, setFormCategory] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formDate, setFormDate] = useState(todayISODate());
+  const [formPaymentMethod, setFormPaymentMethod] = useState<ClubPaymentMethod>(DEFAULT_PAYMENT_METHOD);
+  const [formOrigin, setFormOrigin] = useState("Club / caja");
   const [formChargeId, setFormChargeId] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -163,10 +172,12 @@ export default function AdminExpensesPage() {
       id: `expense-${expense.id}`,
       type: "expense",
       amount: expense.amount,
-      happened_at: `${expense.date}T12:00:00`,
+      happened_at: expense.spent_at,
       created_at: expense.created_at,
       concept: expense.description,
-      detail: expense.category?.trim() || "Egreso manual",
+      detail: `${paymentMethodLabel(expense.payment_method)}${
+        expense.category?.trim() ? ` · ${expense.category.trim()}` : ""
+      }`,
       charge: expense.charge,
       sourceExpense: expense,
     }));
@@ -216,6 +227,8 @@ export default function AdminExpensesPage() {
     setFormCategory("");
     setFormAmount("");
     setFormDate(todayISODate());
+    setFormPaymentMethod(DEFAULT_PAYMENT_METHOD);
+    setFormOrigin("Club / caja");
     setFormChargeId("");
     setActionMessage(null);
     setModalOpen(true);
@@ -227,6 +240,8 @@ export default function AdminExpensesPage() {
     setFormCategory(expense.category ?? "");
     setFormAmount(String(expense.amount ?? ""));
     setFormDate(expense.date ?? todayISODate());
+    setFormPaymentMethod(expense.payment_method ?? DEFAULT_PAYMENT_METHOD);
+    setFormOrigin(expense.origin_label?.trim() || "Club / caja");
     setFormChargeId(expense.charge_id ?? "");
     setActionMessage(null);
     setModalOpen(true);
@@ -267,6 +282,8 @@ export default function AdminExpensesPage() {
           amount,
           category: formCategory.trim() || null,
           date,
+          payment_method: formPaymentMethod,
+          origin_label: formOrigin,
           charge_id,
         });
         setActionMessage("Egreso actualizado.");
@@ -276,6 +293,9 @@ export default function AdminExpensesPage() {
           amount,
           category: formCategory.trim() || null,
           date,
+          spent_at: new Date().toISOString(),
+          payment_method: formPaymentMethod,
+          origin_label: formOrigin,
           charge_id,
         });
         setActionMessage("Egreso creado.");
@@ -395,7 +415,7 @@ export default function AdminExpensesPage() {
         {!isLoading && !errorMessage && filteredMovements.length === 0 ? (
           <EmptyState
             title="No hay movimientos para este filtro"
-            description="Los ingresos aparecen cuando registrás pagos en Cobros. Los egresos se cargan acá como gastos reales."
+            description="Los ingresos aparecen cuando registras pagos en Cuotas y listas. Los egresos se cargan aca como gastos reales."
             actions={
               <Button type="button" size="md" onClick={openCreate}>
                 Registrar egreso
@@ -440,7 +460,7 @@ export default function AdminExpensesPage() {
                       <Td className="text-slate-600">
                         {movement.charge ? (
                           <Link
-                            href={`/admin/charges/${movement.charge.id}`}
+                            href={routes.adminPath(`charges/${movement.charge.id}`)}
                             className="underline-offset-2 hover:text-slate-950 hover:underline"
                           >
                             {movement.charge.name}
@@ -458,15 +478,21 @@ export default function AdminExpensesPage() {
                         {formatMoney(movement.amount)}
                       </Td>
                       <Td className="text-slate-600">
-                        {movement.type === "income"
-                          ? formatMovementDateTime(movement.happened_at)
-                          : formatExpenseDate(movement.happened_at.slice(0, 10))}
+                        <span
+                          title={
+                            movement.type === "expense" && movement.sourceExpense
+                              ? `Fecha contable: ${formatExpenseDate(movement.sourceExpense.date)}`
+                              : undefined
+                          }
+                        >
+                          {formatMovementDateTime(movement.happened_at)}
+                        </span>
                       </Td>
                       <Td>
                         <div className="flex flex-wrap gap-2">
                           {movement.charge ? (
                             <Link
-                              href={`/admin/charges/${movement.charge.id}`}
+                              href={routes.adminPath(`charges/${movement.charge.id}`)}
                               className={buttonClassNames({ variant: "neutral", size: "sm" })}
                             >
                               Ver cargo
@@ -505,7 +531,7 @@ export default function AdminExpensesPage() {
       <AdminModal open={modalOpen} onClose={closeModal}>
         <h2 className="text-lg font-semibold text-white">{editing ? "Editar egreso" : "Registrar egreso"}</h2>
         <p className="mt-1 text-sm text-slate-300">
-          Un egreso es plata que salió del club. Si está relacionado con un cobro o pedido, podés vincularlo sin crear deuda nueva.
+          Un egreso es plata que salio del club. Si esta relacionado con una lista o pedido, podes vincularlo sin crear deuda nueva.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -569,6 +595,38 @@ export default function AdminExpensesPage() {
               placeholder="0"
               className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
             />
+          </div>
+
+          <div>
+            <label htmlFor="expense-origin" className="mb-1 block text-sm font-medium text-slate-300">
+              Origen del egreso
+            </label>
+            <Input
+              id="expense-origin"
+              value={formOrigin}
+              onChange={(e) => setFormOrigin(e.target.value)}
+              placeholder="Ej. Club / caja, proveedor, socio"
+              className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+              autoComplete="off"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="expense-method" className="mb-1 block text-sm font-medium text-slate-300">
+              Metodo de pago
+            </label>
+            <Select
+              id="expense-method"
+              value={formPaymentMethod}
+              onChange={(e) => setFormPaymentMethod(e.target.value as ClubPaymentMethod)}
+              className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white shadow-none focus:border-white/20 focus:shadow-none"
+            >
+              {CLUB_PAYMENT_METHOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <div>

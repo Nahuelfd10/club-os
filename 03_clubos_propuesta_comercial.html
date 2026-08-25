@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Club OS — Propuesta para tu Club</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #F8FAFC;
+    color: #1E293B;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: white; }
+    .page { page-break-after: always; box-shadow: none; margin: 0; border-radius: 0; }
+    .page:last-child { page-break-after: avoid; }
+    @page { margin: 0; size: A4; }
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 20px auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ════════════════════════════════════
+     PAGE 1 — PORTADA
+  ════════════════════════════════════ */
+  .page-1 {
+    background: linear-gradient(135deg, #1E3A8A 0%, #1E40AF 50%, #1D4ED8 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0;
+  }
+
+  .hero {
+    padding: 60px 56px 0;
+    flex: 1;
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 64px;
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -1px;
+  }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.5px;
+  }
+
+  .hero-eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .hero-title {
+    font-size: 44px;
+    font-weight: 900;
+    color: white;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    margin-bottom: 24px;
+  }
+
+  .hero-title em {
+    font-style: normal;
+    color: #93C5FD;
+  }
+
+  .hero-subtitle {
+    font-size: 18px;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.5;
+    max-width: 480px;
+    margin-bottom: 48px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 100px;
+  }
+
+  .hero-badge span { font-size: 18px; }
+
+  .hero-footer {
+    background: rgba(0,0,0,0.2);
+    padding: 28px 56px;
+    display: flex;
+    gap: 48px;
+  }
+
+  .stat-item {}
+  .stat-num {
+    font-size: 28px;
+    font-weight: 900;
+    color: white;
+    letter-spacing: -1px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-top: 2px;
+  }
+
+  /* ════════════════════════════════════
+     PAGE 2 — EL PROBLEMA
+  ════════════════════════════════════ */
+  .page-inner {
+    padding: 56px;
+  }
+
+  .section-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #1E40AF;
+    background: #DBEAFE;
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: 32px;
+    font-weight: 900;
+    color: #0F172A;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+
+  .section-sub {
+    font-size: 16px;
+    color: #64748B;
+    margin-bottom: 40px;
+    line-height: 1.5;
+  }
+
+  /* Pain points grid */
+  .pain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .pain-card {
+    background: #FFF1F2;
+    border: 1px solid #FECDD3;
+    border-left: 4px solid #F43F5E;
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .pain-icon { font-size: 22px; margin-bottom: 10px; }
+
+  .pain-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 4px;
+  }
+
+  .pain-desc {
+    font-size: 13px;
+    color: #64748B;
+    line-height: 1.5;
+  }
+
+  .quote-block {
+    background: #F0F9FF;
+    border-left: 4px solid #0EA5E9;
+    border-radius: 0 8px 8px 0;
+    padding: 20px 24px;
+    margin-top: 24px;
+  }
+
+  .quote-text {
+    font-size: 16px;
+    color: #0F172A;
+    font-style: italic;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+
+  .quote-author {
+    font-size: 13px;
+    color: #64748B;
+    font-weight: 500;
+  }
+
+  /* ════════════════════════════════════
+     PAGE 3 — LA SOLUCIÓN
+  ════════════════════════════════════ */
+  .solution-intro {
+    background: linear-gradient(135deg, #1E40AF, #1D4ED8);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 36px;
+    color: white;
+  }
+
+  .solution-intro-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .solution-intro-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.5;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .feature-card {
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 22px;
+    background: #FAFAFA;
+  }
+
+  .feature-icon {
+    font-size: 26px;
+    margin-bottom: 12px;
+  }
+
+  .feature-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 6px;
+  }
+
+  .feature-desc {
+    font-size: 13px;
+    color: #64748B;
+    line-height: 1.5;
+  }
+
+  .how-it-works {
+    background: #F8FAFC;
+    border-radius: 10px;
+    padding: 24px;
+    border: 1px solid #E2E8F0;
+  }
+
+  .how-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 16px;
+  }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .step-num {
+    width: 28px; height: 28px;
+    background: #1E40AF;
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .step-text {
+    font-size: 14px;
+    color: #334155;
+    line-height: 1.5;
+  }
+
+  .step-text strong { color: #0F172A; }
+
+  /* ════════════════════════════════════
+     PAGE 4 — PRECIOS + CTA
+  ════════════════════════════════════ */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .pricing-card {
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    position: relative;
+    background: white;
+  }
+
+  .pricing-card.featured {
+    border: 2px solid #1E40AF;
+    background: #EFF6FF;
+  }
+
+  .pricing-badge {
+    position: absolute;
+    top: -12px; left: 50%; transform: translateX(-50%);
+    background: #1E40AF;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+
+  .plan-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .plan-price {
+    font-size: 36px;
+    font-weight: 900;
+    color: #0F172A;
+    letter-spacing: -1.5px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .plan-price.free-price { color: #059669; }
+  .plan-price-sub {
+    font-size: 12px;
+    color: #94A3B8;
+    margin-bottom: 16px;
+  }
+
+  .plan-limit {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    background: #F1F5F9;
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+  }
+
+  .plan-features {
+    list-style: none;
+    font-size: 13px;
+    color: #475569;
+    text-align: left;
+  }
+
+  .plan-features li {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .plan-features li::before {
+    content: '✓';
+    color: #059669;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .cta-section {
+    background: linear-gradient(135deg, #0F172A, #1E293B);
+    border-radius: 14px;
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .cta-text {}
+  .cta-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+
+  .cta-sub {
+    font-size: 14px;
+    color: #94A3B8;
+    line-height: 1.5;
+  }
+
+  .cta-button {
+    background: #1E40AF;
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 16px 32px;
+    border-radius: 10px;
+    white-space: nowrap;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .contact-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 24px;
+  }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #334155;
+  }
+
+  .contact-icon {
+    width: 36px; height: 36px;
+    background: #DBEAFE;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .contact-label { font-size: 11px; color: #94A3B8; }
+  .contact-value { font-weight: 600; color: #0F172A; font-size: 14px; }
+
+  .footer-note {
+    text-align: center;
+    font-size: 12px;
+    color: #94A3B8;
+    margin-top: 28px;
+  }
+
+  /* divider */
+  .divider {
+    border: none;
+    border-top: 1px solid #E2E8F0;
+    margin: 32px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     PAGE 1 — PORTADA
+══════════════════════════════════════════ -->
+<div class="page page-1">
+  <div class="hero">
+    <div class="logo-area">
+      <div class="logo-icon">CO</div>
+      <div class="logo-text">Club OS</div>
+    </div>
+
+    <div class="hero-eyebrow">Sistema de gestión para clubes deportivos</div>
+    <h1 class="hero-title">
+      Tu club merece<br>
+      <em>saber exactamente</em><br>
+      cuánto tiene en caja.
+    </h1>
+    <p class="hero-subtitle">
+      Club OS es la herramienta que le faltaba al club de barrio: padrón de socios, cobro de cuotas y caja — todo en un solo lugar, sin necesidad de ser técnico.
+    </p>
+    <div class="hero-badge">
+      <span>🎉</span> Gratis para clubs de hasta 75 socios
+    </div>
+  </div>
+
+  <div class="hero-footer">
+    <div class="stat-item">
+      <div class="stat-num">0 ARS</div>
+      <div class="stat-label">Para empezar</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">Día 1</div>
+      <div class="stat-label">Listo para usar</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">Web — sin instalar nada</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">∞</div>
+      <div class="stat-label">Soporte incluido</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 2 — EL PROBLEMA
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="section-tag">El problema</div>
+    <h2 class="section-title">¿Te suena familiar alguna de estas situaciones?</h2>
+    <p class="section-sub">La mayoría de los clubs de Argentina gestionan sus finanzas así. No por falta de voluntad — sino porque nunca tuvieron la herramienta correcta.</p>
+
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="pain-icon">📱</div>
+        <div class="pain-title">Cobrás la cuota por WhatsApp</div>
+        <div class="pain-desc">El tesorero manda mensajes uno por uno, algunos responden "ya pagué" y nadie sabe si es verdad.</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📓</div>
+        <div class="pain-title">El registro está en un cuaderno</div>
+        <div class="pain-desc">Si el cuaderno se pierde — o nadie lo actualiza — el club no sabe quién pagó y quién debe.</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">❓</div>
+        <div class="pain-title">No sabés cuántos socios activos hay</div>
+        <div class="pain-desc">La lista está desactualizada. Hay socios "fantasma", bajas que no se registraron, y nuevos sin dar de alta.</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">📉</div>
+        <div class="pain-title">La cuota llega tarde o no llega</div>
+        <div class="pain-desc">Sin seguimiento, los socios pagan cuando quieren. O no pagan. Y el club no tiene fondos para sus gastos.</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">🤷</div>
+        <div class="pain-title">La caja es un misterio</div>
+        <div class="pain-desc">En la asamblea preguntan "¿cuánto tenemos?" y la respuesta es un estimado. Nadie tiene el número real.</div>
+      </div>
+      <div class="pain-card">
+        <div class="pain-icon">⏰</div>
+        <div class="pain-title">El tesorero trabaja el doble</div>
+        <div class="pain-desc">Horas persiguiendo deudores, calculando manualmente, respondiendo "¿cuánto debo?" una y otra vez.</div>
+      </div>
+    </div>
+
+    <div class="quote-block">
+      <p class="quote-text">"Sabíamos que había socios que debían varios meses, pero no teníamos forma de saber exactamente cuántos, cuánto sumaba esa deuda, ni a quiénes cobrarles primero."</p>
+      <p class="quote-author">— Situación típica en clubs de 50 a 300 socios de Argentina</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 3 — LA SOLUCIÓN
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="section-tag">La solución</div>
+    <h2 class="section-title">Presentamos Club OS</h2>
+
+    <div class="solution-intro">
+      <div class="solution-intro-title">El sistema operativo de tu club</div>
+      <div class="solution-intro-sub">Club OS centraliza el padrón de socios, la gestión de cobros y la caja del club en una sola plataforma web — simple, visual y lista para usar desde el primer día. Sin instalaciones, sin capacitación técnica.</div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Padrón digital de socios</div>
+        <div class="feature-desc">Alta, baja y gestión de socios en segundos. Estado activo/pendiente, grupos por disciplina, búsqueda instantánea.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Cobros y cuota mensual</div>
+        <div class="feature-desc">La cuota mensual se genera automáticamente para todos los socios. Registrás el pago cuando entra — efectivo, transferencia o MercadoPago.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Dashboard en tiempo real</div>
+        <div class="feature-desc">Al abrir Club OS ves: socios activos, deuda total del club, ingresos del mes, egresos y balance. Todo al instante.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Deuda por socio</div>
+        <div class="feature-desc">Sabés exactamente cuánto debe cada socio, desde cuándo, y si ya hizo algún pago parcial. Sin cálculos manuales.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💸</div>
+        <div class="feature-title">Registro de egresos</div>
+        <div class="feature-desc">Cargá los gastos del club con categoría y fecha. La caja siempre está actualizada y podés ver el balance real.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Recordatorios por WhatsApp</div>
+        <div class="feature-desc">Generá el mensaje de recordatorio de deuda para enviar por WhatsApp al socio — con el monto exacto que debe.</div>
+      </div>
+    </div>
+
+    <div class="how-it-works">
+      <div class="how-title">¿Cómo funciona desde el primer día?</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-text"><strong>Cargás los socios del club</strong> — nombre, contacto, grupo. Una vez, tarda minutos.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-text"><strong>Configurás la cuota mensual</strong> — monto, día de vencimiento. Club OS la genera automáticamente para todos los socios.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-text"><strong>Registrás los pagos cuando entran</strong> — en segundos, con método de pago incluido.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-text"><strong>El dashboard te muestra el estado real del club</strong> — quién debe, cuánto entró, cuánto salió y cuál es el balance.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     PAGE 4 — PRECIOS + CTA
+══════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-inner">
+    <div class="section-tag">Precios</div>
+    <h2 class="section-title">Simple, justo y sin sorpresas</h2>
+    <p class="section-sub">Gratis para empezar. Sin tarjeta de crédito. Sin período de prueba que se vence.</p>
+
+    <div class="pricing-grid">
+      <div class="pricing-card featured">
+        <div class="pricing-badge">Empezá acá</div>
+        <div class="plan-name">Plan Free</div>
+        <div class="plan-price free-price">$0</div>
+        <div class="plan-price-sub">Por siempre</div>
+        <div class="plan-limit">Hasta 75 socios</div>
+        <ul class="plan-features">
+          <li>Padrón ilimitado (hasta 75)</li>
+          <li>Cuota mensual automática</li>
+          <li>Registro de cobros</li>
+          <li>Registro de egresos</li>
+          <li>Dashboard completo</li>
+          <li>Soporte incluido</li>
+        </ul>
+      </div>
+
+      <div class="pricing-card">
+        <div class="plan-name">Plan Básico</div>
+        <div class="plan-price">USD 10</div>
+        <div class="plan-price-sub">Por mes</div>
+        <div class="plan-limit">Hasta 200 socios</div>
+        <ul class="plan-features">
+          <li>Todo del plan Free</li>
+          <li>Más de 75 socios</li>
+          <li>Exportación de reportes</li>
+          <li>Múltiples grupos</li>
+          <li>Cobros por grupo</li>
+        </ul>
+      </div>
+
+      <div class="pricing-card">
+        <div class="plan-name">Plan Crecimiento</div>
+        <div class="plan-price">USD 20</div>
+        <div class="plan-price-sub">Por mes</div>
+        <div class="plan-limit">Hasta 500 socios</div>
+        <ul class="plan-features">
+          <li>Todo del plan Básico</li>
+          <li>Hasta 500 socios</li>
+          <li>Múltiples administradores</li>
+          <li>Reportes avanzados</li>
+          <li>Soporte prioritario</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="cta-section">
+      <div class="cta-text">
+        <div class="cta-title">¿Querés probarlo en tu club?</div>
+        <div class="cta-sub">Te acompañamos en los primeros pasos. Sin costo, sin contrato, sin complicaciones.</div>
+      </div>
+      <a class="cta-button" href="#">Empezar gratis ahora →</a>
+    </div>
+
+    <div class="contact-row">
+      <div class="contact-item">
+        <div class="contact-icon">💬</div>
+        <div>
+          <div class="contact-label">WhatsApp directo</div>
+          <div class="contact-value">[Tu número de WhatsApp]</div>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-icon">📧</div>
+        <div>
+          <div class="contact-label">Email</div>
+          <div class="contact-value">hola@clubos.ar</div>
+        </div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-icon">📸</div>
+        <div>
+          <div class="contact-label">Instagram</div>
+          <div class="contact-value">@clubos.ar</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="footer-note">Club OS · Sistema de gestión para clubes deportivos y sociales · Necochea, Argentina · 2026</p>
+  </div>
+</div>
+
+</body>
+</html>

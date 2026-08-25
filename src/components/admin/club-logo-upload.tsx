@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { ImageIcon } from "lucide-react";
+import Image from "next/image";
 
 import { Button, FormField } from "@/components/ui";
 import { uploadClubLogoAndPersist, validateClubLogoFile } from "@/lib/club-logo";
@@ -78,10 +79,13 @@ export function ClubLogoUpload({ settingsId, logoUrl, onLogoUpdated }: ClubLogoU
           aria-hidden={!previewSrc}
         >
           {previewSrc ? (
-            <img
+            <Image
               src={previewSrc}
               alt="Logo del club"
+              width={112}
+              height={112}
               className="max-h-full max-w-full object-contain p-2"
+              unoptimized
             />
           ) : (
             <span className="px-2 text-center text-xs text-slate-500">Sin logo</span>

@@ -1,5 +1,8 @@
 import { AdminShell } from "@/components/admin/admin-shell";
+import { getActiveProfileByAuthUser, profileIsInternal } from "@/lib/authz";
+import { clubPath } from "@/lib/routes";
 import { getServerSupabase } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 /**
  * Layout server-side del panel admin.
@@ -23,5 +26,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <>{children}</>;
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  const profile = await getActiveProfileByAuthUser(supabase, user.id).catch(() => null);
+
+  if (!profile || !profileIsInternal(profile)) {
+    if (profile?.member_id) {
+      redirect(clubPath("socio"));
+    }
+    redirect(clubPath("login"));
+  }
+
+  return <AdminShell profile={profile} userEmail={user.email ?? null}>{children}</AdminShell>;
 }
