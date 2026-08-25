@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Club OS - Explicacion operativa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --soft: #f8fafc;
+    --primary: #1d4ed8;
+    --primary-dark: #0f2f7a;
+    --accent: #f97316;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #eef2f7;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+
+  @media print {
+    body { background: white; }
+    .page { box-shadow: none; margin: 0; border-radius: 0; width: 100%; min-height: 100vh; page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+    .no-print { display: none; }
+    @page { size: A4; margin: 0; }
+  }
+
+  .page {
+    width: min(1120px, calc(100% - 32px));
+    min-height: 820px;
+    margin: 24px auto;
+    background: white;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+  }
+
+  .cover {
+    min-height: 820px;
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    background:
+      radial-gradient(circle at 82% 16%, rgba(249, 115, 22, 0.25), transparent 32%),
+      linear-gradient(135deg, #07111f 0%, #0f2f7a 58%, #1d4ed8 100%);
+    color: white;
+  }
+
+  .cover-main {
+    padding: 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.2);
+    font-weight: 900;
+    letter-spacing: -0.08em;
+  }
+
+  .brand-text {
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.58);
+  }
+
+  h1 {
+    max-width: 760px;
+    font-size: clamp(46px, 6vw, 76px);
+    line-height: 0.96;
+    letter-spacing: -0.06em;
+    margin-top: 28px;
+  }
+
+  .cover-lead {
+    margin-top: 28px;
+    max-width: 640px;
+    font-size: 19px;
+    color: rgba(255,255,255,0.76);
+  }
+
+  .cover-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    margin-top: 34px;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.86);
+    font-weight: 700;
+  }
+
+  .cover-side {
+    padding: 48px 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .phone {
+    width: 100%;
+    border-radius: 34px;
+    padding: 18px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 34px 80px rgba(2, 6, 23, 0.35);
+  }
+
+  .phone-screen {
+    border-radius: 24px;
+    overflow: hidden;
+    background: #f8fafc;
+    color: var(--ink);
+  }
+
+  .phone-top {
+    padding: 22px;
+    background: linear-gradient(135deg, #0f172a, #1e3a8a);
+    color: white;
+  }
+
+  .phone-card {
+    margin: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    background: white;
+    border: 1px solid var(--line);
+  }
+
+  .amount {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+  }
+
+  .status {
+    display: inline-flex;
+    margin-top: 8px;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .section {
+    padding: 54px 64px;
+  }
+
+  .section.dark {
+    background: #0f172a;
+    color: white;
+  }
+
+  .section.soft {
+    background: var(--soft);
+  }
+
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 28px;
+    align-items: end;
+    margin-bottom: 28px;
+  }
+
+  h2 {
+    font-size: 34px;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    max-width: 680px;
+  }
+
+  .lead {
+    max-width: 620px;
+    color: var(--muted);
+    font-size: 16px;
+    margin-top: 12px;
+  }
+
+  .dark .lead { color: rgba(255,255,255,0.66); }
+
+  .grid {
+    display: grid;
+    gap: 18px;
+  }
+
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: white;
+    padding: 22px;
+  }
+
+  .dark .card {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+    color: white;
+  }
+
+  .card h3 {
+    font-size: 18px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin-top: 12px;
+  }
+
+  .card p {
+    margin-top: 9px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .dark .card p { color: rgba(255,255,255,0.64); }
+
+  .icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: #dbeafe;
+    color: var(--primary);
+    font-weight: 900;
+  }
+
+  .icon.orange { background: #ffedd5; color: var(--accent); }
+  .icon.green { background: #d1fae5; color: var(--success); }
+  .icon.dark { background: rgba(255,255,255,0.12); color: white; }
+
+  .flow {
+    counter-reset: step;
+    display: grid;
+    gap: 12px;
+  }
+
+  .step {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: white;
+  }
+
+  .step::before {
+    content: counter(step);
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--primary);
+    color: white;
+    font-weight: 900;
+  }
+
+  .step strong {
+    display: block;
+    font-size: 15px;
+  }
+
+  .step span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .role-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+  }
+
+  .role-table th,
+  .role-table td {
+    padding: 15px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  .role-table th {
+    background: #f1f5f9;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #475569;
+  }
+
+  .role-table tr:last-child td { border-bottom: 0; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .pill.orange { background: #fff7ed; color: #c2410c; }
+  .pill.green { background: #ecfdf5; color: #047857; }
+  .pill.gray { background: #f1f5f9; color: #475569; }
+
+  .module {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 22px;
+    padding: 22px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .module:first-of-type { border-top: 0; }
+
+  .module h3 {
+    font-size: 22px;
+    letter-spacing: -0.03em;
+  }
+
+  .module ul {
+    display: grid;
+    gap: 8px;
+    padding-left: 18px;
+    color: #475569;
+  }
+
+  .quote {
+    padding: 32px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+    color: white;
+    font-size: 26px;
+    font-weight: 900;
+    line-height: 1.16;
+    letter-spacing: -0.04em;
+  }
+
+  .mini-caption {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .url-box {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+  }
+
+  .url-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  .url-row span:last-child {
+    color: var(--muted);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+  }
+
+  @media (max-width: 900px) {
+    .cover { grid-template-columns: 1fr; }
+    .cover-main, .section { padding: 36px 24px; }
+    .cover-side { padding: 0 24px 36px; }
+    .cols-2, .cols-3, .cols-4 { grid-template-columns: 1fr; }
+    .section-head { display: block; }
+    .module { grid-template-columns: 1fr; }
+    .page { width: calc(100% - 18px); margin: 9px auto; border-radius: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <section class="page cover">
+    <div class="cover-main">
+      <div class="brand">
+        <div class="brand-mark">CO</div>
+        <div class="brand-text">Club OS</div>
+      </div>
+
+      <div>
+        <div class="eyebrow">Explicacion operativa para clubes</div>
+        <h1>Socios, cuotas, comprobantes y caja en un solo lugar.</h1>
+        <p class="cover-lead">
+          Club OS ordena la vida administrativa del club: quien es socio, que debe pagar, que comprobante envio,
+          que aprobo tesoreria y como queda la caja.
+        </p>
+        <div class="cover-note">Pensado para piloto acompañado, no para autoservicio masivo</div>
+      </div>
+
+      <div class="mini-caption" style="color: rgba(255,255,255,0.55);">Version de explicacion - Agosto 2026</div>
+    </div>
+
+    <aside class="cover-side">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-top">
+            <div class="mini-caption" style="color: rgba(255,255,255,0.55);">Portal del socio</div>
+            <h3 style="font-size: 28px; margin-top: 8px;">Mi estado</h3>
+          </div>
+          <div class="phone-card">
+            <div class="mini-caption">Deuda total</div>
+            <div class="amount">$12.000</div>
+            <span class="status">Comprobante en revision</span>
+          </div>
+          <div class="phone-card">
+            <strong>Cuota mensual - Marzo</strong>
+            <p style="color: #64748b; margin-top: 5px;">Pendiente: $10.000</p>
+          </div>
+          <div class="phone-card">
+            <strong>Enviar comprobante</strong>
+            <p style="color: #64748b; margin-top: 5px;">Monto, fecha, medio de pago y archivo.</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Mapa general</div>
+          <h2>Tres accesos, cada uno con una responsabilidad clara.</h2>
+          <p class="lead">
+            El club no entra todo por la misma puerta. La parte publica muestra el club, el panel interno opera,
+            y el portal del socio resuelve deuda y comprobantes.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid cols-3">
+        <article class="card">
+          <div class="icon">1</div>
+          <h3>Sitio publico del club</h3>
+          <p>URL tipo <strong>/ventarron</strong>. Muestra identidad, equipos, proyectos, sponsors y boton para hacerse socio.</p>
+        </article>
+        <article class="card">
+          <div class="icon orange">2</div>
+          <h3>Panel interno</h3>
+          <p>URL tipo <strong>/ventarron/admin</strong>. Lo usan comision, tesoreria y secretaria para operar el club.</p>
+        </article>
+        <article class="card">
+          <div class="icon green">3</div>
+          <h3>Portal del socio</h3>
+          <p>URL tipo <strong>/ventarron/socio</strong>. Cada socio ve deuda, pagos, historial y envia comprobantes.</p>
+        </article>
+      </div>
+
+      <div class="url-box">
+        <div class="url-row"><strong>/ventarron</strong><span>Sitio publico</span></div>
+        <div class="url-row"><strong>/ventarron/registro</strong><span>Alta de socio</span></div>
+        <div class="url-row"><strong>/ventarron/login</strong><span>Acceso compartido</span></div>
+        <div class="url-row"><strong>/ventarron/admin</strong><span>Panel interno</span></div>
+        <div class="url-row"><strong>/ventarron/socio</strong><span>Portal del socio</span></div>
+      </div>
+    </div>
+
+    <div class="section soft">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Roles internos</div>
+          <h2>Quien entra al panel y que puede hacer.</h2>
+        </div>
+      </div>
+      <table class="role-table">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>Para quien</th>
+            <th>Uso esperado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill">club_admin</span></td>
+            <td>Administrador principal</td>
+            <td>Configura el club, revisa socios, opera cobros, caja, grupos y ajustes.</td>
+          </tr>
+          <tr>
+            <td><span class="pill orange">treasurer</span></td>
+            <td>Tesoreria</td>
+            <td>Aprueba comprobantes, registra pagos, revisa deuda y controla caja.</td>
+          </tr>
+          <tr>
+            <td><span class="pill green">secretary</span></td>
+            <td>Secretaria</td>
+            <td>Gestiona padron, solicitudes, datos de socios y grupos.</td>
+          </tr>
+          <tr>
+            <td><span class="pill gray">viewer</span></td>
+            <td>Consulta</td>
+            <td>Puede revisar informacion sin operar cambios importantes.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Alta de socio</div>
+          <h2>Como se registra una persona y pasa a formar parte del padron.</h2>
+          <p class="lead">
+            El registro evita perder datos en mensajes. La solicitud entra ordenada al panel y queda pendiente
+            hasta que el club la revise.
+          </p>
+        </div>
+      </div>
+
+      <div class="flow">
+        <div class="step">
+          <div><strong>El socio entra al registro publico</strong><span>Completa nombre, DNI, email, telefono, domicilio, localidad y contrasena.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>El sistema crea una solicitud pendiente</strong><span>El socio queda como pendiente. Todavia no ve cuotas ni pagos completos.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Secretaria o administracion revisa</strong><span>La solicitud aparece en Socios, dentro del panel interno.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>El club aprueba el alta</strong><span>Cuando el socio queda activo, ya puede ingresar al portal con DNI y contrasena.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>El socio usa su portal</strong><span>Ve su estado, cuotas, cobros, historial y carga comprobantes.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section dark">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Acceso</div>
+          <h2>Internos con email. Socios con DNI.</h2>
+          <p class="lead">
+            La experiencia se mantiene simple: la comision entra como usuario interno, el socio entra con su DNI.
+            El sistema decide a que superficie llevarlo segun su perfil.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <article class="card">
+          <div class="icon dark">@</div>
+          <h3>Comision, tesoreria y secretaria</h3>
+          <p>Ingresan con email y contrasena. Si tienen rol interno activo, van al panel de administracion.</p>
+        </article>
+        <article class="card">
+          <div class="icon dark">DNI</div>
+          <h3>Socios</h3>
+          <p>Ingresan con DNI y contrasena. Si su socio esta activo, van al portal. Si esta pendiente, ven aviso de revision.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Cobranza</div>
+          <h2>Cuotas mensuales y listas puntuales viven en el mismo sistema.</h2>
+          <p class="lead">
+            La deuda no se carga a mano como una verdad fija. Se calcula desde cada linea asignada al socio menos
+            los pagos registrados.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <article class="card">
+          <div class="icon">M</div>
+          <h3>Cuota mensual</h3>
+          <p>Es el flujo recurrente principal. Tiene periodo, monto, vencimiento y socios activos asignados.</p>
+        </article>
+        <article class="card">
+          <div class="icon orange">L</div>
+          <h3>Listas de recaudacion</h3>
+          <p>Sirven para viajes, torneos, seguros, indumentaria, inscripciones, rifas futuras o cobros puntuales.</p>
+        </article>
+      </div>
+
+      <div style="margin-top: 34px;">
+        <div class="module">
+          <div>
+            <span class="pill">Seguimiento</span>
+            <h3 style="margin-top: 10px;">Que ve tesoreria</h3>
+          </div>
+          <ul>
+            <li>Socios al dia, con deuda o con pagos parciales.</li>
+            <li>Cuanto falta cobrar por cuota mensual y por listas.</li>
+            <li>Quien tiene comprobantes en revision.</li>
+            <li>Mensajes manuales de WhatsApp listos para abrir o copiar.</li>
+          </ul>
+        </div>
+        <div class="module">
+          <div>
+            <span class="pill orange">Pedidos</span>
+            <h3 style="margin-top: 10px;">Compras e indumentaria</h3>
+          </div>
+          <ul>
+            <li>Una lista puede incluir socios y compradores externos.</li>
+            <li>Se pueden manejar montos distintos, senas, parciales, talles o detalles.</li>
+            <li>Los gastos al proveedor pueden asociarse a esa lista para entender el resultado.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section soft">
+      <div class="quote">
+        La pregunta central deja de ser "quien se acuerda?" y pasa a ser:
+        quien debe, por que debe, cuanto pago y que falta resolver.
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Comprobantes</div>
+          <h2>El socio informa el pago, tesoreria lo valida y el sistema actualiza deuda.</h2>
+        </div>
+      </div>
+
+      <div class="flow">
+        <div class="step">
+          <div><strong>El socio elige una cuota o cobro pendiente</strong><span>No puede enviar comprobante para una linea que no le pertenece.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Carga monto, fecha, medio de pago y archivo</strong><span>El comprobante puede ser JPG, PNG, WebP o PDF de hasta 10 MB.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Queda en revision</strong><span>Mientras esta pendiente, no se permite duplicar comprobante para esa misma cuota o cobro.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Tesoreria aprueba o rechaza</strong><span>Desde Pagos enviados, ve socio, concepto, monto, medio y archivo firmado.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Si aprueba, se registra el pago real</strong><span>Baja la deuda del socio, aparece en historial e impacta en caja como ingreso.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Si rechaza, queda el motivo</strong><span>El socio lo ve y puede volver a enviar un comprobante corregido.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section soft">
+      <div class="grid cols-3">
+        <article class="card">
+          <div class="icon green">$</div>
+          <h3>No excede saldo</h3>
+          <p>El sistema no acepta comprobantes por un monto mayor al pendiente de esa linea.</p>
+        </article>
+        <article class="card">
+          <div class="icon orange">!</div>
+          <h3>Revision humana</h3>
+          <p>El comprobante no se toma como pago hasta que tesoreria lo aprueba.</p>
+        </article>
+        <article class="card">
+          <div class="icon">#</div>
+          <h3>Historial claro</h3>
+          <p>Socio y admin pueden consultar pagos, estados y rechazos anteriores.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Caja y gastos</div>
+          <h2>Caja muestra movimientos reales: ingresos aprobados y egresos cargados.</h2>
+          <p class="lead">
+            Caja no crea deuda. Lee ingresos desde pagos registrados y permite cargar gastos reales del club.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <article class="card">
+          <div class="icon green">+</div>
+          <h3>Ingresos</h3>
+          <p>Aparecen cuando se registra un pago o se aprueba un comprobante enviado por un socio.</p>
+        </article>
+        <article class="card">
+          <div class="icon orange">-</div>
+          <h3>Egresos</h3>
+          <p>Se cargan manualmente: compras, proveedores, materiales, gastos operativos o pagos vinculados a listas.</p>
+        </article>
+      </div>
+
+      <div style="margin-top: 34px;">
+        <div class="module">
+          <div>
+            <span class="pill">Caja mensual</span>
+            <h3 style="margin-top: 10px;">Que permite revisar</h3>
+          </div>
+          <ul>
+            <li>Ingresos del mes.</li>
+            <li>Egresos del mes.</li>
+            <li>Balance mensual.</li>
+            <li>Movimientos por fecha, concepto y medio de pago.</li>
+          </ul>
+        </div>
+        <div class="module">
+          <div>
+            <span class="pill orange">Compras</span>
+            <h3 style="margin-top: 10px;">Relacion con listas</h3>
+          </div>
+          <ul>
+            <li>Una recaudacion puntual puede tener egresos asociados.</li>
+            <li>Ejemplo: una lista de camperas registra pagos de socios y gasto al proveedor.</li>
+            <li>Esto ayuda a entender si una actividad ya cubrio sus costos.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section dark">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Modulos del panel</div>
+          <h2>Lo que tiene hoy el programa.</h2>
+        </div>
+      </div>
+      <div class="grid cols-4">
+        <article class="card"><h3>Dashboard</h3><p>Resumen diario de deuda, caja y tareas.</p></article>
+        <article class="card"><h3>Socios</h3><p>Padron, solicitudes, bajas y ficha individual.</p></article>
+        <article class="card"><h3>Cuotas y listas</h3><p>Cobranza mensual y recaudaciones puntuales.</p></article>
+        <article class="card"><h3>Pagos enviados</h3><p>Bandeja de comprobantes para tesoreria.</p></article>
+        <article class="card"><h3>Caja</h3><p>Ingresos, egresos y balance.</p></article>
+        <article class="card"><h3>Grupos</h3><p>Equipos, categorias o comisiones.</p></article>
+        <article class="card"><h3>Ajustes</h3><p>Logo, cuota, alias, colores y sponsors.</p></article>
+        <article class="card"><h3>Portal socio</h3><p>Deuda, historial y comprobantes.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="section">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Alcance actual</div>
+          <h2>Que hace y que no hace todavia.</h2>
+        </div>
+      </div>
+
+      <div class="grid cols-2">
+        <article class="card">
+          <div class="icon green">OK</div>
+          <h3>Hoy si hace</h3>
+          <p>Ordena socios, altas, cuotas, listas, pagos, comprobantes, caja, egresos, grupos, sponsors y configuracion base del club.</p>
+        </article>
+        <article class="card">
+          <div class="icon orange">V1</div>
+          <h3>Todavia no hace</h3>
+          <p>No es multi-club autoservicio, no envia WhatsApp automaticamente, no concilia bancos y no suma modulos grandes como rifas.</p>
+        </article>
+      </div>
+
+      <div style="margin-top: 30px;" class="quote">
+        Club OS ordena socios, cuotas, comprobantes y caja en un solo lugar.
+        El socio ve que debe y sube comprobantes; tesoreria aprueba pagos,
+        controla deuda y entiende la caja sin depender de planillas o mensajes sueltos.
+      </div>
+    </div>
+
+    <div class="section soft">
+      <div class="section-head">
+        <div>
+          <div class="mini-caption">Como explicarlo en una reunion</div>
+          <h2>Guion corto.</h2>
+        </div>
+      </div>
+      <div class="flow">
+        <div class="step">
+          <div><strong>Primero mostramos el club</strong><span>La URL publica presenta identidad, registro de socios y proyectos.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Despues mostramos el panel</strong><span>Comision ve socios, solicitudes, cuotas, listas, comprobantes y caja.</span></div>
+        </div>
+        <div class="step">
+          <div><strong>Finalmente mostramos el portal del socio</strong><span>El socio entra con DNI, ve deuda, envia comprobante y sigue el estado.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

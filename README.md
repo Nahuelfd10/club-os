@@ -6,6 +6,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 - [Checklist de onboarding para clubes piloto](docs/PILOT_ONBOARDING_CHECKLIST.md)
 
+- [Explicación operativa de Club OS](clubos_explicacion_operativa.html): HTML standalone para explicar qué tiene el sistema, cómo entran internos/socios y cómo funcionan socios, cuotas, comprobantes, caja y gastos. Mantenerlo actualizado cuando cambien flujos o módulos.
+
 ## Requisitos locales
 
 - Node.js 20.9.0 o superior. Next.js 16.2.1 no compila con Node 18.

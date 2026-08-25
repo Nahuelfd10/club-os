@@ -107,6 +107,13 @@ Notas del cierre pre-piloto del 2026-08-25:
 4. Pagos enviados concentra comprobantes a revisar.
 5. Caja muestra ingresos desde pagos y egresos manuales.
 
+## Material explicativo vivo
+
+- `clubos_explicacion_operativa.html` es el HTML standalone para explicar el producto a clubes o colaboradores.
+- Resume accesos, roles, registro de socios, cuotas/listas, comprobantes, caja/gastos, modulos actuales y alcance v1.
+- Debe actualizarse junto con este documento cuando cambien flujos visibles, roles, rutas principales, modulos del panel o reglas operativas importantes.
+- La intencion es que siga siendo una pieza clara para abrir en navegador, imprimir o exportar a PDF durante demos y conversaciones comerciales.
+
 ## Variables de entorno
 
 | Variable | Uso |
