@@ -129,6 +129,7 @@ No documentar ni commitear valores reales.
 
 ## Pendientes antes de clubes test
 
+- Usar `docs/BETA_CERRADA_CHECKLIST.md` como checklist operativo antes de compartir una beta cerrada.
 - Reconciliar nombres/timestamps de migraciones locales contra historial remoto antes de tocar produccion.
 - Hacer QA end-to-end con usuarios reales o seed controlado: registro, aprobacion, invitacion, login socio, comprobante, aprobacion/rechazo y deuda actualizada.
 - Limpiar datos demo que puedan confundir antes de mostrar a un club real.

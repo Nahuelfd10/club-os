@@ -424,7 +424,7 @@ export default function AdminGroupDetailPage() {
               id="edit-group-name"
               value={editName}
               onChange={(event) => setEditName(event.target.value)}
-              placeholder="Ej. LIFA - Masculino"
+              placeholder="Ej. Primera masculino"
               className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               autoComplete="off"
             />
