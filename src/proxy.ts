@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getActiveProfileByAuthUser, profileIsInternal } from "@/lib/authz";
-import { adminPath, clubPath } from "@/lib/routes";
+import { adminPath, clubPath, commissionLoginPath, memberLoginPath } from "@/lib/routes";
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
 
 /**
@@ -14,11 +14,10 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const canonicalClubRoot = clubPath();
   const canonicalClubSlug = canonicalClubRoot.replace(/^\//, "");
-  const canonicalLogin = clubPath("login");
-  const canonicalAdminLogin = clubPath("admin/login");
+  const canonicalCommissionLogin = commissionLoginPath();
   const canonicalAdmin = adminPath();
   const canonicalMemberPortal = clubPath("socio");
-  const canonicalMemberLogin = clubPath("socio/login");
+  const canonicalMemberLogin = memberLoginPath();
   const isInternalRewrite = request.headers.get("x-clubos-internal-rewrite") === "1";
 
   const withSessionCookies = (nextResponse: NextResponse) => {
@@ -69,14 +68,14 @@ export async function proxy(request: NextRequest) {
     return redirectTo(`${canonicalClubRoot}${pathname.slice("/club".length)}`);
   }
 
-  if (pathname === "/login") {
-    return redirectTo(canonicalLogin);
-  }
-
   const isClubRoute = pathname === canonicalClubRoot || pathname.startsWith(`${canonicalClubRoot}/`);
-  const isLoginRoute = pathname === canonicalLogin;
-  const isAdminLoginRoute = pathname === canonicalAdminLogin;
+  const isCommissionLoginRoute = pathname === canonicalCommissionLogin;
   const isMemberLoginRoute = pathname === canonicalMemberLogin;
+  const isLegacyClubLoginRoute = pathname === clubPath("login");
+  const isLegacyAdminLoginRoute = pathname === clubPath("admin/login");
+  const isLegacyMemberLoginRoute = pathname === clubPath("socio/login");
+  const isRemovedLoginRoute =
+    pathname === "/login" || isLegacyClubLoginRoute || isLegacyAdminLoginRoute || isLegacyMemberLoginRoute;
   const isAdminArea = pathname === canonicalAdmin || pathname.startsWith(`${canonicalAdmin}/`);
   const isMemberPortal =
     pathname === canonicalMemberPortal ||
@@ -88,31 +87,25 @@ export async function proxy(request: NextRequest) {
   const isInternalUser = profileIsInternal(profile);
   const hasMemberPortal = Boolean(profile?.member_id);
 
-  if ((isAdminLoginRoute || isMemberLoginRoute || isLoginRoute) && user) {
-    if (isAdminLoginRoute && isInternalUser) {
+  if (isRemovedLoginRoute) {
+    return redirectTo(canonicalClubRoot);
+  }
+
+  if ((isCommissionLoginRoute || isMemberLoginRoute) && user) {
+    if (isCommissionLoginRoute && isInternalUser) {
       return redirectTo(canonicalAdmin);
     }
     if (isMemberLoginRoute && hasMemberPortal) {
       return redirectTo(canonicalMemberPortal);
     }
-    if (isMemberLoginRoute && isInternalUser) {
-      return redirectTo(canonicalAdmin);
-    }
-    if (isLoginRoute && isInternalUser) {
-      return redirectTo(canonicalAdmin);
-    }
-    if (hasMemberPortal) {
-      return redirectTo(canonicalMemberPortal);
-    }
-    return response;
   }
 
-  if (isAdminArea && !isAdminLoginRoute && !user) {
-    return redirectTo(canonicalAdminLogin);
+  if (isAdminArea && !user) {
+    return redirectTo(canonicalCommissionLogin);
   }
 
-  if (isAdminArea && !isAdminLoginRoute && user && !isInternalUser) {
-    return redirectTo(hasMemberPortal ? canonicalMemberPortal : canonicalLogin);
+  if (isAdminArea && user && !isInternalUser) {
+    return redirectTo(hasMemberPortal ? canonicalMemberPortal : canonicalClubRoot);
   }
 
   if (isMemberPortal && !isMemberLoginRoute && !user) {
@@ -120,30 +113,30 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isMemberPortal && !isMemberLoginRoute && user && !hasMemberPortal) {
-    return redirectTo(isInternalUser ? canonicalAdmin : canonicalLogin);
+    return redirectTo(isInternalUser ? canonicalAdmin : canonicalClubRoot);
   }
 
   if (isClubRoute) {
     const clubSuffix = pathname.slice(canonicalClubRoot.length);
 
-    if (isAdminLoginRoute) {
-      return rewriteTo("/admin/login", { clubos_login: "admin", clubos_slug: canonicalClubSlug });
+    if (isCommissionLoginRoute) {
+      return rewriteTo("/admin/login", { clubos_login: "comision", clubos_slug: canonicalClubSlug });
     }
 
     if (isMemberLoginRoute) {
-      return rewriteTo("/admin/login", { clubos_login: "member", clubos_slug: canonicalClubSlug });
+      return rewriteTo("/admin/login", { clubos_login: "socios", clubos_slug: canonicalClubSlug });
     }
 
     if (isAdminArea) {
       return rewriteTo(`/admin${pathname.slice(canonicalAdmin.length)}`);
     }
 
-    if (isLoginRoute) {
-      return rewriteTo("/admin/login", { clubos_login: "club", clubos_slug: canonicalClubSlug });
-    }
-
     if (isMemberPortal) {
       return rewriteTo(`/socio${pathname.slice(canonicalMemberPortal.length)}`);
+    }
+
+    if (clubSuffix === "/reset-password") {
+      return rewriteTo("/reset-password", { clubos_slug: canonicalClubSlug });
     }
 
     return rewriteTo(`/club${clubSuffix}`);

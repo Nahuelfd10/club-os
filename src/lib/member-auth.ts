@@ -19,8 +19,3 @@ export function memberAuthEmailFromDni(dni: string, slug: string) {
   }
   return `${normalized}.${normalizedSlug}@${MEMBER_AUTH_DOMAIN}`;
 }
-
-export function authEmailFromIdentifier(identifier: string, slug: string) {
-  const trimmed = identifier.trim().toLowerCase();
-  return isEmailIdentifier(trimmed) ? trimmed : memberAuthEmailFromDni(trimmed, slug);
-}

@@ -7,13 +7,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClubLogo } from "@/components/club-logo";
 import { Button, Card, FormField, Input } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
-import { adminPath, clubPath } from "@/lib/routes";
-import { authEmailFromIdentifier, isEmailIdentifier } from "@/lib/member-auth";
+import { adminPath, commissionLoginPath, memberLoginPath } from "@/lib/routes";
+import { isEmailIdentifier, memberAuthEmailFromDni } from "@/lib/member-auth";
 import { getCurrentUserProfile, isInternalClubRole } from "@/lib/supabase";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { useClubRoutes } from "@/lib/use-club-routes";
 
-type LoginMode = "admin" | "member" | "club";
+type LoginMode = "comision" | "socios";
 
 const loginCopy: Record<
   LoginMode,
@@ -29,7 +29,7 @@ const loginCopy: Record<
     submitLabel: string;
   }
 > = {
-  admin: {
+  comision: {
     eyebrow: "Acceso comision",
     title: "Ingresar al panel del club",
     description: "Tesoreria, secretaria y administracion ingresan con el email de su cuenta.",
@@ -40,27 +40,16 @@ const loginCopy: Record<
     recoveryMessage: "Si existe una cuenta con ese email, enviamos un enlace para cambiar la contrasena.",
     submitLabel: "Ingresar al admin",
   },
-  member: {
+  socios: {
     eyebrow: "Acceso socios",
     title: "Ingresar a mi perfil",
-    description: "Los socios ingresan con DNI. Si sos parte de la comision y tenes ficha de socio, tambien podes usar tu email.",
+    description: "Ingresa con tu DNI para ver tu ficha, cuotas, pagos y comprobantes.",
     identifierLabel: "DNI",
     identifierPlaceholder: "DNI del socio",
     resetLabel: "DNI",
     resetPlaceholder: "DNI del socio",
     recoveryMessage: "Si existe una cuenta con ese DNI, enviamos un enlace para cambiar la contrasena.",
     submitLabel: "Ingresar a mi perfil",
-  },
-  club: {
-    eyebrow: "Acceso al club",
-    title: "Ingresar a Club OS",
-    description: "Socios ingresan con DNI. Comision y tesoreria ingresan con email.",
-    identifierLabel: "DNI o email",
-    identifierPlaceholder: "DNI del socio o email del club",
-    resetLabel: "DNI o email",
-    resetPlaceholder: "DNI del socio o email del club",
-    recoveryMessage: "Si existe una cuenta con ese DNI o email, enviamos un enlace para cambiar la contrasena.",
-    submitLabel: "Ingresar",
   },
 };
 
@@ -73,9 +62,7 @@ export default function AdminLoginPage() {
   const requestedMode = searchParams.get("clubos_login");
   const isPlatformLogin = pathname === "/admin/login" && !requestedMode;
   const mode: LoginMode =
-    requestedMode === "admin" || requestedMode === "member" || requestedMode === "club"
-      ? requestedMode
-      : "club";
+    requestedMode === "socios" || pathname.endsWith("/socios/login") ? "socios" : "comision";
   const activeSlug = searchParams.get("clubos_slug") || routes.slug;
   const copy = loginCopy[mode];
   const [identifier, setIdentifier] = useState("");
@@ -89,13 +76,10 @@ export default function AdminLoginPage() {
   const routeError = searchParams.get("error");
 
   const alternateAccess = useMemo(() => {
-    if (mode === "admin") {
-      return { href: clubPath("socio/login", activeSlug), label: "Soy socio" };
+    if (mode === "comision") {
+      return { href: memberLoginPath(activeSlug), label: "Soy socio" };
     }
-    if (mode === "member") {
-      return { href: clubPath("admin/login", activeSlug), label: "Soy de comision" };
-    }
-    return null;
+    return { href: commissionLoginPath(activeSlug), label: "Soy de comision" };
   }, [activeSlug, mode]);
 
   const redirectAfterLogin = async () => {
@@ -110,27 +94,19 @@ export default function AdminLoginPage() {
     const isInternal = isInternalClubRole(profile.role);
     const hasMemberPortal = Boolean(profile.member_id);
 
-    if (mode === "member") {
-      if (hasMemberPortal) {
-        router.replace(clubPath("socio", activeSlug));
-        router.refresh();
-        return;
-      }
+    if (mode === "comision") {
       if (isInternal) {
         router.replace(adminPath("", activeSlug));
         router.refresh();
         return;
       }
-    }
-
-    if (isInternal) {
-      router.replace(adminPath("", activeSlug));
-      router.refresh();
+      setErrorMessage("Tu usuario no tiene acceso al panel del club.");
+      await getBrowserSupabase().auth.signOut();
       return;
     }
 
     if (hasMemberPortal) {
-      router.replace(clubPath("socio", activeSlug));
+      router.replace(routes.clubPath("socio"));
       router.refresh();
       return;
     }
@@ -146,14 +122,21 @@ export default function AdminLoginPage() {
 
     try {
       const trimmedIdentifier = identifier.trim();
-      if (mode === "admin" && !isEmailIdentifier(trimmedIdentifier)) {
+      if (mode === "comision" && !isEmailIdentifier(trimmedIdentifier)) {
         setErrorMessage("Para el panel del club ingresa con el email de tu cuenta.");
+        return;
+      }
+      if (mode === "socios" && isEmailIdentifier(trimmedIdentifier)) {
+        setErrorMessage("Para el portal de socio ingresa con tu DNI.");
         return;
       }
 
       const supabase = getBrowserSupabase();
       const { error } = await supabase.auth.signInWithPassword({
-        email: authEmailFromIdentifier(trimmedIdentifier, activeSlug),
+        email:
+          mode === "comision"
+            ? trimmedIdentifier.toLowerCase()
+            : memberAuthEmailFromDni(trimmedIdentifier, activeSlug),
         password,
       });
 
@@ -182,11 +165,11 @@ export default function AdminLoginPage() {
 
     try {
       const trimmedIdentifier = resetIdentifier.trim();
-      if (mode === "admin" && !isEmailIdentifier(trimmedIdentifier)) {
+      if (mode === "comision" && !isEmailIdentifier(trimmedIdentifier)) {
         setErrorMessage("Para recuperar acceso al panel, ingresa el email de tu cuenta.");
         return;
       }
-      if (mode === "member" && isEmailIdentifier(trimmedIdentifier)) {
+      if (mode === "socios" && isEmailIdentifier(trimmedIdentifier)) {
         setErrorMessage("Para recuperar acceso de socio, ingresa tu DNI.");
         return;
       }
@@ -194,7 +177,7 @@ export default function AdminLoginPage() {
       const response = await fetch("/api/auth/member-password-reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: trimmedIdentifier, slug: activeSlug }),
+        body: JSON.stringify({ identifier: trimmedIdentifier, slug: activeSlug, mode }),
       });
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
@@ -246,8 +229,8 @@ export default function AdminLoginPage() {
             <Input
               id="identifier"
               name="identifier"
-              type={mode === "admin" ? "email" : "text"}
-              inputMode={mode === "member" ? "numeric" : "text"}
+              type={mode === "comision" ? "email" : "text"}
+              inputMode={mode === "socios" ? "numeric" : "text"}
               autoComplete="username"
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
@@ -301,8 +284,8 @@ export default function AdminLoginPage() {
             <FormField htmlFor="reset_identifier" label={copy.resetLabel}>
               <Input
                 id="reset_identifier"
-                type={mode === "admin" ? "email" : "text"}
-                inputMode={mode === "member" ? "numeric" : "text"}
+                type={mode === "comision" ? "email" : "text"}
+                inputMode={mode === "socios" ? "numeric" : "text"}
                 value={resetIdentifier}
                 onChange={(event) => setResetIdentifier(event.target.value)}
                 required

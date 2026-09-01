@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
       show: stats.pendingMembers > 0,
     },
     {
-      href: adminPath("charges"),
+      href: adminPath("charges/membership"),
       title: `${stats.membersWithDebt} socios con saldo pendiente`,
       description: `${formatMoney(stats.totalDebt)} abiertos entre cuota mensual y otros cobros.`,
       tone: "info",
@@ -39,7 +39,7 @@ export default async function AdminDashboardPage() {
       show: stats.membersWithDebt > 0,
     },
     {
-      href: adminPath("charges"),
+      href: adminPath("charges/lists"),
       title: "Preparar recordatorios del mes",
       description: "Mensajes de WhatsApp manuales listos desde el detalle de cada lista.",
       tone: "success",

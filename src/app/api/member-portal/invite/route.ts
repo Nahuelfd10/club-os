@@ -7,6 +7,14 @@ import { clubPath } from "@/lib/routes";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getServerSupabase } from "@/lib/supabase/server";
 
+function resetPasswordUrl(origin: string, slug: string, tokenHash: string) {
+  const url = new URL(clubPath("reset-password", slug), origin);
+  url.searchParams.set("access", "socios");
+  url.searchParams.set("token_hash", tokenHash);
+  url.searchParams.set("type", "recovery");
+  return url.toString();
+}
+
 export async function POST(request: Request) {
   const supabase = await getServerSupabase();
   const {
@@ -100,18 +108,18 @@ export async function POST(request: Request) {
     type: "recovery",
     email: authEmail,
     options: {
-      redirectTo: `${origin}${clubPath("reset-password", slug)}`,
+      redirectTo: `${origin}${clubPath("reset-password", slug)}?access=socios`,
     },
   });
 
-  if (linkError || !linkData.properties?.action_link) {
+  if (linkError || !linkData.properties?.hashed_token) {
     return NextResponse.json({ error: linkError?.message || "No se pudo generar el enlace de acceso." }, { status: 400 });
   }
 
   await sendPasswordResetEmail({
     to: member.email,
     name: member.full_name,
-    resetUrl: linkData.properties.action_link,
+    resetUrl: resetPasswordUrl(origin, slug, linkData.properties.hashed_token),
     clubName: fallbackClubConfig.name,
   });
 

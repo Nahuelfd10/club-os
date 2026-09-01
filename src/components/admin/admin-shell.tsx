@@ -3,6 +3,7 @@
 import {
   ArrowDownCircle,
   BadgeCheck,
+  ClipboardList,
   CreditCard,
   House,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import { ClubLogo } from "@/components/club-logo";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
 import type { AuthzProfile } from "@/lib/authz";
+import { commissionLoginPath } from "@/lib/routes";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { useClubRoutes } from "@/lib/use-club-routes";
 import { Button, buttonClassNames } from "@/components/ui";
@@ -40,7 +42,8 @@ type NavItem = {
 const navItems: NavItem[] = [
   { path: "", label: "Dashboard", icon: LayoutDashboard },
   { path: "socios", label: "Socios", icon: Users },
-  { path: "charges", label: "Cuotas y listas", icon: Receipt },
+  { path: "charges/membership", label: "Cuotas mensuales", icon: Receipt },
+  { path: "charges/lists", label: "Listas de recaudacion", icon: ClipboardList },
   { path: "payments", label: "Pagos enviados", icon: ReceiptText },
   { path: "expenses", label: "Caja", icon: ArrowDownCircle },
   { path: "groups", label: "Grupos", icon: UsersRound },
@@ -83,7 +86,7 @@ export function AdminShell({ children, profile, userEmail }: AdminShellProps) {
       // detecte el estado sin cookies y redirija.
       console.error("Error cerrando sesión", error);
     } finally {
-      router.replace(routes.clubPath("admin/login"));
+      router.replace(commissionLoginPath(routes.slug));
       router.refresh();
     }
   };

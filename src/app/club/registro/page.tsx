@@ -8,6 +8,7 @@ import { ClubLogo } from "@/components/club-logo";
 import { Button, FormField, Input, buttonClassNames } from "@/components/ui";
 import { useActiveClubConfig } from "@/config/use-active-club-config";
 import { formatMoney } from "@/lib/formatters";
+import { memberLoginPath } from "@/lib/routes";
 import { useClubRoutes } from "@/lib/use-club-routes";
 
 type MemberForm = {
@@ -288,7 +289,7 @@ export default function ClubRegistroPage() {
                 información de cuotas y pagos.
               </p>
               <Link
-                href={routes.clubPath("login")}
+                href={memberLoginPath(routes.slug)}
                 className={buttonClassNames({
                   variant: "primary",
                   size: "md",

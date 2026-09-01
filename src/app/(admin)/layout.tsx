@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getActiveProfileByAuthUser, profileIsInternal } from "@/lib/authz";
-import { clubPath } from "@/lib/routes";
+import { clubPath, commissionLoginPath } from "@/lib/routes";
 import { getServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (profile?.member_id) {
       redirect(clubPath("socio"));
     }
-    redirect(clubPath("login"));
+    redirect(commissionLoginPath());
   }
 
   return <AdminShell profile={profile} userEmail={user.email ?? null}>{children}</AdminShell>;

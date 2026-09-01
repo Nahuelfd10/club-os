@@ -551,10 +551,6 @@ export type Database = {
         Args: { p_submission_id: string; p_rejection_reason: string };
         Returns: void;
       };
-      claim_member_profile_by_email: {
-        Args: Record<string, never>;
-        Returns: string;
-      };
       public_active_sponsors: {
         Args: Record<string, never>;
         Returns: {

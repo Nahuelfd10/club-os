@@ -415,7 +415,7 @@ export default function AdminExpensesPage() {
         {!isLoading && !errorMessage && filteredMovements.length === 0 ? (
           <EmptyState
             title="No hay movimientos para este filtro"
-            description="Los ingresos aparecen cuando registras pagos en Cuotas y listas. Los egresos se cargan aca como gastos reales."
+            description="Los ingresos aparecen cuando registras pagos en cuotas mensuales o listas. Los egresos se cargan aca como gastos reales."
             actions={
               <Button type="button" size="md" onClick={openCreate}>
                 Registrar egreso

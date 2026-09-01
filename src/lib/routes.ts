@@ -23,3 +23,11 @@ export function adminPath(path = "", slug = defaultClubSlug) {
   const normalized = path ? `/${path.replace(/^\/+/, "")}` : "";
   return clubPath(`admin${normalized}`, slug);
 }
+
+export function commissionLoginPath(slug = defaultClubSlug) {
+  return clubPath("comision/login", slug);
+}
+
+export function memberLoginPath(slug = defaultClubSlug) {
+  return clubPath("socios/login", slug);
+}

@@ -44,6 +44,7 @@ import {
 import { getCurrentUserProfile, getMemberById } from "@/lib/supabase";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { useClubRoutes } from "@/lib/use-club-routes";
+import { memberLoginPath } from "@/lib/routes";
 import type { Member } from "@/types";
 
 type PaymentHistoryRow = ChargePaymentRow & {
@@ -150,7 +151,7 @@ export default function MemberPortalPage() {
     try {
       const profile = await getCurrentUserProfile();
       if (!profile?.member_id) {
-        router.replace(routes.clubPath("login"));
+        router.replace(memberLoginPath(routes.slug));
         return;
       }
 
@@ -377,7 +378,7 @@ export default function MemberPortalPage() {
   const handleLogout = async () => {
     const supabase = getBrowserSupabase();
     await supabase.auth.signOut();
-    router.replace(routes.clubPath("login"));
+    router.replace(memberLoginPath(routes.slug));
     router.refresh();
   };
 
