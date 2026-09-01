@@ -4,9 +4,43 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { getSupabaseClient } from "@/lib/supabase";
-import type { MemberChargeTrackingStatus, MemberStatus } from "@/types";
+import type { ClubUserRole, CollectionAccountKind, MemberChargeTrackingStatus, MemberStatus } from "@/types";
 
 export type ChargeListKind = "general" | "order";
+
+export type CollectionAccountRow = {
+  id: string;
+  name: string;
+  alias: string | null;
+  kind: CollectionAccountKind;
+  responsible_profile_id: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  retired_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ChargeCollectionAccount = Pick<
+  CollectionAccountRow,
+  "id" | "name" | "alias" | "kind" | "responsible_profile_id"
+>;
+
+export type CollectionAccountResponsibleOption = {
+  profile_id: string;
+  email: string;
+  role: ClubUserRole;
+};
+
+export type OpenClubAliasChangeTarget = {
+  charge_id: string;
+  charge_name: string;
+  charge_type: "Cuota mensual" | "Lista de recaudacion" | string;
+  billing_period: string | null;
+  pending_amount: number;
+  pending_lines: number;
+  partial_lines: number;
+};
 
 export type ChargeRow = {
   id: string;
@@ -20,11 +54,13 @@ export type ChargeRow = {
   billing_period: string | null;
   list_kind: ChargeListKind;
   supplier_name: string | null;
+  collection_account_id: string | null;
   created_at: string;
 };
 
 export type ChargeWithGroup = ChargeRow & {
   group: { id: string; name: string } | null;
+  collection_account: ChargeCollectionAccount | null;
   /** Desde `charge_definitions.category` en el join. */
   category: string | null;
 };
@@ -86,6 +122,7 @@ export type MemberChargeWithDetails = {
     id: string;
     name: string;
     due_date: string | null;
+    collection_account: ChargeCollectionAccount | null;
     /** `null` si el cargo no tiene grupo (p. ej. cuota club) o el embed falló. */
     group: { id: string; name: string } | null;
   };
@@ -118,6 +155,204 @@ export function isMembershipCategory(category: string | null | undefined): boole
 
 function normalizeListKind(value: unknown): ChargeListKind {
   return value === "order" ? "order" : "general";
+}
+
+function normalizeCollectionAccountKind(value: unknown): CollectionAccountKind {
+  return value === "club" ? "club" : "external";
+}
+
+function mapCollectionAccount(row: unknown): ChargeCollectionAccount | null {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const raw = row as {
+    id?: unknown;
+    name?: unknown;
+    alias?: unknown;
+    kind?: unknown;
+    responsible_profile_id?: unknown;
+  };
+  if (typeof raw.id !== "string") {
+    return null;
+  }
+  return {
+    id: raw.id,
+    name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Cuenta de cobro",
+    alias: typeof raw.alias === "string" && raw.alias.trim() ? raw.alias.trim() : null,
+    kind: normalizeCollectionAccountKind(raw.kind),
+    responsible_profile_id:
+      typeof raw.responsible_profile_id === "string" ? raw.responsible_profile_id : null,
+  };
+}
+
+export function collectionAccountLabel(account: ChargeCollectionAccount | null | undefined): string {
+  if (!account) {
+    return "Alias del club";
+  }
+  if (account.kind === "club") {
+    return account.alias?.trim() ? `Alias del club - ${account.alias.trim()}` : "Alias del club";
+  }
+  const alias = account.alias?.trim();
+  return alias ? `${account.name} - ${alias}` : account.name;
+}
+
+export function collectionAccountResponsibleLabel(responsible: CollectionAccountResponsibleOption): string {
+  const roleLabels: Record<ClubUserRole, string> = {
+    club_admin: "Administrador",
+    treasurer: "Tesoreria",
+    secretary: "Secretaria",
+    viewer: "Solo lectura",
+    member: "Socio",
+  };
+  return `${responsible.email} - ${roleLabels[responsible.role] ?? responsible.role}`;
+}
+
+function mapCollectionAccountRow(row: unknown): CollectionAccountRow {
+  const raw = row as {
+    id: string;
+    name: string;
+    alias: string | null;
+    kind: string | null;
+    responsible_profile_id: string | null;
+    is_active: boolean | null;
+    is_default?: boolean | null;
+    retired_at?: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  return {
+    id: raw.id,
+    name: raw.name?.trim() || "Cuenta de cobro",
+    alias: raw.alias?.trim() || null,
+    kind: normalizeCollectionAccountKind(raw.kind),
+    responsible_profile_id: raw.responsible_profile_id ?? null,
+    is_active: raw.is_active ?? true,
+    is_default: raw.is_default ?? false,
+    retired_at: raw.retired_at ?? null,
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+  };
+}
+
+export async function listCollectionAccounts(options?: { activeOnly?: boolean }): Promise<CollectionAccountRow[]> {
+  const supabase = getSupabaseClient();
+  let query = supabase
+    .from("collection_accounts")
+    .select("id, name, alias, kind, responsible_profile_id, is_active, is_default, retired_at, created_at, updated_at")
+    .order("is_default", { ascending: false })
+    .order("kind", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (options?.activeOnly) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    const msg = error.message?.toLowerCase() ?? "";
+    if (msg.includes("collection_accounts") || msg.includes("schema cache")) {
+      return [];
+    }
+    throw error;
+  }
+
+  return (data ?? []).map(mapCollectionAccountRow);
+}
+
+export async function getClubCollectionAccount(): Promise<CollectionAccountRow | null> {
+  const accounts = await listCollectionAccounts({ activeOnly: true });
+  return accounts.find((account) => account.kind === "club" && account.is_default) ??
+    accounts.find((account) => account.kind === "club") ??
+    null;
+}
+
+export async function listOpenClubAliasChangeTargets(): Promise<OpenClubAliasChangeTarget[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("list_open_club_alias_change_targets");
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => ({
+    charge_id: row.charge_id,
+    charge_name: row.charge_name,
+    charge_type: row.charge_type,
+    billing_period: row.billing_period,
+    pending_amount: normalizeAmount(row.pending_amount),
+    pending_lines: Number(row.pending_lines) || 0,
+    partial_lines: Number(row.partial_lines) || 0,
+  }));
+}
+
+export async function changeClubPaymentAlias(payload: {
+  new_alias: string | null;
+  apply_to_open_charges: boolean;
+}): Promise<string> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("change_club_payment_alias", {
+    p_new_alias: payload.new_alias?.trim() || null,
+    p_apply_to_open_charges: payload.apply_to_open_charges,
+  });
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+export async function listCollectionAccountResponsibles(): Promise<CollectionAccountResponsibleOption[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc("list_collection_account_responsibles");
+  if (error) {
+    const msg = error.message?.toLowerCase() ?? "";
+    if (msg.includes("list_collection_account_responsibles") || msg.includes("schema cache")) {
+      return [];
+    }
+    throw error;
+  }
+
+  return (data ?? []).map((row) => ({
+    profile_id: row.profile_id,
+    email: row.email,
+    role: row.role,
+  }));
+}
+
+export async function createExternalCollectionAccount(payload: {
+  alias: string;
+  responsible_profile_id: string;
+  name?: string | null;
+}): Promise<CollectionAccountRow> {
+  const alias = payload.alias.trim();
+  if (!alias) {
+    throw new Error("El alias de la cuenta es obligatorio.");
+  }
+  if (!payload.responsible_profile_id.trim()) {
+    throw new Error("Elegí un responsable de comisión para esta cuenta.");
+  }
+
+  const supabase = getSupabaseClient();
+  const responsibles = await listCollectionAccountResponsibles();
+  const responsible = responsibles.find((item) => item.profile_id === payload.responsible_profile_id);
+  const name = payload.name?.trim() || (responsible ? `Cuenta de ${responsible.email}` : "Cuenta externa");
+
+  const { data, error } = await supabase
+    .from("collection_accounts")
+    .insert({
+      name,
+      alias,
+      kind: "external",
+      responsible_profile_id: payload.responsible_profile_id,
+      is_active: true,
+      is_default: false,
+    })
+    .select("id, name, alias, kind, responsible_profile_id, is_active, is_default, retired_at, created_at, updated_at")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapCollectionAccountRow(data);
 }
 
 export function formatBillingPeriod(dateString: string): string {
@@ -162,6 +397,8 @@ export type ChargePaymentRow = {
   amount: number;
   paid_at: string;
   payment_method: ClubPaymentMethod;
+  collection_account_id: string | null;
+  counts_as_club_income: boolean;
   created_at: string;
 };
 
@@ -174,6 +411,7 @@ export type ChargePaymentWithContext = ChargePaymentRow & {
       name: string;
       billing_period: string | null;
       category: string | null;
+      collection_account: ChargeCollectionAccount | null;
     } | null;
   } | null;
 };
@@ -221,7 +459,16 @@ const CHARGE_PAYMENTS_WITH_CONTEXT_SELECT = `
   amount,
   paid_at,
   payment_method,
+  collection_account_id,
+  counts_as_club_income,
   created_at,
+  collection_accounts:collection_account_id (
+    id,
+    name,
+    alias,
+    kind,
+    responsible_profile_id
+  ),
   member_charges (
     id,
     members (
@@ -232,6 +479,13 @@ const CHARGE_PAYMENTS_WITH_CONTEXT_SELECT = `
       id,
       name,
       billing_period,
+      collection_accounts:collection_account_id (
+        id,
+        name,
+        alias,
+        kind,
+        responsible_profile_id
+      ),
       charge_definitions (
         category
       )
@@ -266,6 +520,9 @@ type RawChargePaymentWithContext = {
   amount: unknown;
   paid_at: string;
   payment_method?: string | null;
+  collection_account_id?: string | null;
+  counts_as_club_income?: boolean | null;
+  collection_accounts?: unknown;
   created_at: string;
   member_charges: {
     id: string;
@@ -274,6 +531,7 @@ type RawChargePaymentWithContext = {
       id: string;
       name: string;
       billing_period?: string | null;
+      collection_accounts?: unknown;
       charge_definitions?: { category?: string | null } | null;
     } | null;
   } | null;
@@ -297,6 +555,8 @@ function mapRawChargePaymentWithContext(row: RawChargePaymentWithContext): Charg
     amount: normalizeAmount(row.amount),
     paid_at: row.paid_at,
     payment_method: normalizePaymentMethod(row.payment_method),
+    collection_account_id: row.collection_account_id ?? null,
+    counts_as_club_income: row.counts_as_club_income ?? true,
     created_at: row.created_at,
     member_charge: memberCharge
       ? {
@@ -308,6 +568,9 @@ function mapRawChargePaymentWithContext(row: RawChargePaymentWithContext): Charg
                 name: charge.name,
                 billing_period,
                 category,
+                collection_account:
+                  mapCollectionAccount(charge.collection_accounts) ??
+                  mapCollectionAccount(row.collection_accounts),
               }
             : null,
         }
@@ -319,21 +582,42 @@ export async function getChargePaymentsByMemberChargeId(
   memberChargeId: string
 ): Promise<ChargePaymentRow[]> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("charge_payments")
-    .select("id, member_charge_id, amount, paid_at, payment_method, created_at")
+    .select("id, member_charge_id, amount, paid_at, payment_method, collection_account_id, counts_as_club_income, created_at")
     .eq("member_charge_id", memberChargeId)
     .order("paid_at", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    if (msg.includes("collection_account") || msg.includes("counts_as_club_income") || msg.includes("schema cache")) {
+      const second = await supabase
+        .from("charge_payments")
+        .select("id, member_charge_id, amount, paid_at, payment_method, created_at")
+        .eq("member_charge_id", memberChargeId)
+        .order("paid_at", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (second.error) {
+        throw second.error;
+      }
+      return (second.data ?? []).map((row) => ({
+        ...row,
+        amount: normalizeAmount((row as { amount: unknown }).amount),
+        payment_method: normalizePaymentMethod((row as { payment_method?: string | null }).payment_method),
+        collection_account_id: null,
+        counts_as_club_income: true,
+      })) as ChargePaymentRow[];
+    }
+    throw first.error;
   }
 
-  return (data ?? []).map((row) => ({
+  return (first.data ?? []).map((row) => ({
     ...row,
     amount: normalizeAmount((row as { amount: unknown }).amount),
     payment_method: normalizePaymentMethod((row as { payment_method?: string | null }).payment_method),
+    collection_account_id: (row as { collection_account_id?: string | null }).collection_account_id ?? null,
+    counts_as_club_income: (row as { counts_as_club_income?: boolean | null }).counts_as_club_income ?? true,
   })) as ChargePaymentRow[];
 }
 
@@ -352,6 +636,8 @@ export async function listChargePaymentsWithContext(): Promise<ChargePaymentWith
       msg.includes("charge_definitions") ||
       msg.includes("list_kind") ||
       msg.includes("supplier_name") ||
+      msg.includes("collection_account") ||
+      msg.includes("counts_as_club_income") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase
@@ -615,7 +901,15 @@ const CHARGE_SELECT_WITH_GROUP = `
   billing_period,
   list_kind,
   supplier_name,
+  collection_account_id,
   created_at,
+  collection_accounts:collection_account_id (
+    id,
+    name,
+    alias,
+    kind,
+    responsible_profile_id
+  ),
   charge_definitions (
     id,
     category
@@ -626,10 +920,12 @@ const CHARGE_SELECT_WITH_GROUP = `
   )
 `;
 
-type RawChargeWithGroup = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name"> & {
+type RawChargeWithGroup = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name" | "collection_account_id"> & {
   amount: unknown;
   list_kind?: string | null;
   supplier_name?: string | null;
+  collection_account_id?: string | null;
+  collection_accounts?: unknown;
   charge_definitions?: { id: string; category: string | null } | null;
   groups: { id: string; name: string } | null;
 };
@@ -649,8 +945,10 @@ function mapRawToChargeWithGroup(row: RawChargeWithGroup): ChargeWithGroup {
     billing_period: billing,
     list_kind: normalizeListKind(rest.list_kind),
     supplier_name: rest.supplier_name?.trim() || null,
+    collection_account_id: rest.collection_account_id ?? null,
     amount: normalizeAmount(rest.amount),
     group,
+    collection_account: mapCollectionAccount(rest.collection_accounts),
     category,
   };
 }
@@ -671,7 +969,7 @@ const CHARGE_SELECT_WITH_GROUP_LEGACY = `
   )
 `;
 
-type RawChargeWithGroupLegacy = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name"> & {
+type RawChargeWithGroupLegacy = Omit<ChargeRow, "amount" | "list_kind" | "supplier_name" | "collection_account_id"> & {
   amount: unknown;
   groups: { id: string; name: string } | null;
 };
@@ -688,8 +986,10 @@ function mapRawToChargeWithGroupLegacy(row: RawChargeWithGroupLegacy): ChargeWit
     billing_period: billing,
     list_kind: "general",
     supplier_name: null,
+    collection_account_id: null,
     amount: normalizeAmount(rest.amount),
     group,
+    collection_account: null,
     category: null,
   };
 }
@@ -729,6 +1029,7 @@ export async function listChargesWithGroup(): Promise<ChargeWithGroup[]> {
       msg.includes("charge_definitions") ||
       msg.includes("list_kind") ||
       msg.includes("supplier_name") ||
+      msg.includes("collection_account") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase.from("charges").select(CHARGE_SELECT_WITH_GROUP_LEGACY);
@@ -842,6 +1143,7 @@ export async function getChargeById(chargeId: string): Promise<ChargeDetail | nu
       msg.includes("charge_definitions") ||
       msg.includes("list_kind") ||
       msg.includes("supplier_name") ||
+      msg.includes("collection_account") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase
@@ -883,6 +1185,7 @@ export async function updateCharge(
     due_date?: string | null;
     list_kind?: ChargeListKind;
     supplier_name?: string | null;
+    collection_account_id?: string | null;
   }
 ) {
   const supabase = getSupabaseClient();
@@ -895,6 +1198,9 @@ export async function updateCharge(
       amount: payload.amount,
       due_date: payload.due_date?.trim() ? payload.due_date.trim() : null,
       ...(listKind ? { list_kind: listKind, supplier_name: listKind === "order" ? payload.supplier_name?.trim() || null : null } : {}),
+      ...(payload.collection_account_id !== undefined
+        ? { collection_account_id: payload.collection_account_id?.trim() || null }
+        : {}),
     })
     .eq("id", chargeId);
 
@@ -915,6 +1221,7 @@ export async function getChargesByGroupId(groupId: string): Promise<ChargeWithGr
     const retry =
       (first.error as { code?: string }).code === "PGRST200" ||
       msg.includes("charge_definitions") ||
+      msg.includes("collection_account") ||
       msg.includes("schema cache");
     if (retry) {
       const second = await supabase
@@ -1212,6 +1519,13 @@ const MEMBER_CHARGE_SELECT = `
     name,
     due_date,
     billing_period,
+    collection_accounts:collection_account_id (
+      id,
+      name,
+      alias,
+      kind,
+      responsible_profile_id
+    ),
     charge_definitions (
       id,
       name,
@@ -1287,6 +1601,7 @@ type RawMemberChargeRow = {
     name: string;
     due_date: string | null;
     billing_period?: string | null;
+    collection_accounts?: unknown;
     charge_definitions?: { id: string; name: string; category?: string | null } | null;
     groups: { id: string; name: string } | null;
   } | null;
@@ -1332,6 +1647,7 @@ function mapRawMemberCharge(row: RawMemberChargeRow): MemberChargeWithDetails | 
       id: c.id,
       name: c.name,
       due_date: c.due_date,
+      collection_account: mapCollectionAccount(c.collection_accounts),
       group,
     },
   };
@@ -1383,6 +1699,7 @@ export async function getMemberChargesForMember(memberId: string): Promise<Membe
       code === "42703" ||
       msg.includes("charge_definitions") ||
       msg.includes("schema cache") ||
+      msg.includes("collection_account") ||
       msg.includes("category") ||
       msg.includes("billing_period");
     if (retry) {
@@ -1443,6 +1760,7 @@ export async function createCharge(payload: {
   definition_category: CreateChargeDefinitionCategory;
   list_kind?: ChargeListKind;
   supplier_name?: string | null;
+  collection_account_id?: string | null;
   /**
    * Si es `false`, el cargo se crea sin generar líneas en `member_charges`.
    * Útil para pedidos heterogéneos (camperas, indumentaria) donde el admin
@@ -1502,6 +1820,7 @@ export async function createCharge(payload: {
       group_id: groupId,
       list_kind: listKind,
       supplier_name: supplierName,
+      collection_account_id: payload.collection_account_id?.trim() || null,
       charge_definition_id: definitionId,
       due_date: payload.due_date?.trim() ? payload.due_date.trim() : null,
     })

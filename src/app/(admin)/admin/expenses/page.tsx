@@ -151,7 +151,7 @@ export default function AdminExpensesPage() {
   }, [load]);
 
   const movements = useMemo<MovementRow[]>(() => {
-    const incomeRows: MovementRow[] = payments.map((payment) => ({
+    const incomeRows: MovementRow[] = payments.filter((payment) => payment.counts_as_club_income).map((payment) => ({
       id: `income-${payment.id}`,
       type: "income",
       amount: payment.amount,
@@ -415,7 +415,7 @@ export default function AdminExpensesPage() {
         {!isLoading && !errorMessage && filteredMovements.length === 0 ? (
           <EmptyState
             title="No hay movimientos para este filtro"
-            description="Los ingresos aparecen cuando registras pagos en cuotas mensuales o listas. Los egresos se cargan aca como gastos reales."
+            description="Los ingresos aparecen cuando registras pagos en la cuenta del club. Las listas con cuentas externas quedan fuera de Caja global."
             actions={
               <Button type="button" size="md" onClick={openCreate}>
                 Registrar egreso

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Bell, CreditCard, ImageIcon, Mail, Save, type LucideIcon } from "lucide-react";
 
+import { AdminModal } from "@/components/admin/admin-modal";
 import { ClubLogoUpload } from "@/components/admin/club-logo-upload";
 import { SponsorsSection } from "@/components/admin/sponsors-section";
 import {
@@ -11,7 +12,14 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import { getActiveClubConfig } from "@/config/active-club";
-import { Button, Card, FormField, Input, PageHeader, Select } from "@/components/ui";
+import { Alert, Button, Card, FormField, Input, PageHeader, Select } from "@/components/ui";
+import {
+  changeClubPaymentAlias,
+  formatBillingPeriod,
+  listOpenClubAliasChangeTargets,
+  type OpenClubAliasChangeTarget,
+} from "@/lib/charges";
+import { formatMoney } from "@/lib/formatters";
 import {
   getClubSettings,
   updateClubSettingsById,
@@ -38,6 +46,13 @@ const settingsNav = [
   { href: "#sponsors", label: "Sponsors" },
 ];
 
+function aliasTargetDisplayName(target: OpenClubAliasChangeTarget) {
+  if (target.charge_type === "Cuota mensual" && target.billing_period) {
+    return `${target.charge_name} - ${formatBillingPeriod(target.billing_period)}`;
+  }
+  return target.charge_name;
+}
+
 const buildSettingsSnapshot = (settings: ClubSettings): SettingsSnapshot => ({
   name: settings.name,
   monthly_fee: settings.monthly_fee,
@@ -57,6 +72,9 @@ export default function AdminSettingsPage() {
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [aliasCopyFeedback, setAliasCopyFeedback] = useState(false);
+  const [aliasDecisionOpen, setAliasDecisionOpen] = useState(false);
+  const [aliasTargets, setAliasTargets] = useState<OpenClubAliasChangeTarget[]>([]);
+  const [isLoadingAliasTargets, setIsLoadingAliasTargets] = useState(false);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!clubSettings || !initialSettings) return false;
@@ -109,6 +127,52 @@ export default function AdminSettingsPage() {
     void loadSettings();
   }, []);
 
+  const saveSettings = async (applyAliasToOpenCharges: boolean) => {
+    setMessage(null);
+    setIsSaving(true);
+
+    try {
+      if (!clubSettings?.id) {
+        setMessage(uiMessages.settings.noConfigId);
+        return;
+      }
+
+      const nextAlias = clubSettings.payment_alias?.trim() || null;
+      const aliasChanged = initialSettings
+        ? nextAlias !== (initialSettings.payment_alias?.trim() || null)
+        : false;
+
+      await updateClubSettingsById(clubSettings.id, {
+        name: clubSettings.name,
+        monthly_fee: clubSettings.monthly_fee,
+        monthly_due_day: clubSettings.monthly_due_day,
+        primary_color: clubSettings.primary_color,
+        accent_color: clubSettings.accent_color,
+        send_payment_confirmation_email: clubSettings.send_payment_confirmation_email,
+        ...(aliasChanged ? {} : { payment_alias: nextAlias }),
+        payment_method: clubSettings.payment_method,
+      });
+
+      if (aliasChanged) {
+        await changeClubPaymentAlias({
+          new_alias: nextAlias,
+          apply_to_open_charges: applyAliasToOpenCharges,
+        });
+      }
+
+      const savedSettings = { ...clubSettings, payment_alias: nextAlias };
+      setClubSettings(savedSettings);
+      setInitialSettings(buildSettingsSnapshot(savedSettings));
+      setAliasDecisionOpen(false);
+      setAliasTargets([]);
+      setMessage(uiMessages.settings.saveSuccess);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : uiMessages.settings.saveError);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
@@ -124,31 +188,22 @@ export default function AdminSettingsPage() {
       if (!ok) return;
     }
 
-    setIsSaving(true);
-
-    try {
-      if (!clubSettings?.id) {
-        setMessage(uiMessages.settings.noConfigId);
-        return;
+    const nextAlias = clubSettings?.payment_alias?.trim() || null;
+    const currentAlias = initialSettings?.payment_alias?.trim() || null;
+    if (nextAlias !== currentAlias) {
+      setIsLoadingAliasTargets(true);
+      try {
+        setAliasTargets(await listOpenClubAliasChangeTargets());
+        setAliasDecisionOpen(true);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "No se pudieron revisar los cobros abiertos.");
+      } finally {
+        setIsLoadingAliasTargets(false);
       }
-
-      await updateClubSettingsById(clubSettings.id, {
-        name: clubSettings.name,
-        monthly_fee: clubSettings.monthly_fee,
-        monthly_due_day: clubSettings.monthly_due_day,
-        primary_color: clubSettings.primary_color,
-        accent_color: clubSettings.accent_color,
-        send_payment_confirmation_email: clubSettings.send_payment_confirmation_email,
-        payment_alias: clubSettings.payment_alias?.trim() || null,
-        payment_method: clubSettings.payment_method,
-      });
-      setInitialSettings(buildSettingsSnapshot(clubSettings));
-      setMessage(uiMessages.settings.saveSuccess);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : uiMessages.settings.saveError);
-    } finally {
-      setIsSaving(false);
+      return;
     }
+
+    await saveSettings(false);
   };
 
   const handleCopyPaymentAlias = async () => {
@@ -207,7 +262,12 @@ export default function AdminSettingsPage() {
 
   if (!clubSettings) return null;
 
+  const currentAliasLabel = initialSettings?.payment_alias?.trim() || "Alias pendiente";
+  const nextAliasLabel = clubSettings.payment_alias?.trim() || "Alias pendiente";
+  const aliasTargetsTotal = aliasTargets.reduce((sum, target) => sum + target.pending_amount, 0);
+
   return (
+    <>
     <section className="space-y-5">
       <PageHeader
         eyebrow="Configuracion"
@@ -217,11 +277,11 @@ export default function AdminSettingsPage() {
           <Button
             type="submit"
             form="settings-form"
-            disabled={isSaving || !hasUnsavedChanges || !clubSettings.id}
+            disabled={isSaving || isLoadingAliasTargets || !hasUnsavedChanges || !clubSettings.id}
             size="lg"
           >
             <Save className="h-4 w-4" aria-hidden />
-            {isSaving ? "Guardando..." : "Guardar cambios"}
+            {isSaving ? "Guardando..." : isLoadingAliasTargets ? "Revisando..." : "Guardar cambios"}
           </Button>
         }
       />
@@ -456,6 +516,87 @@ export default function AdminSettingsPage() {
         </div>
       </div>
     </section>
+    <AdminModal
+      open={aliasDecisionOpen}
+      onClose={() => {
+        if (isSaving) return;
+        setAliasDecisionOpen(false);
+      }}
+    >
+      <div className="space-y-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary/70">Cambio de alias</p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">Elegí desde cuándo usar el nuevo alias</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Vas a cambiar el alias del club de <span className="font-semibold text-slate-900">{currentAliasLabel}</span>{" "}
+            a <span className="font-semibold text-slate-900">{nextAliasLabel}</span>. Los pagos y comprobantes ya
+            registrados conservan la cuenta histórica.
+          </p>
+        </div>
+
+        {aliasTargets.length > 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Cobros abiertos que podrían actualizarse</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {aliasTargets.length} cobro(s), {formatMoney(aliasTargetsTotal)} pendiente total.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
+              {aliasTargets.map((target) => (
+                <div
+                  key={target.charge_id}
+                  className="grid gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0 sm:grid-cols-[1fr_auto]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-950">
+                      {aliasTargetDisplayName(target)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">{target.charge_type}</p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-semibold tabular-nums text-slate-950">
+                      {formatMoney(target.pending_amount)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {target.pending_lines} pendiente(s)
+                      {target.partial_lines > 0 ? `, ${target.partial_lines} parcial(es)` : ""}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <Alert>Hoy no hay cuotas ni listas abiertas con saldo pendiente usando el alias del club.</Alert>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Button
+            type="button"
+            variant="neutral"
+            size="md"
+            onClick={() => void saveSettings(false)}
+            disabled={isSaving}
+            fullWidth
+          >
+            Usar sólo para futuros cobros
+          </Button>
+          <Button
+            type="button"
+            size="md"
+            onClick={() => void saveSettings(true)}
+            disabled={isSaving}
+            fullWidth
+          >
+            Usar también en cobros abiertos
+          </Button>
+        </div>
+      </div>
+    </AdminModal>
+    </>
   );
 }
 

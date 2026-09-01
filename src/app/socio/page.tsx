@@ -25,6 +25,7 @@ import {
   type ClubPaymentMethod,
 } from "@/config/payment-method";
 import {
+  collectionAccountLabel,
   formatBillingPeriod,
   getChargePaymentsByMemberChargeId,
   getMemberChargesForMember,
@@ -296,6 +297,12 @@ export default function MemberPortalPage() {
     () => actionablePendingCharges.find((charge) => charge.id === form.member_charge_id) ?? null,
     [actionablePendingCharges, form.member_charge_id]
   );
+  const selectedPaymentAccount = selectedCharge?.charge.collection_account ?? null;
+  const selectedPaymentAlias = selectedPaymentAccount?.alias?.trim() || config.payment_alias;
+  const selectedPaymentAccountName = selectedPaymentAccount
+    ? collectionAccountLabel(selectedPaymentAccount)
+    : "Alias del club";
+  const selectedPaymentIsExternal = selectedPaymentAccount?.kind === "external";
 
   const handleChargeChange = (memberChargeId: string) => {
     const charge = actionablePendingCharges.find((row) => row.id === memberChargeId);
@@ -513,8 +520,15 @@ export default function MemberPortalPage() {
           </Card>
           <Card className="p-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Como pagar</p>
-            <p className="mt-2 text-lg font-bold text-slate-950">{config.payment_alias || "Alias pendiente"}</p>
-            <p className="mt-1 text-sm text-slate-600">Subi el comprobante para que tesoreria lo revise.</p>
+            <p className="mt-2 break-words text-lg font-bold text-slate-950">
+              {selectedPaymentAlias || "Alias pendiente"}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-700">{selectedPaymentAccountName}</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {selectedPaymentIsExternal
+                ? "Esta lista usa una cuenta externa. Subi el comprobante para que el responsable lo revise."
+                : "Subi el comprobante para que tesoreria lo revise."}
+            </p>
             {amountInReview > 0.001 ? (
               <p className="mt-2 text-sm font-semibold text-primary">
                 En revision: {formatMoney(amountInReview)}
@@ -551,7 +565,8 @@ export default function MemberPortalPage() {
                     <option value="">Elegir concepto</option>
                     {actionablePendingCharges.map((charge) => (
                       <option key={charge.id} value={charge.id}>
-                        {conceptLabel(charge)} - pendiente {formatMoney(pendingAmount(charge))}
+                        {conceptLabel(charge)} - pendiente {formatMoney(pendingAmount(charge))} -{" "}
+                        {collectionAccountLabel(charge.charge.collection_account)}
                       </option>
                     ))}
                   </Select>
@@ -657,6 +672,7 @@ export default function MemberPortalPage() {
                       <Th>Concepto</Th>
                       <Th>Vence</Th>
                       <Th>Saldo</Th>
+                      <Th>Cuenta</Th>
                       <Th>Estado</Th>
                     </TableRow>
                   </TableHead>
@@ -677,6 +693,9 @@ export default function MemberPortalPage() {
                         <Td className="font-medium text-slate-950">{conceptLabel(charge)}</Td>
                         <Td>{charge.dueDate || "-"}</Td>
                         <Td>{formatMoney(pendingAmount(charge))}</Td>
+                        <Td className="text-sm text-slate-600">
+                          {collectionAccountLabel(charge.charge.collection_account)}
+                        </Td>
                         <Td>
                           <Badge variant={chargeStatusVariant(status)}>{status}</Badge>
                         </Td>
@@ -730,6 +749,7 @@ export default function MemberPortalPage() {
                     <Th>Enviado</Th>
                     <Th>Concepto</Th>
                     <Th>Monto</Th>
+                    <Th>Cuenta</Th>
                     <Th>Estado</Th>
                     <Th>Detalle</Th>
                   </TableRow>
@@ -742,6 +762,7 @@ export default function MemberPortalPage() {
                         {submission.member_charge?.charge?.name || "Pago enviado"}
                       </Td>
                       <Td>{formatMoney(submission.amount)}</Td>
+                      <Td>{collectionAccountLabel(submission.collection_account)}</Td>
                       <Td>
                         <Badge variant={submissionStatusVariant(submission.status)} className="gap-1">
                           {submission.status === "approved" ? (

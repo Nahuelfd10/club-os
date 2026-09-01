@@ -142,7 +142,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       )
     `),
     supabase.from("club_settings").select("monthly_fee").single(),
-    supabase.from("charge_payments").select("amount, paid_at").gte("paid_at", sixMonthsAgo.toISOString()),
+    supabase
+      .from("charge_payments")
+      .select("amount, paid_at, counts_as_club_income")
+      .eq("counts_as_club_income", true)
+      .gte("paid_at", sixMonthsAgo.toISOString()),
     supabase
       .from("expenses")
       .select("amount, date")

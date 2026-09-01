@@ -102,15 +102,24 @@ export function buildChargeDebtWhatsAppMessage(params: {
   chargeName: string;
   groupName: string;
   remainingFormatted: string;
+  paymentAlias?: string | null;
+  paymentAccountName?: string | null;
 }): string {
   const name = firstNameFromFullName(params.fullName);
   const group = params.groupName.trim() || "el grupo";
   const charge = params.chargeName.trim() || "un cargo";
+  const alias = params.paymentAlias?.trim();
+  const account = params.paymentAccountName?.trim();
+  const paymentBlock = alias
+    ? `\n\nPodés transferir al alias:\n${alias}${account ? `\nCuenta: ${account}` : ""}`
+    : "";
   return `Hola ${name}!
 
 Tenés pendiente ${charge} (${params.remainingFormatted}) del equipo ${group}.
 
-Cuando puedas, acercate a regularizar. ¡Gracias!`;
+Cuando puedas, acercate a regularizar.${paymentBlock}
+
+Gracias!`;
 }
 
 export function buildChargeDebtWhatsAppLink(params: {
@@ -119,6 +128,8 @@ export function buildChargeDebtWhatsAppLink(params: {
   chargeName: string;
   groupName: string;
   remainingFormatted: string;
+  paymentAlias?: string | null;
+  paymentAccountName?: string | null;
 }): string | null {
   const digits = digitsOnly(params.phone ?? "");
   if (digits.length < 8) {
@@ -129,6 +140,8 @@ export function buildChargeDebtWhatsAppLink(params: {
     chargeName: params.chargeName,
     groupName: params.groupName,
     remainingFormatted: params.remainingFormatted,
+    paymentAlias: params.paymentAlias,
+    paymentAccountName: params.paymentAccountName,
   });
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }

@@ -21,16 +21,21 @@ import {
   type ChargeExtraContributionRow,
 } from "@/lib/charge-contributions";
 import {
+  collectionAccountLabel,
+  collectionAccountResponsibleLabel,
   addChargeLine,
   assignChargeToMissingMembers,
   assignChargeToMember,
   assignLineToMember,
   chargeHasPayments,
+  createExternalCollectionAccount,
   deleteChargeLine,
   formatBillingPeriod,
   getChargeById,
   getChargeFinancials,
   getChargePaymentsByMemberChargeId,
+  listCollectionAccountResponsibles,
+  listCollectionAccounts,
   getMemberChargesForCharge,
   getMissingMembersForCharge,
   registerChargePayment,
@@ -41,11 +46,13 @@ import {
   MEMBER_CHARGE_TRACKING_OPTIONS,
   type ChargeDetail,
   type ChargeListKind,
+  type CollectionAccountResponsibleOption,
+  type CollectionAccountRow,
   type ChargePaymentRow,
   type MemberChargeForChargeRow,
   type MemberChargeTrackingStatus,
 } from "@/lib/charges";
-import { listMembers } from "@/lib/supabase";
+import { getCurrentUserProfile, listMembers, type UserProfile } from "@/lib/supabase";
 import {
   memberChargeStatusLabel,
   remainingAmount,
@@ -154,6 +161,11 @@ export default function AdminChargeDetailPage() {
   const chargeId = params?.id ?? "";
 
   const [charge, setCharge] = useState<ChargeDetail | null>(null);
+  const [collectionAccounts, setCollectionAccounts] = useState<CollectionAccountRow[]>([]);
+  const [collectionAccountResponsibles, setCollectionAccountResponsibles] = useState<
+    CollectionAccountResponsibleOption[]
+  >([]);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
   const [hasPayments, setHasPayments] = useState<boolean | null>(null);
   const [rows, setRows] = useState<MemberChargeForChargeRow[]>([]);
   const [missingMembers, setMissingMembers] = useState<
@@ -204,6 +216,9 @@ export default function AdminChargeDetailPage() {
   const [editAmount, setEditAmount] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editSupplierName, setEditSupplierName] = useState("");
+  const [editCollectionAccountId, setEditCollectionAccountId] = useState("");
+  const [editNewAccountResponsibleId, setEditNewAccountResponsibleId] = useState("");
+  const [editNewAccountAlias, setEditNewAccountAlias] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   const [assigningMissing, setAssigningMissing] = useState(false);
@@ -267,7 +282,7 @@ export default function AdminChargeDetailPage() {
       }
 
       const membershipCharge = ch.category === "membership";
-      const [hp, memberCharges, missing, fin, membersList] = await Promise.all([
+      const [hp, memberCharges, missing, fin, membersList, accounts, responsibles, profile] = await Promise.all([
         chargeHasPayments(chargeId),
         getMemberChargesForCharge(chargeId),
         membershipCharge
@@ -275,8 +290,14 @@ export default function AdminChargeDetailPage() {
           : getMissingMembersForCharge({ chargeId, groupId: ch.group?.id ?? null }),
         getChargeFinancials(chargeId),
         listMembers(),
+        listCollectionAccounts({ activeOnly: true }),
+        listCollectionAccountResponsibles(),
+        getCurrentUserProfile(),
       ]);
       setHasPayments(hp);
+      setCollectionAccounts(accounts);
+      setCollectionAccountResponsibles(responsibles);
+      setCurrentProfile(profile);
       setAllMembers(
         (membersList ?? []).map((m) => ({
           id: m.id,
@@ -751,6 +772,8 @@ export default function AdminChargeDetailPage() {
       chargeName: charge.name,
       groupName: charge.group?.name ?? "Sin grupo",
       remainingFormatted: formatMoney(remainingAmount(row)),
+      paymentAlias: charge.collection_account?.alias,
+      paymentAccountName: charge.collection_account?.name,
     });
   };
 
@@ -947,6 +970,9 @@ export default function AdminChargeDetailPage() {
     setEditAmount(String(charge.amount));
     setEditDueDate(charge.due_date ?? "");
     setEditSupplierName(charge.supplier_name ?? "");
+    setEditCollectionAccountId(charge.collection_account_id ?? "");
+    setEditNewAccountResponsibleId("");
+    setEditNewAccountAlias("");
     setEditOpen(true);
   };
 
@@ -1098,6 +1124,20 @@ export default function AdminChargeDetailPage() {
     }
     setEditSaving(true);
     try {
+      let collectionAccountId = editCollectionAccountId;
+      if (!isMembershipCharge && collectionAccountId === "__new_external__") {
+        const responsible = collectionAccountResponsibles.find(
+          (item) => item.profile_id === editNewAccountResponsibleId
+        );
+        const account = await createExternalCollectionAccount({
+          alias: editNewAccountAlias,
+          responsible_profile_id: editNewAccountResponsibleId,
+          name: responsible ? `Cuenta de ${responsible.email}` : null,
+        });
+        collectionAccountId = account.id;
+        setCollectionAccounts((prev) => [...prev, account]);
+      }
+
       await updateCharge(charge.id, {
         name,
         description: editDescription.trim() || null,
@@ -1105,6 +1145,7 @@ export default function AdminChargeDetailPage() {
         due_date: editDueDate.trim() || null,
         list_kind: charge.list_kind,
         supplier_name: editSupplierName.trim() || null,
+        collection_account_id: isMembershipCharge ? charge.collection_account_id : collectionAccountId || null,
       });
       setEditOpen(false);
       setActionMessage("Cargo actualizado.");
@@ -1211,6 +1252,11 @@ export default function AdminChargeDetailPage() {
 
   const isMembershipCharge = charge.category === "membership";
   const isOrderList = !isMembershipCharge && charge.list_kind === "order";
+  const canManageChargeAccount =
+    currentProfile?.role === "club_admin" ||
+    (charge.collection_account?.kind !== "external" && currentProfile?.role === "treasurer") ||
+    (charge.collection_account?.kind === "external" &&
+      charge.collection_account.responsible_profile_id === currentProfile?.id);
   const tableColSpan = isMembershipCharge ? 10 : 11;
   const backPath = routes.adminPath(isMembershipCharge ? "charges/membership" : "charges/lists");
   const backLabel = isMembershipCharge ? "Volver a cuotas mensuales" : "Volver a listas de recaudacion";
@@ -1255,7 +1301,7 @@ export default function AdminChargeDetailPage() {
                 Editar
               </Button>
               {!isMembershipCharge ? (
-                <Button type="button" size="md" onClick={openCreateExpense}>
+                <Button type="button" size="md" onClick={openCreateExpense} disabled={!canManageChargeAccount}>
                   Registrar egreso
                 </Button>
               ) : null}
@@ -1272,6 +1318,13 @@ export default function AdminChargeDetailPage() {
             <span className="ml-1 text-slate-950">
               {isMembershipCharge ? chargeCategoryLabel(charge.category) : listKindLabel(charge.list_kind)}
             </span>
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            Cuenta{" "}
+            <span className="ml-1 text-slate-950">{collectionAccountLabel(charge.collection_account)}</span>
+            {charge.collection_account?.kind === "external" ? (
+              <span className="ml-2 text-warning">externa</span>
+            ) : null}
           </span>
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
             Monto <span className="ml-1 text-slate-950">{formatMoney(charge.amount)}</span>
@@ -1531,7 +1584,13 @@ export default function AdminChargeDetailPage() {
                   {extraContributions.length} aporte(s) extra - {listMovements.length} movimiento(s) en la lista.
                 </p>
               </div>
-              <Button type="button" size="md" variant="neutral" onClick={() => openContributionModal()}>
+              <Button
+                type="button"
+                size="md"
+                variant="neutral"
+                onClick={() => openContributionModal()}
+                disabled={!canManageChargeAccount}
+              >
                 Registrar aporte extra
               </Button>
             </div>
@@ -1896,18 +1955,21 @@ export default function AdminChargeDetailPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filteredRows.map((row) => {
                     const rem = remainingAmount(row);
-                    const canPay = rem > 0.001;
+                    const hasPendingAmount = rem > 0.001;
+                    const canPay = hasPendingAmount && canManageChargeAccount;
                     const expanded = expandedMcId === row.id;
                     const history = historyByMc[row.id];
                     const rowExtra = contributionByLine.get(row.id) ?? 0;
                     const waUrl =
-                      canPay && row.member?.phone
+                      hasPendingAmount && row.member?.phone
                         ? buildChargeDebtWhatsAppLink({
                             fullName: row.member.full_name,
                             phone: row.member.phone,
                             chargeName: charge.name,
                             groupName: charge.group?.name ?? "Sin grupo",
                             remainingFormatted: formatMoney(rem),
+                            paymentAlias: charge.collection_account?.alias,
+                            paymentAccountName: charge.collection_account?.name,
                           })
                         : null;
 
@@ -2046,7 +2108,8 @@ export default function AdminChargeDetailPage() {
                                 <button
                                   type="button"
                                   onClick={() => openContributionModal(row)}
-                                  className="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-success/20 bg-white px-2 text-xs font-bold text-success transition-colors hover:bg-success/10"
+                                  disabled={!canManageChargeAccount}
+                                  className="inline-flex h-8 min-w-8 items-center justify-center rounded-md border border-success/20 bg-white px-2 text-xs font-bold text-success transition-colors hover:bg-success/10 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                                   title="Registrar aporte extra"
                                   aria-label="Registrar aporte extra"
                                 >
@@ -2066,7 +2129,7 @@ export default function AdminChargeDetailPage() {
                                   >
                                     <MessageCircle className="h-4 w-4" />
                                   </a>
-                                ) : canPay && row.member ? (
+                                ) : hasPendingAmount && row.member ? (
                                   <span
                                     className="max-w-[6.5rem] text-[10px] leading-tight text-slate-400"
                                     title="El socio no tiene telefono configurado"
@@ -2432,6 +2495,55 @@ export default function AdminChargeDetailPage() {
               Opcional. Sirve como referencia interna, no como vencimiento estricto.
             </p>
           </div>
+          {!isMembershipCharge ? (
+            <div>
+              <label htmlFor="edit-charge-account" className="mb-1 block text-sm font-medium text-slate-700">
+                Cuenta destino
+              </label>
+              <Select
+                id="edit-charge-account"
+                value={editCollectionAccountId}
+                onChange={(e) => setEditCollectionAccountId(e.target.value)}
+                className="text-sm"
+              >
+                {collectionAccounts.some((account) => account.kind === "club") ? null : (
+                  <option value="">Alias del club</option>
+                )}
+                {collectionAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {collectionAccountLabel(account)}
+                    {account.kind === "external" ? " (externa)" : ""}
+                  </option>
+                ))}
+                <option value="__new_external__">Nueva cuenta de cobro...</option>
+              </Select>
+              <p className="mt-1 text-xs text-slate-500">
+                Las cuentas externas no suman ingresos en Caja ni dashboard global.
+              </p>
+              {editCollectionAccountId === "__new_external__" ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Select
+                    value={editNewAccountResponsibleId}
+                    onChange={(e) => setEditNewAccountResponsibleId(e.target.value)}
+                    className="text-sm"
+                  >
+                    <option value="">Responsable de comision</option>
+                    {collectionAccountResponsibles.map((responsible) => (
+                      <option key={responsible.profile_id} value={responsible.profile_id}>
+                        {collectionAccountResponsibleLabel(responsible)}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={editNewAccountAlias}
+                    onChange={(e) => setEditNewAccountAlias(e.target.value)}
+                    placeholder="Alias de la cuenta"
+                    className="text-sm"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {isOrderList ? (
             <div>
               <label htmlFor="edit-charge-supplier" className="mb-1 block text-sm font-medium text-slate-700">

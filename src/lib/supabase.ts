@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { ClubPaymentMethod } from "@/config/payment-method";
 import type {
+  CollectionAccountKind,
   ClubUserRole,
   Member,
   MemberChargeTrackingStatus,
@@ -132,6 +133,43 @@ export type Database = {
         };
         Relationships: [];
       };
+      collection_accounts: {
+        Row: {
+          id: string;
+          name: string;
+          alias: string | null;
+          kind: CollectionAccountKind;
+          responsible_profile_id: string | null;
+          is_active: boolean;
+          is_default: boolean;
+          retired_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          alias?: string | null;
+          kind?: CollectionAccountKind;
+          responsible_profile_id?: string | null;
+          is_active?: boolean;
+          is_default?: boolean;
+          retired_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          alias?: string | null;
+          kind?: CollectionAccountKind;
+          responsible_profile_id?: string | null;
+          is_active?: boolean;
+          is_default?: boolean;
+          retired_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       groups: {
         Row: {
           id: string;
@@ -184,6 +222,7 @@ export type Database = {
           billing_period: string | null;
           list_kind: "general" | "order";
           supplier_name: string | null;
+          collection_account_id: string | null;
           generated_at: string | null;
           created_at: string;
         };
@@ -199,6 +238,7 @@ export type Database = {
           billing_period?: string | null;
           list_kind?: "general" | "order";
           supplier_name?: string | null;
+          collection_account_id?: string | null;
           generated_at?: string | null;
           created_at?: string;
         };
@@ -213,6 +253,7 @@ export type Database = {
           billing_period?: string | null;
           list_kind?: "general" | "order";
           supplier_name?: string | null;
+          collection_account_id?: string | null;
           generated_at?: string | null;
         };
         Relationships: [];
@@ -314,6 +355,8 @@ export type Database = {
           amount: number;
           paid_at: string;
           payment_method: string;
+          collection_account_id: string | null;
+          counts_as_club_income: boolean;
           created_at: string;
         };
         Insert: {
@@ -322,12 +365,16 @@ export type Database = {
           amount: number;
           paid_at: string;
           payment_method?: string;
+          collection_account_id?: string | null;
+          counts_as_club_income?: boolean;
           created_at?: string;
         };
         Update: {
           amount?: number;
           paid_at?: string;
           payment_method?: string;
+          collection_account_id?: string | null;
+          counts_as_club_income?: boolean;
         };
         Relationships: [];
       };
@@ -436,6 +483,8 @@ export type Database = {
           reviewed_by: string | null;
           reviewed_at: string | null;
           rejection_reason: string | null;
+          collection_account_id: string | null;
+          counts_as_club_income: boolean;
           created_at: string;
         };
         Insert: {
@@ -451,6 +500,8 @@ export type Database = {
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           rejection_reason?: string | null;
+          collection_account_id?: string | null;
+          counts_as_club_income?: boolean;
           created_at?: string;
         };
         Update: {
@@ -464,6 +515,8 @@ export type Database = {
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           rejection_reason?: string | null;
+          collection_account_id?: string | null;
+          counts_as_club_income?: boolean;
         };
         Relationships: [];
       };
@@ -543,6 +596,22 @@ export type Database = {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      change_club_payment_alias: {
+        Args: { p_new_alias: string | null; p_apply_to_open_charges?: boolean };
+        Returns: string;
+      };
+      list_open_club_alias_change_targets: {
+        Args: Record<string, never>;
+        Returns: {
+          charge_id: string;
+          charge_name: string;
+          charge_type: string;
+          billing_period: string | null;
+          pending_amount: number;
+          pending_lines: number;
+          partial_lines: number;
+        }[];
+      };
       approve_payment_submission: {
         Args: { p_submission_id: string };
         Returns: void;
@@ -550,6 +619,14 @@ export type Database = {
       reject_payment_submission: {
         Args: { p_submission_id: string; p_rejection_reason: string };
         Returns: void;
+      };
+      list_collection_account_responsibles: {
+        Args: Record<string, never>;
+        Returns: {
+          profile_id: string;
+          email: string;
+          role: ClubUserRole;
+        }[];
       };
       public_active_sponsors: {
         Args: Record<string, never>;

@@ -6,6 +6,8 @@ export type UserProfileStatus = "invited" | "active" | "disabled";
 
 export type PaymentSubmissionStatus = "pending" | "approved" | "rejected";
 
+export type CollectionAccountKind = "club" | "external";
+
 export type MemberChargeTrackingStatus =
   | "not_contacted"
   | "message_sent"

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminModal } from "@/components/admin/admin-modal";
 import {
   Alert,
+  Badge,
   Button,
   EmptyState,
   Input,
@@ -21,7 +22,7 @@ import {
   buttonClassNames,
 } from "@/components/ui";
 import { paymentMethodLabel } from "@/config/payment-method";
-import { formatBillingPeriod } from "@/lib/charges";
+import { collectionAccountLabel, formatBillingPeriod } from "@/lib/charges";
 import { formatMoney } from "@/lib/formatters";
 import {
   approvePaymentSubmission,
@@ -30,9 +31,11 @@ import {
   rejectPaymentSubmission,
   type PaymentSubmissionWithContext,
 } from "@/lib/payment-submissions";
+import { getCurrentUserProfile, type UserProfile } from "@/lib/supabase";
 import type { PaymentSubmissionStatus } from "@/types";
 
-type Filter = PaymentSubmissionStatus | "all";
+type StatusFilter = PaymentSubmissionStatus | "all";
+type ScopeFilter = "all" | "membership" | "lists" | "mine";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("es-AR", {
@@ -61,7 +64,9 @@ function statusLabel(status: PaymentSubmissionStatus) {
 
 export default function AdminPaymentsPage() {
   const [rows, setRows] = useState<PaymentSubmissionWithContext[]>([]);
-  const [filter, setFilter] = useState<Filter>("pending");
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<PaymentSubmissionWithContext | null>(null);
@@ -73,20 +78,42 @@ export default function AdminPaymentsPage() {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      setRows(await listPaymentSubmissions(filter));
+      const [submissionRows, profile] = await Promise.all([
+        listPaymentSubmissions(statusFilter),
+        getCurrentUserProfile(),
+      ]);
+      setRows(submissionRows);
+      setCurrentProfile(profile);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los comprobantes.");
     } finally {
       setIsLoading(false);
     }
-  }, [filter]);
+  }, [statusFilter]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      const category = row.member_charge?.charge?.charge_definition?.category ?? null;
+      const isMembership = category === "membership";
+      if (scopeFilter === "membership") return isMembership;
+      if (scopeFilter === "lists") return !isMembership;
+      if (scopeFilter === "mine") {
+        return Boolean(
+          currentProfile?.id &&
+            row.collection_account?.kind === "external" &&
+            row.collection_account.responsible_profile_id === currentProfile.id
+        );
+      }
+      return true;
+    });
+  }, [currentProfile, rows, scopeFilter]);
+
   const summary = useMemo(() => {
-    return rows.reduce(
+    return filteredRows.reduce(
       (acc, row) => {
         acc[row.status] += 1;
         if (row.status === "pending") {
@@ -96,7 +123,7 @@ export default function AdminPaymentsPage() {
       },
       { pending: 0, approved: 0, rejected: 0, pendingAmount: 0 }
     );
-  }, [rows]);
+  }, [filteredRows]);
 
   const openProof = async (row: PaymentSubmissionWithContext) => {
     setActionId(row.id);
@@ -153,14 +180,30 @@ export default function AdminPaymentsPage() {
       <PageHeader
         eyebrow="Tesoreria"
         title="Pagos enviados"
-        description="Comprobantes cargados por socios para revisar contra la cuenta del club."
+        description="Comprobantes cargados por socios para revisar contra la cuenta destino de cada cuota o lista."
         actions={
-          <Select value={filter} onChange={(event) => setFilter(event.target.value as Filter)} aria-label="Filtrar comprobantes">
-            <option value="pending">Pendientes</option>
-            <option value="approved">Aprobados</option>
-            <option value="rejected">Rechazados</option>
-            <option value="all">Todos</option>
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={scopeFilter}
+              onChange={(event) => setScopeFilter(event.target.value as ScopeFilter)}
+              aria-label="Filtrar por cuenta o tipo"
+            >
+              <option value="all">Todos</option>
+              <option value="membership">Cuotas</option>
+              <option value="lists">Listas</option>
+              <option value="mine">Mis cuentas</option>
+            </Select>
+            <Select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              aria-label="Filtrar comprobantes por estado"
+            >
+              <option value="pending">Pendientes</option>
+              <option value="approved">Aprobados</option>
+              <option value="rejected">Rechazados</option>
+              <option value="all">Todos</option>
+            </Select>
+          </div>
         }
       />
 
@@ -178,7 +221,7 @@ export default function AdminPaymentsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-slate-600">Cargando comprobantes...</p>
         </div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <EmptyState title="No hay comprobantes para este filtro" description="Cuando un socio envie un pago, va a aparecer en esta bandeja." />
       ) : (
         <TableContainer>
@@ -188,6 +231,7 @@ export default function AdminPaymentsPage() {
                 <Th>Enviado</Th>
                 <Th>Socio</Th>
                 <Th>Concepto</Th>
+                <Th>Cuenta</Th>
                 <Th>Monto</Th>
                 <Th>Medio</Th>
                 <Th>Estado</Th>
@@ -195,7 +239,7 @@ export default function AdminPaymentsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <TableRow key={row.id}>
                   <Td>{formatDateTime(row.created_at)}</Td>
                   <Td>
@@ -203,6 +247,16 @@ export default function AdminPaymentsPage() {
                     <p className="text-xs text-slate-500">DNI {row.member?.dni ?? "-"}</p>
                   </Td>
                   <Td>{submissionConcept(row)}</Td>
+                  <Td>
+                    <div className="space-y-1">
+                      <p className="font-medium text-slate-900">{collectionAccountLabel(row.collection_account)}</p>
+                      {row.collection_account?.kind === "external" ? (
+                        <Badge variant="warning">Externa</Badge>
+                      ) : (
+                        <Badge variant="success">Club</Badge>
+                      )}
+                    </div>
+                  </Td>
                   <Td>{formatMoney(row.amount)}</Td>
                   <Td>{paymentMethodLabel(row.payment_method)}</Td>
                   <Td>

@@ -1,4 +1,5 @@
 import { DEFAULT_PAYMENT_METHOD, normalizePaymentMethod, type ClubPaymentMethod } from "@/config/payment-method";
+import type { ChargeCollectionAccount } from "@/lib/charges";
 import { getSupabaseClient, type PaymentSubmission } from "@/lib/supabase";
 import type { PaymentSubmissionStatus } from "@/types";
 
@@ -19,12 +20,18 @@ export type PaymentSubmissionWithContext = PaymentSubmission & {
       id: string;
       name: string;
       billing_period: string | null;
+      collection_account: ChargeCollectionAccount | null;
       charge_definition: { category: string | null } | null;
     } | null;
   } | null;
+  collection_account: ChargeCollectionAccount | null;
+  counts_as_club_income: boolean;
 };
 
 type RawPaymentSubmission = PaymentSubmission & {
+  collection_account_id?: string | null;
+  counts_as_club_income?: boolean | null;
+  collection_accounts?: unknown;
   members?: { id: string; full_name: string; dni: string } | null;
   member_charges?: {
     id: string;
@@ -35,6 +42,7 @@ type RawPaymentSubmission = PaymentSubmission & {
       id: string;
       name: string;
       billing_period: string | null;
+      collection_accounts?: unknown;
       charge_definitions?: { category: string | null } | null;
     } | null;
   } | null;
@@ -43,6 +51,30 @@ type RawPaymentSubmission = PaymentSubmission & {
 function amount(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function collectionAccount(row: unknown): ChargeCollectionAccount | null {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const raw = row as {
+    id?: unknown;
+    name?: unknown;
+    alias?: unknown;
+    kind?: unknown;
+    responsible_profile_id?: unknown;
+  };
+  if (typeof raw.id !== "string") {
+    return null;
+  }
+  return {
+    id: raw.id,
+    name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "Cuenta de cobro",
+    alias: typeof raw.alias === "string" && raw.alias.trim() ? raw.alias.trim() : null,
+    kind: raw.kind === "club" ? "club" : "external",
+    responsible_profile_id:
+      typeof raw.responsible_profile_id === "string" ? raw.responsible_profile_id : null,
+  };
 }
 
 export function validatePaymentProofFile(file: File) {
@@ -76,15 +108,53 @@ function mapSubmission(row: RawPaymentSubmission): PaymentSubmissionWithContext 
                 id: row.member_charges.charges.id,
                 name: row.member_charges.charges.name,
                 billing_period: row.member_charges.charges.billing_period,
+                collection_account: collectionAccount(row.member_charges.charges.collection_accounts),
                 charge_definition: row.member_charges.charges.charge_definitions ?? null,
               }
             : null,
         }
       : null,
+    collection_account:
+      collectionAccount(row.collection_accounts) ??
+      collectionAccount(row.member_charges?.charges?.collection_accounts),
+    counts_as_club_income: row.counts_as_club_income ?? true,
   };
 }
 
 const SUBMISSION_SELECT = `
+  id,
+  member_id,
+  member_charge_id,
+  amount,
+  payment_method,
+  paid_at,
+  proof_url,
+  notes,
+  status,
+  reviewed_by,
+  reviewed_at,
+  rejection_reason,
+  collection_account_id,
+  counts_as_club_income,
+  created_at,
+  collection_accounts:collection_account_id(id, name, alias, kind, responsible_profile_id),
+  members:member_id(id, full_name, dni),
+  member_charges:member_charge_id(
+    id,
+    amount,
+    paid_amount,
+    status,
+    charges:charge_id(
+      id,
+      name,
+      billing_period,
+      collection_accounts:collection_account_id(id, name, alias, kind, responsible_profile_id),
+      charge_definitions:charge_definition_id(category)
+    )
+  )
+`;
+
+const SUBMISSION_SELECT_LEGACY = `
   id,
   member_id,
   member_charge_id,
@@ -167,17 +237,29 @@ export async function createPaymentSubmission(payload: {
 
 export async function listPaymentSubmissionsForMember(memberId: string) {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const first = await supabase
     .from("payment_submissions")
     .select(SUBMISSION_SELECT)
     .eq("member_id", memberId)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    if (msg.includes("collection_account") || msg.includes("counts_as_club_income") || msg.includes("schema cache")) {
+      const second = await supabase
+        .from("payment_submissions")
+        .select(SUBMISSION_SELECT_LEGACY)
+        .eq("member_id", memberId)
+        .order("created_at", { ascending: false });
+      if (second.error) {
+        throw second.error;
+      }
+      return ((second.data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
+    }
+    throw first.error;
   }
 
-  return ((data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
+  return ((first.data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
 }
 
 export async function listPaymentSubmissions(status?: PaymentSubmissionStatus | "all") {
@@ -191,13 +273,30 @@ export async function listPaymentSubmissions(status?: PaymentSubmissionStatus | 
     query = query.eq("status", status);
   }
 
-  const { data, error } = await query;
+  const first = await query;
 
-  if (error) {
-    throw error;
+  if (first.error) {
+    const msg = first.error.message?.toLowerCase() ?? "";
+    if (msg.includes("collection_account") || msg.includes("counts_as_club_income") || msg.includes("schema cache")) {
+      let legacyQuery = supabase
+        .from("payment_submissions")
+        .select(SUBMISSION_SELECT_LEGACY)
+        .order("created_at", { ascending: false });
+
+      if (status && status !== "all") {
+        legacyQuery = legacyQuery.eq("status", status);
+      }
+
+      const second = await legacyQuery;
+      if (second.error) {
+        throw second.error;
+      }
+      return ((second.data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
+    }
+    throw first.error;
   }
 
-  return ((data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
+  return ((first.data ?? []) as unknown as RawPaymentSubmission[]).map(mapSubmission);
 }
 
 export async function approvePaymentSubmission(id: string) {

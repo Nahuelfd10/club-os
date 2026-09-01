@@ -25,12 +25,19 @@ import {
   buttonClassNames,
 } from "@/components/ui";
 import {
+  collectionAccountLabel,
+  collectionAccountResponsibleLabel,
   createCharge,
+  createExternalCollectionAccount,
   deleteCharge,
   formatBillingPeriod,
   getChargeProgressByIds,
+  listCollectionAccountResponsibles,
+  listCollectionAccounts,
   listChargesWithGroup,
   type ChargeListKind,
+  type CollectionAccountResponsibleOption,
+  type CollectionAccountRow,
   type ChargeProgressSummary,
   type ChargeWithGroup,
 } from "@/lib/charges";
@@ -99,11 +106,17 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [collectionAccounts, setCollectionAccounts] = useState<CollectionAccountRow[]>([]);
+  const [collectionAccountResponsibles, setCollectionAccountResponsibles] = useState<
+    CollectionAccountResponsibleOption[]
+  >([]);
+  const [selectedCollectionAccountId, setSelectedCollectionAccountId] = useState("");
+  const [newAccountResponsibleId, setNewAccountResponsibleId] = useState("");
+  const [newAccountAlias, setNewAccountAlias] = useState("");
 
   const [listKind, setListKind] = useState<ChargeListKind>("general");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [alias, setAlias] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [amount, setAmount] = useState("");
 
@@ -112,9 +125,16 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
     setErrorMessage(null);
     setActionMessage(null);
     try {
-      const chargeList = await listChargesWithGroup();
+      const [chargeList, accounts, responsibles] = await Promise.all([
+        listChargesWithGroup(),
+        listCollectionAccounts({ activeOnly: true }),
+        listCollectionAccountResponsibles(),
+      ]);
       const progress = await getChargeProgressByIds(chargeList.map((charge) => charge.id));
       setCharges(chargeList);
+      setCollectionAccounts(accounts);
+      setCollectionAccountResponsibles(responsibles);
+      setSelectedCollectionAccountId((prev) => prev || accounts.find((account) => account.kind === "club")?.id || "");
       setProgressById(progress);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudieron cargar los cobros.");
@@ -188,22 +208,18 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
     setListKind("general");
     setName("");
     setDescription("");
-    setAlias("");
     setSupplierName("");
     setAmount("");
+    setNewAccountResponsibleId("");
+    setNewAccountAlias("");
+    setSelectedCollectionAccountId(collectionAccounts.find((account) => account.kind === "club")?.id || "");
     setCreateOpen(true);
   }
 
   async function handleCreate() {
     const cleanName = name.trim();
-    const cleanAlias = alias.trim();
     const cleanSupplier = supplierName.trim();
-    const cleanDescription = [
-      description.trim(),
-      cleanAlias ? `Alias sugerido: ${cleanAlias}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const cleanDescription = description.trim();
     const rawAmount = amount.replace(",", ".").trim();
     const parsedAmount = rawAmount ? Number(rawAmount) : 0;
     if (!cleanName) {
@@ -217,6 +233,18 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
 
     setIsCreating(true);
     try {
+      let collectionAccountId = selectedCollectionAccountId;
+      if (collectionAccountId === "__new_external__") {
+        const responsible = collectionAccountResponsibles.find((item) => item.profile_id === newAccountResponsibleId);
+        const account = await createExternalCollectionAccount({
+          alias: newAccountAlias,
+          responsible_profile_id: newAccountResponsibleId,
+          name: responsible ? `Cuenta de ${responsible.email}` : null,
+        });
+        collectionAccountId = account.id;
+        setCollectionAccounts((prev) => [...prev, account]);
+      }
+
       const created = await createCharge({
         name: cleanName,
         description: cleanDescription || null,
@@ -228,6 +256,7 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
         definition_category: "activity",
         list_kind: listKind,
         supplier_name: cleanSupplier || null,
+        collection_account_id: collectionAccountId || null,
         auto_assign_lines: false,
       });
       setCreateOpen(false);
@@ -445,12 +474,44 @@ export function AdminChargesPage({ view }: { view: ChargesView }) {
                 placeholder="Monto esperado por persona (opcional)"
                 className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
               />
-              <Input
-                value={alias}
-                onChange={(event) => setAlias(event.target.value)}
-                placeholder="Alias sugerido (opcional)"
-                className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
-              />
+              <Select
+                value={selectedCollectionAccountId}
+                onChange={(event) => setSelectedCollectionAccountId(event.target.value)}
+                className="border-white/10 bg-white/[0.05] text-sm text-white focus:border-white/20 focus:bg-white/[0.08]"
+              >
+                {collectionAccounts.some((account) => account.kind === "club") ? null : (
+                  <option value="">Alias del club</option>
+                )}
+                {collectionAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {collectionAccountLabel(account)}
+                    {account.kind === "external" ? " (externa)" : ""}
+                  </option>
+                ))}
+                <option value="__new_external__">Nueva cuenta de cobro...</option>
+              </Select>
+              {selectedCollectionAccountId === "__new_external__" ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Select
+                    value={newAccountResponsibleId}
+                    onChange={(event) => setNewAccountResponsibleId(event.target.value)}
+                    className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                  >
+                    <option value="">Responsable de comision</option>
+                    {collectionAccountResponsibles.map((responsible) => (
+                      <option key={responsible.profile_id} value={responsible.profile_id}>
+                        {collectionAccountResponsibleLabel(responsible)}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    value={newAccountAlias}
+                    onChange={(event) => setNewAccountAlias(event.target.value)}
+                    placeholder="Alias de la cuenta"
+                    className="border-white/10 bg-white/[0.05] text-sm text-white placeholder:text-slate-400 focus:border-white/20 focus:bg-white/[0.08]"
+                  />
+                </div>
+              ) : null}
               {listKind === "order" ? (
                 <Input
                   value={supplierName}
@@ -538,6 +599,7 @@ function ChargesTable({
             {isMembershipTable ? <Th>Periodo</Th> : null}
             {showCategory && !isMembershipTable ? <Th>Tipo</Th> : null}
             {!isMembershipTable ? <Th>Alcance</Th> : null}
+            {!isMembershipTable ? <Th>Cuenta destino</Th> : null}
             <Th>Cobranza</Th>
             <Th>Monto</Th>
             {!isMembershipTable ? <Th>Fecha objetivo</Th> : null}
@@ -576,6 +638,18 @@ function ChargesTable({
                     ) : (
                       "Lista sin grupo"
                     )}
+                  </Td>
+                ) : null}
+                {!isMembershipTable ? (
+                  <Td className="text-slate-600">
+                    <span className="font-medium text-slate-900">
+                      {collectionAccountLabel(charge.collection_account)}
+                    </span>
+                    {charge.collection_account?.kind === "external" ? (
+                      <span className="ml-2 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                        externa
+                      </span>
+                    ) : null}
                   </Td>
                 ) : null}
                 <Td className="text-slate-600">
